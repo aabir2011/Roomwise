@@ -1,0 +1,6 @@
+{
+  "name": "Roomwise — Adaptive Campus Energy Management",
+  "description": "Enterprise adaptive building energy-management platform for DAV Model School, IIT Kharagpur, orchestrating real-time environmental calibration, explainable appliance decisions, and campus-wide energy conservation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
