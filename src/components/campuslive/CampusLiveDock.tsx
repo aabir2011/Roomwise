@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   Building2,
   Layers,
@@ -38,6 +39,7 @@ import type {
   TimelinePresetId,
   TourStep,
 } from './types';
+import { ROOMWISE_EASE } from '../../utils/motion';
 
 interface CampusLiveDockProps {
   visualMode: CampusVisualMode;
@@ -256,8 +258,15 @@ export const CampusLiveDock: React.FC<CampusLiveDockProps> = ({
   return (
     <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2 max-w-[calc(100vw-1.5rem)] pointer-events-none">
       {/* Secondary Expandable Tray: Spatial Tools, Building Focus & Camera Presets */}
+      <AnimatePresence>
       {toolsOpen && !controlsCollapsed && (
-        <div className="w-[min(700px,calc(100vw-1.5rem))] bg-[#161d21]/96 border border-white/12 rounded-2xl shadow-2xl px-3.5 py-2.5 pointer-events-auto flex flex-wrap items-center justify-between gap-2.5 text-[#edf2f0]">
+        <motion.div
+          initial={{ opacity: 0, y: 6, scale: 0.985 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 4, scale: 0.985 }}
+          transition={{ duration: 0.16, ease: ROOMWISE_EASE }}
+          className="w-[min(700px,calc(100vw-1.5rem))] bg-[#161d21]/96 border border-white/12 rounded-2xl shadow-2xl px-3.5 py-2.5 pointer-events-auto flex flex-wrap items-center justify-between gap-2.5 text-[#edf2f0]"
+        >
           {/* Building Focus */}
           <div className="flex items-center gap-1.5">
             <Building2 className="w-3.5 h-3.5 text-[#8d9d97] shrink-0" />
@@ -379,12 +388,20 @@ export const CampusLiveDock: React.FC<CampusLiveDockProps> = ({
               )}
             </button>
           </div>
-        </div>
+        </motion.div>
       )}
+      </AnimatePresence>
 
       {/* Compact Historical Timeline Scrubber (only visible when Timeline drawer is active) */}
+      <AnimatePresence>
       {isTimelineOpen && !controlsCollapsed && (
-        <div className="w-[min(700px,calc(100vw-1.5rem))] bg-[#161d21]/96 border border-white/12 rounded-2xl shadow-2xl px-4 py-2.5 pointer-events-auto space-y-2 text-[#edf2f0]">
+        <motion.div
+          initial={{ opacity: 0, y: 6, scale: 0.985 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 4, scale: 0.985 }}
+          transition={{ duration: 0.16, ease: ROOMWISE_EASE }}
+          className="w-[min(700px,calc(100vw-1.5rem))] bg-[#161d21]/96 border border-white/12 rounded-2xl shadow-2xl px-4 py-2.5 pointer-events-auto space-y-2 text-[#edf2f0]"
+        >
           <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
             <div className="flex items-center gap-1">
               <button
@@ -491,8 +508,9 @@ export const CampusLiveDock: React.FC<CampusLiveDockProps> = ({
               </span>
             </div>
           )}
-        </div>
+        </motion.div>
       )}
+      </AnimatePresence>
 
       {/* Primary Minimal Architectural Control Dock */}
       {controlsCollapsed ? (

@@ -26,6 +26,7 @@ import {
   AlertTriangle,
   Mic,
   MicOff,
+  RotateCcw,
 } from 'lucide-react';
 import { useEnergy } from '../../context/EnergyContext';
 import { useAuth, getStoredClientSessionToken } from '../../context/AuthContext';
@@ -87,6 +88,7 @@ export const SettingsView: React.FC = () => {
   const [learningMode, setLearningMode] = useState(settings.learningMode);
   const [lowPowerMode, setLowPowerMode] = useState(settings.lowPowerMode ?? false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [isPropagating, setIsPropagating] = useState(false);
 
   const [myCredentials, setMyCredentials] = useState<PasskeyCredentialSummary[]>([]);
@@ -186,29 +188,93 @@ export const SettingsView: React.FC = () => {
     }
   };
 
-  const applyParameters = () => {
-    const safeTariff = Math.max(0.5, Math.min(50, Number(tariff) || settings.tariffPerKWhINR));
-    const safeCarbon = Math.max(0.1, Math.min(2.5, Number(carbonFactor) || settings.gridCarbonFactorKgCO2PerKWh));
-    const safeClassroomLux = Math.max(100, Math.min(800, Math.round(Number(classroomLux) || settings.standardClassroomTargetLux)));
-    const safeLabLux = Math.max(100, Math.min(900, Math.round(Number(labLux) || settings.labTargetLux)));
-    const safeGrace = Math.max(1, Math.min(60, Math.round(Number(graceMinutes) || settings.defaultInactivityGraceMinutes)));
+  const hasUnsavedChanges =
+    institutionName !== settings.institutionName ||
+    campusLocation !== settings.campusLocation ||
+    Number(campusLatitude) !== (settings.campusCoordinates?.latitude ?? 22.3121) ||
+    Number(campusLongitude) !== (settings.campusCoordinates?.longitude ?? 87.2994) ||
+    Number(tariff) !== settings.tariffPerKWhINR ||
+    Number(carbonFactor) !== settings.gridCarbonFactorKgCO2PerKWh ||
+    Number(classroomLux) !== settings.standardClassroomTargetLux ||
+    Number(labLux) !== settings.labTargetLux ||
+    Number(graceMinutes) !== settings.defaultInactivityGraceMinutes ||
+    learningMode !== settings.learningMode ||
+    lowPowerMode !== (settings.lowPowerMode ?? false);
 
-    setTariff(safeTariff);
-    setCarbonFactor(safeCarbon);
-    setClassroomLux(safeClassroomLux);
-    setLabLux(safeLabLux);
-    setGraceMinutes(safeGrace);
+  const handleResetUnsaved = () => {
+    setInstitutionName(settings.institutionName);
+    setCampusLocation(settings.campusLocation);
+    setCampusLatitude(settings.campusCoordinates?.latitude ?? 22.3121);
+    setCampusLongitude(settings.campusCoordinates?.longitude ?? 87.2994);
+    setTariff(settings.tariffPerKWhINR);
+    setCarbonFactor(settings.gridCarbonFactorKgCO2PerKWh);
+    setClassroomLux(settings.standardClassroomTargetLux);
+    setLabLux(settings.labTargetLux);
+    setGraceMinutes(settings.defaultInactivityGraceMinutes);
+    setLearningMode(settings.learningMode);
+    setLowPowerMode(settings.lowPowerMode ?? false);
+    setSaveError(null);
+    setSavedSuccess(false);
+  };
 
-    const safeLat = Math.max(-90, Math.min(90, Number(campusLatitude) || 22.3121));
-    const safeLng = Math.max(-180, Math.min(180, Number(campusLongitude) || 87.2994));
-    setCampusLatitude(safeLat);
-    setCampusLongitude(safeLng);
+  const validateParameters = (): string | null => {
+    if (!institutionName.trim()) return 'School / Institution Name cannot be empty.';
+    if (!campusLocation.trim()) return 'Campus Location & Address cannot be empty.';
+    const latNum = Number(campusLatitude);
+    const lngNum = Number(campusLongitude);
+    if (!Number.isFinite(latNum) || latNum < -90 || latNum > 90) {
+      return 'Campus Latitude must be between -90° and 90°.';
+    }
+    if (!Number.isFinite(lngNum) || lngNum < -180 || lngNum > 180) {
+      return 'Campus Longitude must be between -180° and 180°.';
+    }
+    const tariffNum = Number(tariff);
+    if (!Number.isFinite(tariffNum) || tariffNum < 0.5 || tariffNum > 50) {
+      return 'Electricity Tariff must be between ₹0.50 and ₹50.00 per kWh.';
+    }
+    const carbonNum = Number(carbonFactor);
+    if (!Number.isFinite(carbonNum) || carbonNum < 0.1 || carbonNum > 2.5) {
+      return 'Grid Carbon Emission Factor must be between 0.10 and 2.50 kg CO₂/kWh.';
+    }
+    const classLuxNum = Number(classroomLux);
+    if (!Number.isFinite(classLuxNum) || classLuxNum < 100 || classLuxNum > 800) {
+      return 'General Classroom Target Lux must be between 100 lx and 800 lx.';
+    }
+    const labLuxNum = Number(labLux);
+    if (!Number.isFinite(labLuxNum) || labLuxNum < 100 || labLuxNum > 900) {
+      return 'Science & Computer Lab Target Lux must be between 100 lx and 900 lx.';
+    }
+    const graceNum = Number(graceMinutes);
+    if (!Number.isFinite(graceNum) || graceNum < 1 || graceNum > 60) {
+      return 'PIR Inactivity Grace Window must be between 1 and 60 minutes.';
+    }
+    return null;
+  };
+
+  const applyParameters = async () => {
+    setSaveError(null);
+    setSavedSuccess(false);
+
+    const validationError = validateParameters();
+    if (validationError) {
+      setSaveError(validationError);
+      toast.error('Invalid system parameter', validationError);
+      return;
+    }
+
+    const safeTariff = Number(Number(tariff).toFixed(2));
+    const safeCarbon = Number(Number(carbonFactor).toFixed(3));
+    const safeClassroomLux = Math.round(Number(classroomLux));
+    const safeLabLux = Math.round(Number(labLux));
+    const safeGrace = Math.round(Number(graceMinutes));
+    const safeLat = Number(Number(campusLatitude).toFixed(4));
+    const safeLng = Number(Number(campusLongitude).toFixed(4));
 
     setIsPropagating(true);
-    setTimeout(() => {
-      updateSettings({
-        institutionName: institutionName.trim() || settings.institutionName,
-        campusLocation: campusLocation.trim() || settings.campusLocation,
+    try {
+      const result = await updateSettings({
+        institutionName: institutionName.trim(),
+        campusLocation: campusLocation.trim(),
         campusCoordinates: {
           ...settings.campusCoordinates,
           latitude: safeLat,
@@ -222,7 +288,14 @@ export const SettingsView: React.FC = () => {
         learningMode,
         lowPowerMode,
       });
-      setIsPropagating(false);
+
+      if (!result.ok) {
+        const errMsg = result.error || 'Unable to save system parameters.';
+        setSaveError(errMsg);
+        toast.error('Settings save failed', errMsg);
+        return;
+      }
+
       setSavedSuccess(true);
       toast.success('System parameters applied', 'Updated tariffs and illumination targets across 25 rooms.');
 
@@ -244,7 +317,9 @@ export const SettingsView: React.FC = () => {
       }
 
       setTimeout(() => setSavedSuccess(false), 3000);
-    }, 500);
+    } finally {
+      setIsPropagating(false);
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -252,11 +327,11 @@ export const SettingsView: React.FC = () => {
     if (isPropagating) return;
     if (!isAdminUnlocked) {
       openAuthModal(() => {
-        applyParameters();
+        void applyParameters();
       });
       return;
     }
-    applyParameters();
+    void applyParameters();
   };
 
   const handlePolicySelect = (policyId: typeof settings.learningMode) => {
@@ -318,7 +393,23 @@ export const SettingsView: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Save Success Alert */}
+      {/* Save Success / Validation Error Alert */}
+      <AnimatePresence>
+        {saveError && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.18, ease: ROOMWISE_EASE }}
+            role="alert"
+            className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-xs font-medium text-rose-950 flex items-center gap-2"
+          >
+            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>{saveError}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence>
         {savedSuccess && (
           <motion.div
@@ -604,8 +695,8 @@ export const SettingsView: React.FC = () => {
           </div>
         </div>
 
-        {/* Save Button / Admin Unlock */}
-        <div className="flex justify-end">
+        {/* Save Button / Reset Unsaved / Admin Unlock */}
+        <div className="flex flex-wrap items-center justify-end gap-2.5">
           {!isAdminUnlocked ? (
             <motion.button
               type="button"
@@ -617,29 +708,42 @@ export const SettingsView: React.FC = () => {
               <span>Unlock Admin to Edit Parameters</span>
             </motion.button>
           ) : (
-            <motion.button
-              type="submit"
-              whileTap={isPropagating ? undefined : { scale: 0.985 }}
-              disabled={isPropagating}
-              className="flex items-center gap-2 px-5 py-2.5 bg-[#0b2e22] hover:bg-[#114231] text-white text-xs font-semibold rounded-xl transition-colors cursor-pointer disabled:opacity-60"
-            >
-              {isPropagating ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin text-emerald-300" />
-                  <span>Pushing to 25 IoT Nodes...</span>
-                </>
-              ) : savedSuccess ? (
-                <>
-                  <CheckCircle2 className="w-4 h-4 text-emerald-300" />
-                  <span>Parameters Propagated</span>
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4 text-emerald-300" />
-                  <span>Apply &amp; Propagate Parameters</span>
-                </>
+            <>
+              {hasUnsavedChanges && (
+                <button
+                  type="button"
+                  onClick={handleResetUnsaved}
+                  disabled={isPropagating}
+                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-neutral-200 bg-white hover:bg-[#f3f5f4] text-[#4a5851] hover:text-[#111815] text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Reset Unsaved</span>
+                </button>
               )}
-            </motion.button>
+              <motion.button
+                type="submit"
+                whileTap={isPropagating ? undefined : { scale: 0.985 }}
+                disabled={isPropagating}
+                className="flex items-center gap-2 px-5 py-2.5 bg-[#0b2e22] hover:bg-[#114231] text-white text-xs font-semibold rounded-xl transition-colors cursor-pointer disabled:opacity-60"
+              >
+                {isPropagating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-emerald-300" />
+                    <span>Saving Parameters...</span>
+                  </>
+                ) : savedSuccess ? (
+                  <>
+                    <CheckCircle2 className="w-4 h-4 text-emerald-300" />
+                    <span>Parameters Propagated</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4 text-emerald-300" />
+                    <span>Apply &amp; Propagate Parameters</span>
+                  </>
+                )}
+              </motion.button>
+            </>
           )}
         </div>
       </form>

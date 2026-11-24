@@ -92,14 +92,14 @@ export const CAMERA_PRESETS: Record<CameraPresetId, CameraViewpoint> = {
 
 /**
  * Physical covered connecting corridor bridging NB's North-Central Arm eastern knuckle
- * directly to OB's southwestern flank (matching the top-down vector outline).
+ * directly to OB's southwestern flank (calibrated to supplied OB+NB complex scale).
  */
 export const OB_NB_CONNECTOR_SPEC: ArchitecturalConnectorSpec = {
   id: 'ob-nb-connecting-corridor',
   label: 'OB–NB Connecting Corridor',
-  startWorld: [5.9, 0.31],
-  endWorld: [9.09, -2.28],
-  width: 2.15,
+  startWorld: [5.73, 0.23],
+  endWorld: [8.43, -1.96],
+  width: 1.82,
   height: 5.1,
 };
 
@@ -139,14 +139,17 @@ function makeRoom(
 
 // =============================================================================
 // 1. G+3 BLOCK (Northwest 4-Storey Notched Academic Flagship — 9 Canonical Rooms)
+// Calibrated to supplied Google Maps footprint: 601.55 m² (~85.65 sq units @ 2.65 m/u)
 // =============================================================================
 const G3_FOOTPRINT: Array<[number, number]> = [
-  [-5.9, 5.7],  // SW corner meeting MPH
-  [1.7, 5.7],   // S step inward
-  [1.7, 1.9],   // Inner courtyard notch
-  [5.9, 1.9],   // SE tip of north wing
-  [5.9, -5.7],  // NE corner near Gate 1
-  [-5.9, -5.7], // NW corner near Western Road
+  [-4.77, 5.76],  // SW corner meeting MPH flush
+  [0.59, 5.76],   // S step inward
+  [0.59, 0.47],   // Inner SE courtyard notch
+  [4.77, 0.47],   // SE tip of north wing
+  [4.77, -5.75],  // NE corner near Gate 1
+  [-3.34, -5.75], // North edge before subtle NW corner recess
+  [-3.34, -4.32], // NW recess inner corner
+  [-4.77, -4.32], // West facade north termination
 ];
 
 function buildG3Floors(): FloorPlateSpec[] {
@@ -158,18 +161,18 @@ function buildG3Floors(): FloorPlateSpec[] {
       floorIndex: 0,
       baseY: 0.28,
       storeyHeight: h,
-      slabWidth: 11.8,
-      slabDepth: 11.4,
+      slabWidth: 9.54,
+      slabDepth: 11.51,
       corridorSide: 'south',
-      corridorDepth: 1.3,
+      corridorDepth: 1.1,
       rooms: [
         makeRoom('G+3 Block', 'Ground Floor', 0, h, {
           roomId: 'g3-g01',
           roomCode: 'G3-G01',
-          localX: 0.0,
-          localZ: -2.1,
-          width: 9.2,
-          depth: 4.5,
+          localX: 0.5,
+          localZ: -2.2,
+          width: 7.2,
+          depth: 4.0,
           corridorSide: 'south',
           interiorStyle: 'classroom',
         }),
@@ -177,9 +180,9 @@ function buildG3Floors(): FloorPlateSpec[] {
           roomId: 'g3-g02',
           roomCode: 'G3-G02',
           localX: -2.1,
-          localZ: 3.4,
-          width: 5.4,
-          depth: 3.0,
+          localZ: 3.1,
+          width: 4.5,
+          depth: 3.6,
           corridorSide: 'east',
           interiorStyle: 'classroom',
         }),
@@ -191,18 +194,18 @@ function buildG3Floors(): FloorPlateSpec[] {
       floorIndex: 1,
       baseY: 0.28 + h,
       storeyHeight: h,
-      slabWidth: 11.8,
-      slabDepth: 11.4,
+      slabWidth: 9.54,
+      slabDepth: 11.51,
       corridorSide: 'south',
-      corridorDepth: 1.3,
+      corridorDepth: 1.1,
       rooms: [
         makeRoom('G+3 Block', '1st Floor', 1, h, {
           roomId: 'g3-101',
           roomCode: 'G3-101',
-          localX: 0.0,
-          localZ: -2.1,
-          width: 9.2,
-          depth: 4.5,
+          localX: 0.5,
+          localZ: -2.2,
+          width: 7.2,
+          depth: 4.0,
           corridorSide: 'south',
           interiorStyle: 'classroom',
         }),
@@ -210,9 +213,9 @@ function buildG3Floors(): FloorPlateSpec[] {
           roomId: 'g3-102',
           roomCode: 'G3-102',
           localX: -2.1,
-          localZ: 3.4,
-          width: 5.4,
-          depth: 3.0,
+          localZ: 3.1,
+          width: 4.5,
+          depth: 3.6,
           corridorSide: 'east',
           interiorStyle: 'classroom',
         }),
@@ -224,28 +227,28 @@ function buildG3Floors(): FloorPlateSpec[] {
       floorIndex: 2,
       baseY: 0.28 + h * 2,
       storeyHeight: h,
-      slabWidth: 11.8,
-      slabDepth: 11.4,
+      slabWidth: 9.54,
+      slabDepth: 11.51,
       corridorSide: 'south',
-      corridorDepth: 1.3,
+      corridorDepth: 1.1,
       rooms: [
         makeRoom('G+3 Block', '2nd Floor', 2, h, {
           roomId: 'g3-201',
           roomCode: 'G3-201',
-          localX: -2.4,
-          localZ: -2.1,
-          width: 4.4,
-          depth: 4.5,
+          localX: -1.35,
+          localZ: -2.2,
+          width: 3.4,
+          depth: 4.0,
           corridorSide: 'south',
           interiorStyle: 'lab',
         }),
         makeRoom('G+3 Block', '2nd Floor', 2, h, {
           roomId: 'g3-202',
           roomCode: 'G3-202',
-          localX: 2.4,
-          localZ: -2.1,
-          width: 4.4,
-          depth: 4.5,
+          localX: 2.35,
+          localZ: -2.2,
+          width: 3.4,
+          depth: 4.0,
           corridorSide: 'south',
           interiorStyle: 'lab',
         }),
@@ -253,9 +256,9 @@ function buildG3Floors(): FloorPlateSpec[] {
           roomId: 'g3-203',
           roomCode: 'G3-203',
           localX: -2.1,
-          localZ: 3.4,
-          width: 5.4,
-          depth: 3.0,
+          localZ: 3.1,
+          width: 4.5,
+          depth: 3.6,
           corridorSide: 'east',
           interiorStyle: 'lab',
         }),
@@ -267,18 +270,18 @@ function buildG3Floors(): FloorPlateSpec[] {
       floorIndex: 3,
       baseY: 0.28 + h * 3,
       storeyHeight: h,
-      slabWidth: 11.8,
-      slabDepth: 11.4,
+      slabWidth: 9.54,
+      slabDepth: 11.51,
       corridorSide: 'south',
-      corridorDepth: 1.3,
+      corridorDepth: 1.1,
       rooms: [
         makeRoom('G+3 Block', '3rd Floor', 3, h, {
           roomId: 'g3-301',
           roomCode: 'G3-301',
-          localX: 0.0,
-          localZ: -2.1,
-          width: 9.2,
-          depth: 4.5,
+          localX: 0.5,
+          localZ: -2.2,
+          width: 7.2,
+          depth: 4.0,
           corridorSide: 'south',
           interiorStyle: 'computer-lab',
         }),
@@ -286,9 +289,9 @@ function buildG3Floors(): FloorPlateSpec[] {
           roomId: 'g3-302',
           roomCode: 'G3-302',
           localX: -2.1,
-          localZ: 3.4,
-          width: 5.4,
-          depth: 3.0,
+          localZ: 3.1,
+          width: 4.5,
+          depth: 3.6,
           corridorSide: 'east',
           interiorStyle: 'staff',
         }),
@@ -298,16 +301,15 @@ function buildG3Floors(): FloorPlateSpec[] {
 }
 
 // =============================================================================
-// 2. MPH — MULTI-PURPOSE HALL (Compact Extension of G+3, Height = 2nd-Floor Level)
+// 2. MPH — MULTI-PURPOSE HALL (Outward Extension of G+3, Height = 2nd-Floor Level)
+// Calibrated to supplied Google Maps footprint: 168.51 m², perimeter 52.27 m
+// (4.36 × 5.50 scene units = 11.55 m × 14.58 m = 168.40 m²)
 // =============================================================================
-// Compact 4.8 × 5.0 footprint attached flush to G+3's SW south wall, rising cleanly
-// to G+3's 2nd-floor level (4.95 units above plinth -> roof at y ≈ 5.23), leaving a
-// distinct ~4.8-unit open landscaped gap north of Pre-Primary Block (PP).
 const MPH_FOOTPRINT: Array<[number, number]> = [
-  [-2.4, 2.5],
-  [2.4, 2.5],
-  [2.4, -2.5],
-  [-2.4, -2.5],
+  [-2.18, 2.75],
+  [2.18, 2.75],
+  [2.18, -2.75],
+  [-2.18, -2.75],
 ];
 
 function buildMultipurposeHallFloors(): FloorPlateSpec[] {
@@ -319,18 +321,18 @@ function buildMultipurposeHallFloors(): FloorPlateSpec[] {
       floorIndex: 0,
       baseY: 0.28,
       storeyHeight: h,
-      slabWidth: 4.8,
-      slabDepth: 5.0,
+      slabWidth: 4.36,
+      slabDepth: 5.5,
       corridorSide: 'east',
-      corridorDepth: 0.9,
+      corridorDepth: 0.85,
       rooms: [
         makeRoom('Multipurpose Hall', 'Ground Floor', 0, h, {
           roomId: 'mph-01',
           roomCode: 'MPH-01',
           localX: 0,
           localZ: 0,
-          width: 3.7,
-          depth: 3.9,
+          width: 3.4,
+          depth: 4.4,
           corridorSide: 'east',
           interiorStyle: 'auditorium',
         }),
@@ -341,14 +343,15 @@ function buildMultipurposeHallFloors(): FloorPlateSpec[] {
 
 // =============================================================================
 // 3. PP — PRE-PRIMARY BLOCK (L-Shaped Single-Storey Wing, Separated South of MPH)
+// Calibrated to supplied Google Maps footprint: 387.53 m², perimeter 105.86 m
 // =============================================================================
 const PP_FOOTPRINT: Array<[number, number]> = [
-  [-5.0, 6.2],  // SW corner near Gate 2
-  [4.4, 6.2],   // SE corner of eastward wing
-  [4.4, 2.2],   // NE corner of eastward wing
-  [-0.4, 2.2],  // Inner L-nook
-  [-0.4, -6.2], // NE corner of vertical wing (separated from MPH by clear gap)
-  [-5.0, -6.2], // NW corner of vertical wing
+  [-4.6, 5.38],   // SW corner near Gate 2
+  [4.61, 5.38],   // SE corner of eastward wing
+  [4.61, 2.14],   // NE corner of eastward wing
+  [-1.22, 2.14],  // Inner L-nook
+  [-1.22, -5.39], // NE corner of vertical wing (separated from MPH by clear gap)
+  [-4.6, -5.39],  // NW corner of vertical wing
 ];
 
 function buildPrePrimaryFloors(): FloorPlateSpec[] {
@@ -360,38 +363,38 @@ function buildPrePrimaryFloors(): FloorPlateSpec[] {
       floorIndex: 0,
       baseY: 0.28,
       storeyHeight: h,
-      slabWidth: 9.4,
-      slabDepth: 12.4,
+      slabWidth: 9.21,
+      slabDepth: 10.77,
       corridorSide: 'north',
-      corridorDepth: 1.0,
+      corridorDepth: 0.9,
       rooms: [
         makeRoom('Pre-Primary Block', 'Ground Floor', 0, h, {
           roomId: 'pp-01',
           roomCode: 'PP-01',
-          localX: -2.7,
-          localZ: -3.5,
-          width: 3.4,
-          depth: 4.0,
+          localX: -2.91,
+          localZ: -2.9,
+          width: 2.5,
+          depth: 3.4,
           corridorSide: 'east',
           interiorStyle: 'pre-primary',
         }),
         makeRoom('Pre-Primary Block', 'Ground Floor', 0, h, {
           roomId: 'pp-02',
           roomCode: 'PP-02',
-          localX: -2.7,
-          localZ: 1.6,
-          width: 3.4,
-          depth: 4.0,
+          localX: -2.91,
+          localZ: 1.5,
+          width: 2.5,
+          depth: 3.4,
           corridorSide: 'east',
           interiorStyle: 'pre-primary',
         }),
         makeRoom('Pre-Primary Block', 'Ground Floor', 0, h, {
           roomId: 'pp-03',
           roomCode: 'PP-03',
-          localX: 2.0,
-          localZ: 4.2,
-          width: 3.8,
-          depth: 2.9,
+          localX: 1.8,
+          localZ: 3.76,
+          width: 4.4,
+          depth: 2.3,
           corridorSide: 'north',
           interiorStyle: 'pre-primary',
         }),
@@ -400,22 +403,28 @@ function buildPrePrimaryFloors(): FloorPlateSpec[] {
   ];
 }
 
+// Uniform scaling calibrating OB + NB 3D shells to exact supplied 1,209.21 m² combined area
+const OB_NB_3D_SCALE = Math.sqrt((1209.21 / 7.0225) / 240.0);
+
 // =============================================================================
 // 4. OB — OLD BUILDING (Vector-Traced NW–SE Diagonal Wing — 3 Storeys, 5 Rooms)
+// Part of supplied unified OB + NB complex (1,209.21 m² total; ~298.46 m² OB share)
 // =============================================================================
-// Exact stepped NW–SE diagonal polygon centered at world (8.4, -5.4).
-const OB_FOOTPRINT: Array<[number, number]> = [
-  [-6.71, -4.31], // NW-W corner
-  [-3.38, -6.5],  // NW-E corner
-  [4.83, 1.72],   // NE before SE step-in
-  [4.39, 2.12],   // NE subtle step-in corner
-  [6.35, 4.16],   // SE-NE corner
-  [3.31, 6.49],   // SE-SW corner
-];
+const OB_FOOTPRINT: Array<[number, number]> = (
+  [
+    [-6.71, -4.31], // NW-W corner
+    [-3.38, -6.5],  // NW-E corner
+    [4.83, 1.72],   // NE before SE step-in
+    [4.39, 2.12],   // NE subtle step-in corner
+    [6.35, 4.16],   // SE-NE corner
+    [3.31, 6.49],   // SE-SW corner
+  ] as Array<[number, number]>
+).map(([x, z]) => [Number((x * OB_NB_3D_SCALE).toFixed(3)), Number((z * OB_NB_3D_SCALE).toFixed(3))]);
 
 function buildOldBuildingFloors(): FloorPlateSpec[] {
   const h = 2.35;
   const obRotY = -0.827; // Aligns local +X cleanly down OB's NW->SE diagonal spine
+  const s = OB_NB_3D_SCALE;
   return [
     {
       building: 'Old Building',
@@ -423,30 +432,30 @@ function buildOldBuildingFloors(): FloorPlateSpec[] {
       floorIndex: 0,
       baseY: 0.28,
       storeyHeight: h,
-      slabWidth: 14.6,
-      slabDepth: 4.0,
+      slabWidth: Number((14.6 * s).toFixed(2)),
+      slabDepth: Number((4.0 * s).toFixed(2)),
       corridorSide: 'south',
-      corridorDepth: 1.0,
+      corridorDepth: 0.85,
       rooms: [
         makeRoom('Old Building', 'Ground Floor', 0, h, {
           roomId: 'ob-g01',
           roomCode: 'OB-G01',
-          localX: -2.2,
-          localZ: -2.4,
+          localX: Number((-2.2 * s).toFixed(2)),
+          localZ: Number((-2.4 * s).toFixed(2)),
           localRotationY: obRotY,
-          width: 5.4,
-          depth: 2.8,
+          width: Number((5.2 * s).toFixed(2)),
+          depth: Number((2.6 * s).toFixed(2)),
           corridorSide: 'south',
           interiorStyle: 'classroom',
         }),
         makeRoom('Old Building', 'Ground Floor', 0, h, {
           roomId: 'ob-g02',
           roomCode: 'OB-G02',
-          localX: 2.1,
-          localZ: 2.3,
+          localX: Number((2.1 * s).toFixed(2)),
+          localZ: Number((2.3 * s).toFixed(2)),
           localRotationY: obRotY,
-          width: 5.2,
-          depth: 2.8,
+          width: Number((5.0 * s).toFixed(2)),
+          depth: Number((2.6 * s).toFixed(2)),
           corridorSide: 'south',
           interiorStyle: 'classroom',
         }),
@@ -458,30 +467,30 @@ function buildOldBuildingFloors(): FloorPlateSpec[] {
       floorIndex: 1,
       baseY: 0.28 + h,
       storeyHeight: h,
-      slabWidth: 14.6,
-      slabDepth: 4.0,
+      slabWidth: Number((14.6 * s).toFixed(2)),
+      slabDepth: Number((4.0 * s).toFixed(2)),
       corridorSide: 'south',
-      corridorDepth: 1.0,
+      corridorDepth: 0.85,
       rooms: [
         makeRoom('Old Building', '1st Floor', 1, h, {
           roomId: 'ob-101',
           roomCode: 'OB-101',
-          localX: -2.2,
-          localZ: -2.4,
+          localX: Number((-2.2 * s).toFixed(2)),
+          localZ: Number((-2.4 * s).toFixed(2)),
           localRotationY: obRotY,
-          width: 5.4,
-          depth: 2.8,
+          width: Number((5.2 * s).toFixed(2)),
+          depth: Number((2.6 * s).toFixed(2)),
           corridorSide: 'south',
           interiorStyle: 'classroom',
         }),
         makeRoom('Old Building', '1st Floor', 1, h, {
           roomId: 'ob-102',
           roomCode: 'OB-102',
-          localX: 2.1,
-          localZ: 2.3,
+          localX: Number((2.1 * s).toFixed(2)),
+          localZ: Number((2.3 * s).toFixed(2)),
           localRotationY: obRotY,
-          width: 5.2,
-          depth: 2.8,
+          width: Number((5.0 * s).toFixed(2)),
+          depth: Number((2.6 * s).toFixed(2)),
           corridorSide: 'south',
           interiorStyle: 'classroom',
         }),
@@ -493,19 +502,19 @@ function buildOldBuildingFloors(): FloorPlateSpec[] {
       floorIndex: 2,
       baseY: 0.28 + h * 2,
       storeyHeight: h + 0.2,
-      slabWidth: 14.6,
-      slabDepth: 4.0,
+      slabWidth: Number((14.6 * s).toFixed(2)),
+      slabDepth: Number((4.0 * s).toFixed(2)),
       corridorSide: 'south',
-      corridorDepth: 1.0,
+      corridorDepth: 0.85,
       rooms: [
         makeRoom('Old Building', '2nd Floor', 2, h + 0.2, {
           roomId: 'ob-201',
           roomCode: 'OB-201',
-          localX: -0.1,
-          localZ: -0.1,
+          localX: Number((-0.1 * s).toFixed(2)),
+          localZ: Number((-0.1 * s).toFixed(2)),
           localRotationY: obRotY,
-          width: 10.8,
-          depth: 2.8,
+          width: Number((10.4 * s).toFixed(2)),
+          depth: Number((2.6 * s).toFixed(2)),
           corridorSide: 'south',
           interiorStyle: 'library',
         }),
@@ -516,34 +525,36 @@ function buildOldBuildingFloors(): FloorPlateSpec[] {
 
 // =============================================================================
 // 5. NB — NEW BUILDING (Exact Vector-Traced C-Shaped Courtyard Complex — 7 Rooms)
+// Part of supplied unified OB + NB complex (1,209.21 m² total; ~910.75 m² NB share)
 // =============================================================================
-// Exact 20-vertex continuous polygon matching the Google Maps vector outline,
-// centered at world (2.5, 3.2), connecting directly to OB via OB_NB_CONNECTOR_SPEC.
-const NB_FOOTPRINT: Array<[number, number]> = [
-  [-5.37, -9.25], // NW apex
-  [-9.73, 0.78],  // Westernmost sharp elbow
-  [-3.52, 9.92],  // Southernmost sharp apex above internal driveway
-  [1.78, 6.11],   // South-central inner knee (west)
-  [2.55, 5.85],   // South-central inner knee (east)
-  [9.84, 9.25],   // SE wing outer SE corner
-  [11.95, 4.33],  // SE wing outer NE corner
-  [8.33, 2.66],   // SE wing subtle north step-out
-  [8.14, 3.11],   // SE wing inner step-in
-  [2.26, -0.19],  // Inner courtyard SE apex
-  [-2.78, 3.37],  // Inner courtyard SW pocket
-  [-4.88, 0.63],  // Inner courtyard W elbow
-  [-4.74, -1.04], // Inner courtyard W-N bend
-  [-3.85, -3.77], // Inner courtyard NW corner
-  [1.04, -1.04],  // North-Central Arm inner south knuckle
-  [3.03, -0.93],  // North-Central Arm bridge base south
-  [4.14, -1.92],  // North-Central Arm eastern knuckle (meets OB–NB corridor)
-  [3.44, -4.51],  // North-Central Arm NE shoulder (meets OB–NB corridor)
-  [2.29, -4.22],  // Shallow recess beneath campus pin
-  [1.04, -6.36],  // North-Central Arm north shoulder
-];
+const NB_FOOTPRINT: Array<[number, number]> = (
+  [
+    [-5.37, -9.25], // NW apex
+    [-9.73, 0.78],  // Westernmost sharp elbow
+    [-3.52, 9.92],  // Southernmost sharp apex above internal driveway
+    [1.78, 6.11],   // South-central inner knee (west)
+    [2.55, 5.85],   // South-central inner knee (east)
+    [9.84, 9.25],   // SE wing outer SE corner
+    [11.95, 4.33],  // SE wing outer NE corner
+    [8.33, 2.66],   // SE wing subtle north step-out
+    [8.14, 3.11],   // SE wing inner step-in
+    [2.26, -0.19],  // Inner courtyard SE apex
+    [-2.78, 3.37],  // Inner courtyard SW pocket
+    [-4.88, 0.63],  // Inner courtyard W elbow
+    [-4.74, -1.04], // Inner courtyard W-N bend
+    [-3.85, -3.77], // Inner courtyard NW corner
+    [1.04, -1.04],  // North-Central Arm inner south knuckle
+    [3.03, -0.93],  // North-Central Arm bridge base south
+    [4.14, -1.92],  // North-Central Arm eastern knuckle (meets OB–NB corridor)
+    [3.44, -4.51],  // North-Central Arm NE shoulder (meets OB–NB corridor)
+    [2.29, -4.22],  // Shallow recess beneath campus pin
+    [1.04, -6.36],  // North-Central Arm north shoulder
+  ] as Array<[number, number]>
+).map(([x, z]) => [Number((x * OB_NB_3D_SCALE).toFixed(3)), Number((z * OB_NB_3D_SCALE).toFixed(3))]);
 
 function buildNewBuildingFloors(): FloorPlateSpec[] {
   const h = 2.35;
+  const s = OB_NB_3D_SCALE;
   return [
     {
       building: 'New Building',
@@ -551,30 +562,30 @@ function buildNewBuildingFloors(): FloorPlateSpec[] {
       floorIndex: 0,
       baseY: 0.28,
       storeyHeight: h,
-      slabWidth: 21.7,
-      slabDepth: 19.2,
+      slabWidth: Number((21.7 * s).toFixed(2)),
+      slabDepth: Number((19.2 * s).toFixed(2)),
       corridorSide: 'east',
-      corridorDepth: 1.1,
+      corridorDepth: 0.95,
       rooms: [
         makeRoom('New Building', 'Ground Floor', 0, h, {
           roomId: 'nb-g01',
           roomCode: 'NB-G01',
-          localX: -5.3,
-          localZ: 3.6,
+          localX: Number((-5.3 * s).toFixed(2)),
+          localZ: Number((3.6 * s).toFixed(2)),
           localRotationY: -0.97,
-          width: 5.2,
-          depth: 2.8,
+          width: Number((5.0 * s).toFixed(2)),
+          depth: Number((2.6 * s).toFixed(2)),
           corridorSide: 'north',
           interiorStyle: 'classroom',
         }),
         makeRoom('New Building', 'Ground Floor', 0, h, {
           roomId: 'nb-g02',
           roomCode: 'NB-G02',
-          localX: 6.4,
-          localZ: 4.8,
+          localX: Number((6.4 * s).toFixed(2)),
+          localZ: Number((4.8 * s).toFixed(2)),
           localRotationY: -0.43,
-          width: 6.4,
-          depth: 3.1,
+          width: Number((6.1 * s).toFixed(2)),
+          depth: Number((2.9 * s).toFixed(2)),
           corridorSide: 'north',
           interiorStyle: 'classroom',
         }),
@@ -586,41 +597,41 @@ function buildNewBuildingFloors(): FloorPlateSpec[] {
       floorIndex: 1,
       baseY: 0.28 + h,
       storeyHeight: h,
-      slabWidth: 21.7,
-      slabDepth: 19.2,
+      slabWidth: Number((21.7 * s).toFixed(2)),
+      slabDepth: Number((19.2 * s).toFixed(2)),
       corridorSide: 'east',
-      corridorDepth: 1.1,
+      corridorDepth: 0.95,
       rooms: [
         makeRoom('New Building', '1st Floor', 1, h, {
           roomId: 'nb-101',
           roomCode: 'NB-101',
-          localX: -1.3,
-          localZ: -4.6,
+          localX: Number((-1.3 * s).toFixed(2)),
+          localZ: Number((-4.6 * s).toFixed(2)),
           localRotationY: -0.53,
-          width: 5.0,
-          depth: 2.9,
+          width: Number((4.8 * s).toFixed(2)),
+          depth: Number((2.7 * s).toFixed(2)),
           corridorSide: 'south',
           interiorStyle: 'classroom',
         }),
         makeRoom('New Building', '1st Floor', 1, h, {
           roomId: 'nb-102',
           roomCode: 'NB-102',
-          localX: -5.3,
-          localZ: 3.6,
+          localX: Number((-5.3 * s).toFixed(2)),
+          localZ: Number((3.6 * s).toFixed(2)),
           localRotationY: -0.97,
-          width: 5.2,
-          depth: 2.8,
+          width: Number((5.0 * s).toFixed(2)),
+          depth: Number((2.6 * s).toFixed(2)),
           corridorSide: 'north',
           interiorStyle: 'classroom',
         }),
         makeRoom('New Building', '1st Floor', 1, h, {
           roomId: 'nb-103',
           roomCode: 'NB-103',
-          localX: 6.4,
-          localZ: 4.8,
+          localX: Number((6.4 * s).toFixed(2)),
+          localZ: Number((4.8 * s).toFixed(2)),
           localRotationY: -0.43,
-          width: 6.4,
-          depth: 3.1,
+          width: Number((6.1 * s).toFixed(2)),
+          depth: Number((2.9 * s).toFixed(2)),
           corridorSide: 'north',
           interiorStyle: 'staff',
         }),
@@ -632,30 +643,30 @@ function buildNewBuildingFloors(): FloorPlateSpec[] {
       floorIndex: 2,
       baseY: 0.28 + h * 2,
       storeyHeight: h,
-      slabWidth: 21.7,
-      slabDepth: 19.2,
+      slabWidth: Number((21.7 * s).toFixed(2)),
+      slabDepth: Number((19.2 * s).toFixed(2)),
       corridorSide: 'east',
-      corridorDepth: 1.1,
+      corridorDepth: 0.95,
       rooms: [
         makeRoom('New Building', '2nd Floor', 2, h, {
           roomId: 'nb-201',
           roomCode: 'NB-201',
-          localX: -1.3,
-          localZ: -4.6,
+          localX: Number((-1.3 * s).toFixed(2)),
+          localZ: Number((-4.6 * s).toFixed(2)),
           localRotationY: -0.53,
-          width: 5.0,
-          depth: 2.9,
+          width: Number((4.8 * s).toFixed(2)),
+          depth: Number((2.7 * s).toFixed(2)),
           corridorSide: 'south',
           interiorStyle: 'classroom',
         }),
         makeRoom('New Building', '2nd Floor', 2, h, {
           roomId: 'nb-202',
           roomCode: 'NB-202',
-          localX: 6.4,
-          localZ: 4.8,
+          localX: Number((6.4 * s).toFixed(2)),
+          localZ: Number((4.8 * s).toFixed(2)),
           localRotationY: -0.43,
-          width: 6.4,
-          depth: 3.1,
+          width: Number((6.1 * s).toFixed(2)),
+          depth: Number((2.9 * s).toFixed(2)),
           corridorSide: 'north',
           interiorStyle: 'classroom',
         }),
@@ -672,39 +683,39 @@ export const CAMPUS_BUILDINGS_SCHEMA: BuildingSchemaSpec[] = [
     id: 'G+3 Block',
     shortLabel: 'G+3 Block',
     mapCode: 'G+3',
-    subtitle: '4 Storeys · 9 Rooms · Senior Secondary & Labs',
+    subtitle: '4 Storeys · 9 Rooms · 601.55 m² Supplied Footprint',
     worldX: -16.4,
     worldZ: -15.9,
     rotationY: 0.14,
-    width: 11.8,
-    depth: 11.4,
+    width: 9.54,
+    depth: 11.51,
     footprintPts: G3_FOOTPRINT,
     storeyHeight: 2.35,
     corridorSide: 'south',
     roofStyle: 'modern-flat',
     architecturalStyle: 'g3-notched',
-    riserWorldPos: [-13.4, 0.35, -10.4],
+    riserWorldPos: [-13.8, 0.35, -10.8],
     focusCameraOffset: [14, 15.5, 22],
-    labelLocalOffset: [-0.8, 11.5, -1.2],
+    labelLocalOffset: [-0.4, 11.5, -1.0],
     floors: buildG3Floors(),
   },
   {
     id: 'Multipurpose Hall',
     shortLabel: 'MPH (2F Ht)',
     mapCode: 'MPH',
-    subtitle: 'Compact Extension of G+3 · 2nd-Floor Height · 1 Hall',
-    worldX: -18.72,
-    worldZ: -7.21,
-    rotationY: 0.14, // Aligned flush with G+3 Block's SW wing with zero Z-fighting seam
-    width: 4.8,
-    depth: 5.0,
+    subtitle: 'Attached Extension of G+3 · 168.51 m² Supplied Footprint',
+    worldX: -17.78,
+    worldZ: -7.11,
+    rotationY: 0.14, // Aligned flush with G+3 Block's SW wing with zero gap or overlap
+    width: 4.36,
+    depth: 5.5,
     footprintPts: MPH_FOOTPRINT,
     storeyHeight: 4.95,
     corridorSide: 'east',
     roofStyle: 'auditorium-vault',
     architecturalStyle: 'mph-extension',
     attachedToBuilding: 'G+3 Block',
-    riserWorldPos: [-16.0, 0.35, -7.0],
+    riserWorldPos: [-15.8, 0.35, -7.0],
     focusCameraOffset: [12, 10.5, 15],
     labelLocalOffset: [0, 6.8, 0],
     floors: buildMultipurposeHallFloors(),
@@ -713,58 +724,58 @@ export const CAMPUS_BUILDINGS_SCHEMA: BuildingSchemaSpec[] = [
     id: 'Pre-Primary Block',
     shortLabel: 'Pre-Primary (PP)',
     mapCode: 'PP',
-    subtitle: 'Ground Floor L-Wing · Separated South of MPH · 3 Rooms',
-    worldX: -14.25,
-    worldZ: 5.8,
+    subtitle: 'Ground Floor L-Wing · 387.53 m² Supplied Footprint',
+    worldX: -14.4,
+    worldZ: 5.4,
     rotationY: 0.14,
-    width: 9.4,
-    depth: 12.4,
+    width: 9.21,
+    depth: 10.77,
     footprintPts: PP_FOOTPRINT,
     storeyHeight: 2.45,
     corridorSide: 'north',
     roofStyle: 'pavilion-clerestory',
     architecturalStyle: 'pp-l-wing',
-    riserWorldPos: [-11.8, 0.35, 6.2],
+    riserWorldPos: [-12.0, 0.35, 5.8],
     focusCameraOffset: [12, 10.5, 16.5],
-    labelLocalOffset: [-1.8, 4.3, 1.5],
+    labelLocalOffset: [-1.4, 4.3, 1.4],
     floors: buildPrePrimaryFloors(),
   },
   {
     id: 'New Building',
     shortLabel: 'New Building (NB)',
     mapCode: 'NB',
-    subtitle: '3 Storeys · 7 Rooms · C-Shaped Courtyard Complex',
-    worldX: 2.5,
-    worldZ: 3.2,
+    subtitle: '3 Storeys · 7 Rooms · OB+NB Complex (1,209.21 m² Combined)',
+    worldX: 2.85,
+    worldZ: 2.68,
     rotationY: 0,
-    width: 21.7,
-    depth: 19.2,
+    width: 18.38,
+    depth: 16.26,
     footprintPts: NB_FOOTPRINT,
     storeyHeight: 2.35,
     corridorSide: 'east',
     roofStyle: 'modern-flat',
     architecturalStyle: 'nb-courtyard',
-    riserWorldPos: [-1.2, 0.35, 6.8],
+    riserWorldPos: [-0.3, 0.35, 5.8],
     focusCameraOffset: [-13, 15.5, 22],
-    labelLocalOffset: [-1.8, 9.2, 3.6],
+    labelLocalOffset: [-1.4, 9.2, 3.0],
     floors: buildNewBuildingFloors(),
   },
   {
     id: 'Old Building',
     shortLabel: 'Old Building (OB)',
     mapCode: 'OB',
-    subtitle: '3 Storeys · 5 Rooms · Diagonal Heritage Wing & Library',
-    worldX: 8.4,
-    worldZ: -5.4,
+    subtitle: '3 Storeys · 5 Rooms · OB+NB Complex (1,209.21 m² Combined)',
+    worldX: 7.85,
+    worldZ: -4.6,
     rotationY: 0,
-    width: 14.6,
-    depth: 13.0,
+    width: 12.37,
+    depth: 11.01,
     footprintPts: OB_FOOTPRINT,
     storeyHeight: 2.35,
     corridorSide: 'south',
     roofStyle: 'heritage-parapet',
     architecturalStyle: 'ob-heritage',
-    riserWorldPos: [6.8, 0.35, -3.5],
+    riserWorldPos: [6.4, 0.35, -3.0],
     focusCameraOffset: [-13, 13.5, 19],
     labelLocalOffset: [0, 9.2, 0],
     floors: buildOldBuildingFloors(),
@@ -834,8 +845,8 @@ export const CAMPUS_TREE_POSITIONS: Array<{
   scale: number;
   variant: number;
 }> = [
-  // Signature central courtyard shade tree inside NB's inner courtyard pocket
-  { x: 0.7, z: 3.1, scale: 1.15, variant: 0 },
+  // Signature central courtyard shade tree inside NB's calibrated inner courtyard pocket
+  { x: 1.33, z: 2.59, scale: 1.05, variant: 0 },
 
   // Light framing between G+3/MPH and NB
   { x: -11.4, z: -7.6, scale: 0.92, variant: 1 },

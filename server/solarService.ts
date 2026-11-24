@@ -46,6 +46,12 @@ import {
 } from '../src/types/solar.ts';
 import { INITIAL_CLASSROOMS } from '../src/data/initialClassrooms.ts';
 import { ROOM_APPLIANCE_SPECS } from '../src/data/roomApplianceSpecs.ts';
+import {
+  m2ToFt2,
+  OB_NB_COMBINED_MEASUREMENT,
+  type AuthoritativeCampusFeatureRecord,
+  type MeasurementProvenanceLabel,
+} from '../src/data/campusBuildingMeasurements.ts';
 import { getIstDateString, shiftIstDate } from '../src/utils/historyDates.ts';
 import { energyHistoryService } from './energyHistoryService.ts';
 import { environmentalService } from './environmentalService.ts';
@@ -1485,6 +1491,7 @@ class SolarService {
       polygons: BuildingPolygon[];
       centroid: GeoPoint;
       grossFootprintAreaM2: number;
+      measurementRecord?: AuthoritativeCampusFeatureRecord | null;
       componentCount: number;
       hasInvalidGeometryWarning: boolean;
       distanceFromCampusMeters: number;
@@ -1496,6 +1503,7 @@ class SolarService {
     override: BuildingSolarOverride | null
   ): DiscoveredBuilding {
     const tags = raw.tags || {};
+    const mRec = raw.measurementRecord ?? null;
 
     // Apply visual-only polygon overrides / position offsets WITHOUT silently overwriting analytical m²
     let visualPolygons =
@@ -1532,15 +1540,26 @@ class SolarService {
         selectionStatus === 'confirmed'
     );
 
-    // Analytical gross roof area is strictly distinct from decorative visual positioning
+    // Analytical gross footprint area is strictly distinct from decorative visual positioning
     const grossFootprintAreaM2 =
       override?.grossAreaOverrideM2 != null
         ? round2(override.grossAreaOverrideM2)
+        : mRec
+        ? round2(mRec.authoritativeFootprintAreaM2)
         : round2(raw.grossFootprintAreaM2);
+
+    const grossFootprintAreaFt2 =
+      override?.grossAreaOverrideM2 != null
+        ? m2ToFt2(grossFootprintAreaM2)
+        : mRec
+        ? mRec.authoritativeFootprintAreaFt2
+        : m2ToFt2(grossFootprintAreaM2);
 
     const grossAreaSource: DiscoveredBuilding['geometry']['grossAreaSource'] =
       override?.grossAreaOverrideM2 != null
         ? 'admin_override'
+        : mRec
+        ? 'supplied_measured'
         : raw.source === 'image_reconstructed'
         ? 'image_reconstructed'
         : raw.source === 'manual'
@@ -1549,9 +1568,45 @@ class SolarService {
 
     const sourceLabel: DiscoveredBuilding['sourceLabel'] = analyticalConfirmed
       ? 'Administrator-confirmed'
+      : mRec
+      ? 'Supplied footprint'
       : raw.source === 'image_reconstructed'
       ? 'Image-reconstructed'
       : 'Mapped geometry';
+
+    const areaProvenanceLabel: MeasurementProvenanceLabel =
+      override?.grossAreaOverrideM2 != null
+        ? 'Supplied measured data'
+        : mRec
+        ? mRec.areaProvenance
+        : raw.source === 'osm'
+        ? 'Derived from supplied geometry'
+        : 'Approximate visual geometry';
+
+    const perimeterProvenanceLabel: MeasurementProvenanceLabel = mRec
+      ? mRec.perimeterProvenance
+      : 'Not available';
+
+    const verticalGeometryProvenanceLabel: MeasurementProvenanceLabel = mRec
+      ? mRec.verticalGeometryProvenance
+      : 'Approximate visual geometry';
+
+    const roofSurfaceAreaProvenanceLabel: MeasurementProvenanceLabel = mRec
+      ? mRec.roofSurfaceAreaProvenance
+      : 'Not available';
+
+    const polygonVsAuthoritativeDeltaM2 =
+      grossFootprintAreaM2 > 0 ? round2(visualFootprintAreaM2 - grossFootprintAreaM2) : null;
+    const polygonVsAuthoritativeDeltaPercent =
+      grossFootprintAreaM2 > 0 && polygonVsAuthoritativeDeltaM2 !== null
+        ? round2((polygonVsAuthoritativeDeltaM2 / grossFootprintAreaM2) * 100)
+        : null;
+
+    const combinedComplexNote = mRec?.combinedComplexRef
+      ? `Measured together with ${
+          mRec.id === 'campus/old-building' ? 'New Building (NB)' : 'Old Building (OB)'
+        } as one unified ${mRec.combinedComplexRef.suppliedCombinedAreaM2.toLocaleString()} m² (${mRec.combinedComplexRef.suppliedCombinedAreaFt2.toLocaleString()} ft²) complex (perimeter ${mRec.combinedComplexRef.suppliedCombinedPerimeterM} m). Apportioned at ${mRec.combinedComplexRef.proportionalSharePercent}% so OB + NB = 1,209.21 m² exactly.`
+      : null;
 
     // Roof metadata parsing — strictly distinguish roof:direction from roof:orientation
     const osmRoofShape = tags['roof:shape'] || null;
@@ -1662,7 +1717,17 @@ class SolarService {
     // Data confidence scoring
     let score = 50;
     const reasons: string[] = [];
-    if (raw.source === 'image_reconstructed') {
+    if (mRec?.verificationStatus === 'supplied_verified') {
+      score += 28;
+      reasons.push(
+        `Horizontal footprint (${mRec.authoritativeFootprintAreaM2} m², perimeter ${mRec.suppliedPerimeterM} m) grounded in supplied Google Maps Measure Distance polygon`
+      );
+    } else if (mRec?.verificationStatus === 'derived_from_supplied_complex') {
+      score += 22;
+      reasons.push(
+        `Derived proportionally (${mRec.combinedComplexRef?.proportionalSharePercent}%) from supplied unified OB+NB complex (${OB_NB_COMBINED_MEASUREMENT.suppliedCombinedAreaM2} m²)`
+      );
+    } else if (raw.source === 'image_reconstructed') {
       score += 18;
       reasons.push('Footprint reconstructed from top-down campus aerial reference');
     } else if (raw.source === 'osm') {
@@ -1673,15 +1738,15 @@ class SolarService {
       reasons.push('Custom campus footprint mapped by administrator');
     }
     if (analyticalConfirmed) {
-      score += 20;
-      reasons.push('Analytical roof dimensions confirmed by administrator');
+      score += 15;
+      reasons.push('Analytical roof parameters confirmed by administrator');
     } else if (selectionStatus === 'provisional') {
-      score += 8;
-      reasons.push('Active in solar assessment with image-derived roof dimensions');
+      score += 6;
+      reasons.push('Usable roof fraction, obstructions, and actual roof surface remain provisional pending site roof survey');
     }
     if (roofMetadataStatus === 'mapped') {
-      score += 10;
-      reasons.push('Flat concrete roof geometry identified');
+      score += 6;
+      reasons.push('Flat concrete roof plan classification identified');
     }
     if (raw.hasInvalidGeometryWarning) {
       score -= 20;
@@ -1754,7 +1819,24 @@ class SolarService {
       geometry: {
         visualFootprintAreaM2: round2(visualFootprintAreaM2),
         grossFootprintAreaM2,
+        grossFootprintAreaFt2,
         grossAreaSource,
+        suppliedDirectAreaM2: mRec?.suppliedDirectAreaM2 ?? null,
+        suppliedDirectAreaFt2: mRec?.suppliedDirectAreaFt2 ?? null,
+        suppliedPerimeterM: mRec?.suppliedPerimeterM ?? null,
+        suppliedPerimeterFt: mRec?.suppliedPerimeterFt ?? null,
+        estimatedRoofPlanAreaM2: raw.solarEligible ? grossFootprintAreaM2 : null,
+        actualRoofSurfaceAreaM2: null,
+        areaProvenanceLabel,
+        perimeterProvenanceLabel,
+        verticalGeometryProvenanceLabel,
+        roofSurfaceAreaProvenanceLabel,
+        measurementSource: mRec?.measurementSource ?? null,
+        measurementMethod: mRec?.measurementMethod ?? null,
+        polygonVsAuthoritativeDeltaM2,
+        polygonVsAuthoritativeDeltaPercent,
+        combinedComplexNote,
+        lastUpdated: mRec?.lastUpdated ?? null,
         componentCount: visualPolygons.length,
         hasInvalidGeometryWarning: raw.hasInvalidGeometryWarning,
         duplicateOverlapNote: raw.duplicateOverlapNote,
@@ -1840,6 +1922,7 @@ class SolarService {
             polygons: r.polygons,
             centroid: r.centroid,
             grossFootprintAreaM2: r.grossFootprintAreaM2,
+            measurementRecord: r.measurementRecord,
             componentCount: r.polygons.length,
             hasInvalidGeometryWarning: false,
             distanceFromCampusMeters: r.distanceFromCampusMeters,
@@ -2019,6 +2102,9 @@ class SolarService {
         excludedBuildingsCount: excluded.length,
         calculatedBuildingsCount: provEstimate.provenance === 'pvgis_modelled' ? 1 : 0,
         combinedGrossFootprintAreaM2: sizing.grossArea,
+        combinedGrossFootprintAreaFt2: m2ToFt2(sizing.grossArea),
+        combinedEstimatedRoofPlanAreaM2: sizing.grossArea,
+        actualRoofSurfaceAreaLabel: 'Not available',
         combinedObstructionSetbackAreaM2: obstructionSetbackAreaM2,
         combinedUsableRoofAreaM2: sizing.usableArea,
         combinedEstimatedPanelCount: sizing.panelCount,
@@ -2215,7 +2301,7 @@ class SolarService {
           ? `Selected subset (${activePool.length} campus roofs)`
           : confirmed.length > 0 && provisional.length === 0
           ? `Administrator-confirmed campus roofs (${activePool.length})`
-          : `Active campus roofs (${activePool.length} · ${confirmed.length} confirmed, ${provisional.length} image-reconstructed)`,
+          : `Active campus roofs (${activePool.length} · supplied horizontal footprints)`,
       activeScenarioId,
       activeScenarioLabel,
       discoveredBuildingsCount: solarBuildings.length,
@@ -2224,7 +2310,10 @@ class SolarService {
       provisionalBuildingsCount: provisional.length,
       excludedBuildingsCount: excluded.length,
       calculatedBuildingsCount: calculatedCount,
-      combinedGrossFootprintAreaM2: round1(combinedGross),
+      combinedGrossFootprintAreaM2: round2(combinedGross),
+      combinedGrossFootprintAreaFt2: m2ToFt2(round2(combinedGross)),
+      combinedEstimatedRoofPlanAreaM2: round2(combinedGross),
+      actualRoofSurfaceAreaLabel: 'Not available',
       combinedObstructionSetbackAreaM2: round1(combinedObstructionSetback),
       combinedUsableRoofAreaM2: round1(combinedUsable),
       combinedEstimatedPanelCount: combinedPanels,
@@ -2475,10 +2564,10 @@ class SolarService {
         },
       },
       limitations: [
-        'Campus building footprints are reconstructed from a top-down aerial reference anchored to configured coordinates (22.3121°N, 87.2994°E) and do not represent survey-grade cadastral measurements until confirmed by an administrator.',
-        'Illustrative rooftop panel layouts visualize usable roof area and row packing only and are not certified engineering installation drawings.',
-        'Structural roof load capacity, rooftop obstructions (water tanks, parapets, HVAC), and electrical interconnection require on-site engineering inspection.',
-        'PVGIS 5.3 outputs represent multi-year climatological averages and do not guarantee single-year generation or real-time load coincidence.',
+        'Horizontal building footprints (2,366.80 m² across 5 academic buildings) are grounded in supplied Google Maps Measure Distance polygons anchored to 22.3121°N, 87.2994°E. Old Building (OB) and New Building (NB) were measured together as one unified 1,209.21 m² complex (perimeter 285.74 m) and apportioned proportionally with zero double-counting.',
+        'Building footprint area is a horizontal plan projection, NOT actual roof-surface area or usable solar installation area. Actual roof-surface area, slopes, parapets, overhangs, water tanks, stairhead mumties, HVAC obstructions, and tree/building shading are not measured in this dataset and remain provisional until an on-site roof survey is performed.',
+        'Open-air sports grounds (Football Ground 5,300.83 m² and Basketball Court 737.14 m²) are retained strictly for campus spatial orientation and are excluded from building footprint totals and rooftop PV calculations.',
+        'PVGIS 5.3 outputs represent multi-year climatological averages for a hypothetical rooftop array and do not guarantee single-year generation, structural roof load capacity, or utility net-metering approval.',
       ],
       generatedAtIst: formatIstTimestamp(Date.now()),
     };

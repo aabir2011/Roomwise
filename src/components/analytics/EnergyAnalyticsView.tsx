@@ -14,9 +14,11 @@ import {
 import { useEnergy } from '../../context/EnergyContext';
 import { useToast } from '../../context/ToastContext';
 import { AnimatedNumber } from '../common/MotionPrimitives';
+import { PageHeader, SegmentedControl } from '../common/DesignSystem';
+import { MathText } from '../common/MathText';
 import { SCHOOL_DAYS_PER_MONTH } from '../../data/roomApplianceSpecs';
 import { formatCapacityKW } from '../../utils/applianceUtils';
-import { ROOMWISE_EASE, SPRING_SNAPPY } from '../../utils/motion';
+import { ROOMWISE_EASE } from '../../utils/motion';
 
 export const EnergyAnalyticsView: React.FC = () => {
   const { classrooms, settings, campusSummary, exportAnalyticsCsv, setActiveTab } = useEnergy();
@@ -74,42 +76,38 @@ export const EnergyAnalyticsView: React.FC = () => {
   return (
     <div className="p-4 sm:p-6 md:p-8 space-y-5 sm:space-y-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] sm:text-xs font-semibold text-emerald-800">
+      <PageHeader
+        kicker={
+          <>
             <span className="whitespace-nowrap">Energy Accounting (25-Node Scope)</span>
             <span aria-hidden="true">·</span>
             <span className="truncate">DAV Model School, IIT Kharagpur</span>
-          </div>
-          <h1 className="text-lg sm:text-2xl font-bold text-neutral-900 tracking-tight mt-0.5">
-            Campus Energy Analytics &amp; Defensible Formulas
-          </h1>
-          <p className="text-xs text-neutral-500 mt-0.5">
-            Room-weighted day-school consumption, pre-retrofit reference comparisons, WBSEDCL tariff, and CEA carbon estimates.
-          </p>
-        </div>
+          </>
+        }
+        title="Campus Energy Analytics & Defensible Formulas"
+        subtitle="Room-weighted day-school consumption, pre-retrofit reference comparisons, WBSEDCL tariff, and CEA carbon estimates."
+        action={
+          <>
+            <button
+              type="button"
+              onClick={() => setActiveTab('history')}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl rw-btn-forest text-xs font-semibold shadow-xs shrink-0 whitespace-nowrap"
+            >
+              <History className="w-3.5 h-3.5 text-emerald-300" />
+              <span>Open Energy History</span>
+            </button>
 
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={() => setActiveTab('history')}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold transition-colors shadow-xs shrink-0 whitespace-nowrap cursor-pointer"
-          >
-            <History className="w-3.5 h-3.5" />
-            <span>Open Energy History</span>
-          </button>
-
-          <motion.button
-            type="button"
-            whileTap={{ scale: 0.985 }}
-            onClick={handleExportCSV}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-neutral-900 text-white text-xs font-semibold hover:bg-neutral-800 transition-colors shadow-xs shrink-0 whitespace-nowrap cursor-pointer"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span>Export Analytics Dataset (.csv)</span>
-          </motion.button>
-        </div>
-      </div>
+            <button
+              type="button"
+              onClick={handleExportCSV}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl rw-btn-primary text-xs font-semibold shadow-xs shrink-0 whitespace-nowrap"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Export Analytics Dataset (.csv)</span>
+            </button>
+          </>
+        }
+      />
 
       {/* Campus Installed Capacity vs Pre-Retrofit Reference Reconciliation */}
       <div className="p-5 rounded-2xl glass-card space-y-3">
@@ -193,49 +191,81 @@ export const EnergyAnalyticsView: React.FC = () => {
       </div>
 
       {/* Engineering Calculation Formulas Card */}
-      <div className="p-5 rounded-2xl glass-card space-y-3">
+      <div className="p-5 rounded-2xl glass-card rw-card-alive space-y-3">
         <div className="flex items-center gap-2 text-xs font-bold text-neutral-900 tracking-tight">
           <Info className="w-4 h-4 text-emerald-600 shrink-0" />
           <span>Calculation Methodology &amp; Institutional Parameters</span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
-          <div className="p-3.5 bg-neutral-50/80 rounded-xl border border-neutral-200/70">
-            <div className="text-[11px] font-bold text-neutral-800">1. Operating Energy</div>
-            <div className="font-mono text-emerald-800 font-semibold mt-1 tabular-nums">
-              kWh = W × Room Hours / 1000
+          <div className="p-3.5 bg-white/80 rounded-xl border border-neutral-200/75 flex flex-col justify-between">
+            <div>
+              <div className="text-[11px] font-bold text-neutral-800">1. Operating Energy</div>
+              <div className="mt-2 py-1.5 px-2 rounded-lg bg-[#f6f9f7] border border-emerald-900/8 text-emerald-950 overflow-x-auto">
+                <MathText
+                  tex="E_{\mathrm{kWh}} = \dfrac{P \cdot t_{\mathrm{room}}}{1000}"
+                  display
+                  compact
+                  className="text-[13px]"
+                  ariaLabel="E sub kWh equals P times t sub room divided by 1000"
+                />
+              </div>
             </div>
-            <p className="text-[11px] text-neutral-500 mt-1 leading-relaxed">
+            <p className="text-[11px] text-neutral-500 mt-2 leading-relaxed">
               Room-weighted Indian day-school schedule within 07:30–14:30 (2.0h MPH, 4.2h labs, 4.5h Pre-Primary, 5.8h classrooms, 6.5h staff).
             </p>
           </div>
 
-          <div className="p-3.5 bg-neutral-50/80 rounded-xl border border-neutral-200/70">
-            <div className="text-[11px] font-bold text-neutral-800">2. Est. Energy vs Pre-Retrofit Ref</div>
-            <div className="font-mono text-emerald-800 font-semibold mt-1 tabular-nums">
-              E_diff = E_pre_retrofit − E_actual
+          <div className="p-3.5 bg-white/80 rounded-xl border border-neutral-200/75 flex flex-col justify-between">
+            <div>
+              <div className="text-[11px] font-bold text-neutral-800">2. Est. Energy vs Pre-Retrofit Ref</div>
+              <div className="mt-2 py-1.5 px-2 rounded-lg bg-[#f6f9f7] border border-emerald-900/8 text-emerald-950 overflow-x-auto">
+                <MathText
+                  tex="E_{\mathrm{diff}} = E_{\mathrm{pre\text{-}retrofit}} - E_{\mathrm{actual}}"
+                  display
+                  compact
+                  className="text-[13px]"
+                  ariaLabel="E sub diff equals E sub pre-retrofit minus E sub actual"
+                />
+              </div>
             </div>
-            <p className="text-[11px] text-neutral-500 mt-1 leading-relaxed">
+            <p className="text-[11px] text-neutral-500 mt-2 leading-relaxed">
               Estimated Pre-Retrofit Reference ({formatCapacityKW(campusSummary.totalBaselinePowerWatts)} kW) models conventional fixtures; Installed Rated Maximum is {formatCapacityKW(campusSummary.totalRatedPowerWatts)} kW.
             </p>
           </div>
 
-          <div className="p-3.5 bg-neutral-50/80 rounded-xl border border-neutral-200/70">
-            <div className="text-[11px] font-bold text-neutral-800">3. Financial Saving</div>
-            <div className="font-mono text-emerald-800 font-semibold mt-1 tabular-nums">
-              Cost = E_saved × ₹{settings.tariffPerKWhINR}
+          <div className="p-3.5 bg-white/80 rounded-xl border border-neutral-200/75 flex flex-col justify-between">
+            <div>
+              <div className="text-[11px] font-bold text-neutral-800">3. Financial Saving</div>
+              <div className="mt-2 py-1.5 px-2 rounded-lg bg-[#f6f9f7] border border-emerald-900/8 text-emerald-950 overflow-x-auto">
+                <MathText
+                  tex={`\\mathrm{Cost} = E_{\\mathrm{saved}} \\times ${settings.tariffPerKWhINR.toFixed(2)}\\;\\mathrm{INR/kWh}`}
+                  display
+                  compact
+                  className="text-[13px]"
+                  ariaLabel={`Cost equals E sub saved times ${settings.tariffPerKWhINR.toFixed(2)} INR per kWh`}
+                />
+              </div>
             </div>
-            <p className="text-[11px] text-neutral-500 mt-1 leading-relaxed">
-              WBSEDCL Educational HT-2 tariff schedule (editable in Settings).
+            <p className="text-[11px] text-neutral-500 mt-2 leading-relaxed">
+              WBSEDCL Educational HT-2 tariff schedule (₹{settings.tariffPerKWhINR.toFixed(2)}/kWh, editable in Settings).
             </p>
           </div>
 
-          <div className="p-3.5 bg-neutral-50/80 rounded-xl border border-neutral-200/70">
-            <div className="text-[11px] font-bold text-neutral-800">4. Emissions Avoided</div>
-            <div className="font-mono text-emerald-800 font-semibold mt-1 tabular-nums">
-              CO₂ = E_saved × {settings.gridCarbonFactorKgCO2PerKWh} kg
+          <div className="p-3.5 bg-white/80 rounded-xl border border-neutral-200/75 flex flex-col justify-between">
+            <div>
+              <div className="text-[11px] font-bold text-neutral-800">4. Emissions Avoided</div>
+              <div className="mt-2 py-1.5 px-2 rounded-lg bg-[#f6f9f7] border border-emerald-900/8 text-emerald-950 overflow-x-auto">
+                <MathText
+                  tex={`\\mathrm{CO}_{2} = E_{\\mathrm{saved}} \\times ${settings.gridCarbonFactorKgCO2PerKWh}\\;\\mathrm{kg/kWh}`}
+                  display
+                  compact
+                  className="text-[13px]"
+                  ariaLabel={`CO2 equals E sub saved times ${settings.gridCarbonFactorKgCO2PerKWh} kg per kWh`}
+                />
+              </div>
             </div>
-            <p className="text-[11px] text-neutral-500 mt-1 leading-relaxed">
+            <p className="text-[11px] text-neutral-500 mt-2 leading-relaxed">
               Central Electricity Authority (CEA India) baseline emission factor for Eastern regional grid.
             </p>
           </div>
@@ -244,7 +274,7 @@ export const EnergyAnalyticsView: React.FC = () => {
 
       {/* Monthly Projections Strip */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="p-5 rounded-2xl glass-card">
+        <div className="p-5 rounded-2xl glass-card rw-card-alive-alt">
           <div className="text-xs text-neutral-500 font-medium">Est. Monthly Avoided Energy (25 Nodes)</div>
           <div className="text-2xl font-bold font-mono text-neutral-900 mt-2 tabular-nums">
             <AnimatedNumber value={campusSummary.dailySavedKWh * SCHOOL_DAYS_PER_MONTH} decimals={1} />{' '}
@@ -376,37 +406,20 @@ export const EnergyAnalyticsView: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2 text-xs max-w-full">
-            <span className="text-neutral-500 shrink-0 whitespace-nowrap">Sort by:</span>
-            <div className="flex items-center p-1 bg-neutral-100 rounded-xl border border-neutral-200/60 overflow-x-auto max-w-full">
-              {(
-                [
-                  { id: 'saved', label: 'Energy Saved' },
-                  { id: 'power', label: 'Power (W)' },
-                  { id: 'efficiency', label: 'Efficiency %' },
-                ] as const
-              ).map((tab) => {
-                const active = selectedSort === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setSelectedSort(tab.id)}
-                    className={`relative px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap shrink-0 cursor-pointer transition-colors ${
-                      active ? 'text-neutral-900 font-semibold' : 'text-neutral-600 hover:text-neutral-900'
-                    }`}
-                  >
-                    {active && (
-                      <motion.span
-                        layoutId="analytics-sort-pill"
-                        transition={SPRING_SNAPPY}
-                        className="absolute inset-0 bg-white rounded-lg shadow-xs border border-neutral-200/60"
-                      />
-                    )}
-                    <span className="relative z-10">{tab.label}</span>
-                  </button>
-                );
-              })}
-            </div>
+            <span className="text-[#64726b] shrink-0 whitespace-nowrap">Sort by:</span>
+            <SegmentedControl<'saved' | 'power' | 'efficiency'>
+              layoutId="analytics-sort-pill"
+              size="sm"
+              tone="light"
+              ariaLabel="Sort classroom efficiency table"
+              value={selectedSort}
+              onChange={setSelectedSort}
+              options={[
+                { id: 'saved', label: 'Energy Saved' },
+                { id: 'power', label: 'Power (W)' },
+                { id: 'efficiency', label: 'Efficiency %' },
+              ]}
+            />
           </div>
         </div>
 

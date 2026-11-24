@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Mic,
@@ -54,12 +54,31 @@ export const VoiceAssistantOverlay: React.FC = () => {
   } = useVoiceAssistant();
   const { isAdminUnlocked, authenticatedAdmin, openAuthModal } = useAuth();
   const [fallbackInput, setFallbackInput] = useState('');
+  const transcriptContainerRef = useRef<HTMLDivElement | null>(null);
 
   const isTextOnlyMode =
     micPermission === 'denied' ||
     micPermission === 'unsupported' ||
     phase === 'permission_required' ||
     phase === 'unavailable';
+
+  useEffect(() => {
+    const el = transcriptContainerRef.current;
+    if (el) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [transcripts.length]);
+
+  useEffect(() => {
+    if (!isOverlayOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        closeOverlay();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOverlayOpen, closeOverlay]);
 
   const handleTextSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -202,28 +221,38 @@ export const VoiceAssistantOverlay: React.FC = () => {
             <div className="px-4 py-3 border-b border-neutral-200/75 flex items-center justify-between gap-2 bg-white/70">
               <div className="flex items-center gap-2.5 min-w-0">
                 <div
-                  className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border ${
+                  className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border transition-colors ${
                     phase === 'error'
                       ? 'bg-rose-50 border-rose-200 text-rose-700'
-                      : isMuted
-                      ? 'bg-neutral-100 border-neutral-200 text-neutral-500'
+                      : isTextOnlyMode || isMuted
+                      ? 'bg-[#f3f5f4] border-neutral-200 text-[#4a5851]'
+                      : phase === 'listening' || phase === 'speaking' || phase === 'executing'
+                      ? 'bg-[#0b2e22] border-emerald-700/40 text-emerald-300'
                       : 'bg-emerald-50 border-emerald-200 text-emerald-700'
                   }`}
                 >
-                  {phase === 'connecting' || phase === 'processing' ? (
+                  {phase === 'connecting' || phase === 'processing' || phase === 'executing' ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : phase === 'speaking' ? (
                     <Volume2 className="w-4 h-4" />
-                  ) : isMuted ? (
+                  ) : isMuted || isTextOnlyMode ? (
                     <MicOff className="w-4 h-4" />
                   ) : (
                     <Mic className="w-4 h-4" />
                   )}
                 </div>
                 <div className="min-w-0">
-                  <div className="text-xs font-bold text-neutral-900 flex items-center gap-1.5">
+                  <div className="text-xs font-bold text-[#111815] flex items-center gap-1.5">
                     <span>ROOMWISE Voice</span>
-                    <span className="text-[10px] font-semibold text-emerald-800">
+                    <span
+                      className={`text-[10px] font-semibold ${
+                        phase === 'error'
+                          ? 'text-rose-700'
+                          : isTextOnlyMode
+                          ? 'text-[#4a5851]'
+                          : 'text-emerald-800'
+                      }`}
+                    >
                       · {getStatusLabel()}
                     </span>
                   </div>
@@ -417,36 +446,44 @@ export const VoiceAssistantOverlay: React.FC = () => {
             )}
 
             {/* Live Transcripts */}
-            <div className="p-3.5 max-h-52 overflow-y-auto space-y-2 text-xs">
+            <div
+              ref={transcriptContainerRef}
+              className="p-3.5 max-h-52 overflow-y-auto space-y-2 text-xs"
+            >
               {transcripts.length === 0 ? (
-                <div className="text-[11px] text-neutral-500 py-2 text-center">
+                <div className="text-[11px] text-[#64726b] py-2 text-center leading-relaxed">
                   Ask about Class X-B telemetry, Environmental &amp; Solar Intelligence, Campus Live 3D, Space Intelligence, or the Energy Intervention Ledger.
                 </div>
               ) : (
-                transcripts.slice(-6).map((entry) => (
-                  <div
-                    key={entry.id}
-                    className={`rounded-xl px-3 py-2 leading-relaxed ${
-                      entry.speaker === 'user'
-                        ? 'bg-neutral-100 text-neutral-800 ml-6'
-                        : 'bg-emerald-50/75 border border-emerald-200/70 text-neutral-900 mr-4'
-                    }`}
-                  >
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 mb-0.5">
-                      {entry.speaker === 'user' ? 'You' : 'ROOMWISE'}
-                    </div>
-                    <div className="text-xs break-words" dir="auto">
-                      {entry.text}
-                    </div>
-                  </div>
-                ))
+                <AnimatePresence initial={false}>
+                  {transcripts.slice(-6).map((entry) => (
+                    <motion.div
+                      key={entry.id}
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.16, ease: ROOMWISE_EASE }}
+                      className={`rounded-xl px-3 py-2 leading-relaxed ${
+                        entry.speaker === 'user'
+                          ? 'bg-[#f3f5f4] text-[#111815] ml-6'
+                          : 'bg-[#eef3f0] border border-emerald-700/15 text-[#111815] mr-4'
+                      }`}
+                    >
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-[#64726b] mb-0.5">
+                        {entry.speaker === 'user' ? 'You' : 'ROOMWISE'}
+                      </div>
+                      <div className="text-xs break-words" dir="auto">
+                        {entry.text}
+                      </div>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
               )}
             </div>
 
             {/* Prompt Input Fallback + Standby Footer */}
             <form
               onSubmit={handleTextSubmit}
-              className="px-3.5 py-2.5 border-t border-neutral-200/75 bg-neutral-50/60 flex items-center gap-2"
+              className="px-3.5 py-2.5 border-t border-neutral-200/75 bg-[#fafbfb] flex items-center gap-2"
             >
               <input
                 type="text"
@@ -463,7 +500,7 @@ export const VoiceAssistantOverlay: React.FC = () => {
               <button
                 type="submit"
                 disabled={!fallbackInput.trim()}
-                className="p-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 disabled:opacity-40 text-white transition-colors"
+                className="p-1.5 rounded-lg rw-btn-forest disabled:opacity-40"
                 aria-label="Send command"
               >
                 <Send className="w-3.5 h-3.5" />

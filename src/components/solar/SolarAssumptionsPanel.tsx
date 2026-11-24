@@ -15,6 +15,7 @@ import {
   Sliders,
 } from 'lucide-react';
 import { SectionHeading } from '../common/DesignSystem';
+import { MathText } from '../common/MathText';
 import {
   DEFAULT_SOLAR_ASSUMPTIONS,
   SOLAR_PLANNING_SCENARIOS,
@@ -283,7 +284,12 @@ export const SolarAssumptionsPanel: React.FC<SolarAssumptionsPanelProps> = ({
               className="w-full px-3 py-2 rounded-lg border border-neutral-200 bg-white font-mono text-neutral-900 disabled:bg-neutral-50"
             />
             <p className="text-[11px] text-neutral-500">
-              Default: {DEFAULT_SOLAR_ASSUMPTIONS.panelAreaM2} m² (~2.28 m × 1.13 m module).
+              Default: {DEFAULT_SOLAR_ASSUMPTIONS.panelAreaM2} m² (
+              <MathText
+                tex="\approx 2.28\,\mathrm{m} \times 1.13\,\mathrm{m}"
+                ariaLabel="approximately 2.28 meters by 1.13 meters"
+              />{' '}
+              module).
             </p>
           </div>
 
@@ -464,15 +470,31 @@ export const SolarAssumptionsPanel: React.FC<SolarAssumptionsPanelProps> = ({
 
         {showMethodology && (
           <div className="pt-2 border-t border-neutral-200/70 space-y-3 text-xs text-neutral-600 leading-relaxed">
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <div className="font-semibold text-neutral-900">Sizing Formula</div>
-              <p className="font-mono text-[11px] bg-[#f5f7f6] p-2.5 rounded-lg border border-neutral-200/70">
-                usableArea = grossFootprintArea × (usableFraction / 100)
-                <br />
-                panelCount = floor((usableArea × (packingFactor / 100)) / panelAreaM2)
-                <br />
-                capacityKwp = (panelCount × panelRatedWatts) / 1000
-              </p>
+              <div className="bg-[#f5f7f6] p-3.5 rounded-xl border border-neutral-200/75 text-[#111815] overflow-x-auto space-y-2">
+                <MathText
+                  tex="A_{\mathrm{usable}} = A_{\mathrm{gross}} \times \dfrac{f_{\mathrm{usable}}}{100}"
+                  display
+                  compact
+                  className="text-[13px] sm:text-[14px]"
+                  ariaLabel="Usable area equals gross footprint area times usable fraction divided by 100"
+                />
+                <MathText
+                  tex="N_{\mathrm{panels}} = \left\lfloor \dfrac{A_{\mathrm{usable}} \times (f_{\mathrm{pack}}/100)}{A_{\mathrm{panel}}} \right\rfloor"
+                  display
+                  compact
+                  className="text-[13px] sm:text-[14px]"
+                  ariaLabel="Panel count equals floor of usable area times packing factor percentage divided by panel area"
+                />
+                <MathText
+                  tex="P_{\mathrm{kWp}} = \dfrac{N_{\mathrm{panels}} \times P_{\mathrm{panel}}}{1000}"
+                  display
+                  compact
+                  className="text-[13px] sm:text-[14px]"
+                  ariaLabel="Capacity in kWp equals panel count times panel rated watts divided by 1000"
+                />
+              </div>
             </div>
             <ul className="list-disc pl-4 space-y-1.5">
               {workspace.limitations.map((lim, i) => (

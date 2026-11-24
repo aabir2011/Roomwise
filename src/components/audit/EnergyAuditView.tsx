@@ -21,8 +21,9 @@ import { useEnergy } from '../../context/EnergyContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { AnimatedNumber } from '../common/MotionPrimitives';
+import { EmptyState, PageHeader, SegmentedControl } from '../common/DesignSystem';
 import { computeEcbcCompliancePercent } from '../../utils/auditEngine';
-import { ROOMWISE_EASE, SPRING_SNAPPY } from '../../utils/motion';
+import { ROOMWISE_EASE } from '../../utils/motion';
 
 export const EnergyAuditView: React.FC = () => {
   const {
@@ -160,61 +161,57 @@ export const EnergyAuditView: React.FC = () => {
   return (
     <div className="p-4 sm:p-6 md:p-8 space-y-5 sm:space-y-6 max-w-7xl mx-auto select-none">
       {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div>
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs font-semibold text-emerald-800">
+      <PageHeader
+        kicker={
+          <>
             <span>Continuous Autonomous Surveillance</span>
             <span aria-hidden="true">·</span>
             <span>DAV Model School, IIT Kharagpur</span>
-          </div>
-          <h1 className="text-xl md:text-2xl font-bold text-neutral-900 tracking-tight mt-0.5">
-            Campus Energy Audit & Inefficiency Detection
-          </h1>
-          <p className="text-xs text-neutral-500 mt-0.5">
-            Real-time heuristic inspection detecting phantom loads, solar thermal mismatches, and unoccupied runtime anomalies.
-          </p>
-        </div>
-
-        {/* Global 1-Click Remediation Button */}
-        <motion.button
-          type="button"
-          whileTap={unresolvedCount === 0 || isOptimizing ? undefined : { scale: 0.985 }}
-          onClick={handleRemediateAll}
-          disabled={unresolvedCount === 0 || isOptimizing}
-          className={`self-start lg:self-auto flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-colors shadow-xs whitespace-nowrap shrink-0 ${
-            unresolvedCount === 0 && !isOptimizing
-              ? 'bg-neutral-100 text-neutral-400 cursor-not-allowed border border-neutral-200'
-              : isOptimizing
-              ? 'bg-emerald-700 text-white shadow-sm'
-              : !isAdminUnlocked
-              ? 'bg-amber-600 hover:bg-amber-700 text-white cursor-pointer'
-              : 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer'
-          }`}
-          title={!isAdminUnlocked ? 'Admin authorization required to apply campus-wide rules' : 'Apply rules to all 25 classrooms'}
-        >
-          {isOptimizing ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin text-emerald-200" />
-              <span className="font-mono text-[11px]">{optimizingStageText}</span>
-            </>
-          ) : justRemediatedAll ? (
-            <>
-              <Check className="w-4 h-4 text-emerald-200" />
-              <span>All 25 Nodes Optimized</span>
-            </>
-          ) : !isAdminUnlocked ? (
-            <>
-              <Lock className="w-4 h-4 text-amber-200" />
-              <span>One-Click Campus Optimization</span>
-            </>
-          ) : (
-            <>
-              <Sparkles className="w-4 h-4" />
-              <span>One-Click Campus Optimization</span>
-            </>
-          )}
-        </motion.button>
-      </div>
+          </>
+        }
+        title="Campus Energy Audit & Inefficiency Detection"
+        subtitle="Real-time heuristic inspection detecting phantom loads, solar thermal mismatches, and unoccupied runtime anomalies."
+        action={
+          <motion.button
+            type="button"
+            whileTap={unresolvedCount === 0 || isOptimizing ? undefined : { scale: 0.985 }}
+            onClick={handleRemediateAll}
+            disabled={unresolvedCount === 0 || isOptimizing}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-colors shadow-xs whitespace-nowrap shrink-0 ${
+              unresolvedCount === 0 && !isOptimizing
+                ? 'bg-[#f3f5f4] text-neutral-400 cursor-not-allowed border border-neutral-200'
+                : isOptimizing
+                ? 'bg-[#0b2e22] text-white shadow-sm'
+                : !isAdminUnlocked
+                ? 'bg-amber-600 hover:bg-amber-700 text-white cursor-pointer'
+                : 'rw-btn-forest'
+            }`}
+            title={!isAdminUnlocked ? 'Admin authorization required to apply campus-wide rules' : 'Apply rules to all 25 classrooms'}
+          >
+            {isOptimizing ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin text-emerald-300" />
+                <span className="font-mono text-[11px]">{optimizingStageText}</span>
+              </>
+            ) : justRemediatedAll ? (
+              <>
+                <Check className="w-4 h-4 text-emerald-300" />
+                <span>All 25 Nodes Optimized</span>
+              </>
+            ) : !isAdminUnlocked ? (
+              <>
+                <Lock className="w-4 h-4 text-amber-200" />
+                <span>One-Click Campus Optimization</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4 text-emerald-300" />
+                <span>One-Click Campus Optimization</span>
+              </>
+            )}
+          </motion.button>
+        }
+      />
 
       {/* Post-Optimization Status Banner */}
       <AnimatePresence>
@@ -321,66 +318,37 @@ export const EnergyAuditView: React.FC = () => {
 
       {/* Filter Tabs */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center max-w-full overflow-x-auto p-1 bg-neutral-100 rounded-xl border border-neutral-200/70 text-xs font-medium">
-          {(
-            [
-              { id: 'all', label: `All Findings (${auditFindings.length})` },
-              { id: 'unresolved', label: `Unresolved (${unresolvedCount})` },
-              { id: 'resolved', label: `Remediated (${auditFindings.length - unresolvedCount})` },
-            ] as const
-          ).map((tab) => {
-            const active = filterSeverity === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setFilterSeverity(tab.id)}
-                className={`relative px-3 py-1.5 rounded-lg whitespace-nowrap cursor-pointer transition-colors ${
-                  active ? 'text-white font-semibold' : 'text-neutral-600 hover:text-neutral-900'
-                }`}
-              >
-                {active && (
-                  <motion.span
-                    layoutId="audit-filter-pill"
-                    transition={SPRING_SNAPPY}
-                    className="absolute inset-0 bg-neutral-900 rounded-lg shadow-xs"
-                  />
-                )}
-                <span className="relative z-10 tabular-nums">{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
+        <SegmentedControl<'all' | 'unresolved' | 'resolved'>
+          layoutId="audit-filter-pill"
+          ariaLabel="Filter audit findings"
+          value={filterSeverity}
+          onChange={setFilterSeverity}
+          options={[
+            { id: 'all', label: 'All Findings', suffix: auditFindings.length },
+            { id: 'unresolved', label: 'Unresolved', suffix: unresolvedCount },
+            { id: 'resolved', label: 'Remediated', suffix: auditFindings.length - unresolvedCount },
+          ]}
+        />
       </div>
 
       {/* Findings List or Empty State */}
       {filteredFindings.length === 0 ? (
-        <div className="p-10 rounded-2xl glass-card text-center space-y-3">
-          <div className="w-11 h-11 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center mx-auto">
-            <CheckCircle2 className="w-5 h-5" />
-          </div>
-          <div className="space-y-1">
-            <h3 className="text-sm font-bold text-neutral-900">
-              {filterSeverity === 'unresolved'
-                ? 'All audit findings have been remediated'
-                : 'No findings match this filter'}
-            </h3>
-            <p className="text-xs text-neutral-500 max-w-md mx-auto">
-              {filterSeverity === 'unresolved'
-                ? 'Every flagged classroom rule has been enforced across the 25 campus nodes.'
-                : 'Switch filter views to inspect active or remediated audit logs.'}
-            </p>
-          </div>
-          {filterSeverity !== 'all' && (
-            <button
-              type="button"
-              onClick={() => setFilterSeverity('all')}
-              className="px-3.5 py-1.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-semibold transition-colors cursor-pointer"
-            >
-              Show All Findings
-            </button>
-          )}
-        </div>
+        <EmptyState
+          icon={CheckCircle2}
+          tone="emerald"
+          title={
+            filterSeverity === 'unresolved'
+              ? 'All audit findings have been remediated'
+              : 'No findings match this filter'
+          }
+          description={
+            filterSeverity === 'unresolved'
+              ? 'Every flagged classroom rule has been enforced across the 25 campus nodes.'
+              : 'Switch filter views to inspect active or remediated audit logs.'
+          }
+          actionLabel={filterSeverity !== 'all' ? 'Show All Findings' : undefined}
+          onAction={filterSeverity !== 'all' ? () => setFilterSeverity('all') : undefined}
+        />
       ) : (
         <div className="space-y-3">
           {filteredFindings.map((finding) => {
@@ -500,7 +468,7 @@ export const EnergyAuditView: React.FC = () => {
       )}
 
       {/* ECBC & BEE Reference Alignment Card */}
-      <div className="p-5 rounded-2xl bg-white border border-neutral-200/90 shadow-xs space-y-3">
+      <div className="p-5 rounded-2xl rw-surface space-y-3">
         <h3 className="text-sm font-bold text-neutral-900">
           BEE &amp; ECBC Design-Alignment Reference
         </h3>

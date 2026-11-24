@@ -195,6 +195,7 @@ export const Sidebar: React.FC = () => {
               <motion.button
                 key={item.id}
                 type="button"
+                aria-current={isActive ? 'page' : undefined}
                 whileTap={{ scale: 0.985 }}
                 onClick={() => handleNavClick(item.id)}
                 className={`relative w-full flex items-center ${

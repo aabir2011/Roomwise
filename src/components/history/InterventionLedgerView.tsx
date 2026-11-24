@@ -4,6 +4,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   AlertTriangle,
   ArrowDown,
@@ -27,6 +28,7 @@ import {
 } from 'lucide-react';
 import { authFetch } from '../../context/AuthContext';
 import { useEnergy } from '../../context/EnergyContext';
+import { MathText } from '../common/MathText';
 import type { HistoryDatePreset } from '../../types/history';
 import type {
   InterventionActionStatus,
@@ -39,6 +41,8 @@ import type {
   InterventionVerificationStatus,
 } from '../../types/interventionLedger';
 import { getIstDateString, shiftIstDate } from '../../utils/historyDates';
+import { EmptyState, ErrorBanner, LoadingState } from '../common/DesignSystem';
+import { backdropVariants, drawerRightVariants } from '../../utils/motion';
 
 const PRESET_OPTIONS: Array<{ id: HistoryDatePreset; label: string }> = [
   { id: 'today', label: 'Today' },
@@ -247,6 +251,15 @@ export const InterventionLedgerView: React.FC = () => {
     };
   }, [selectedEventId]);
 
+  useEffect(() => {
+    if (!selectedEventId) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSelectedEventId(null);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [selectedEventId]);
+
   const availableRooms = useMemo(() => {
     const list = data?.filterOptions.rooms ?? [];
     if (building === 'All') return list;
@@ -417,10 +430,10 @@ export const InterventionLedgerView: React.FC = () => {
                   key={opt.id}
                   type="button"
                   onClick={() => setPreset(opt.id)}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+                  className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
                     active
-                      ? 'bg-emerald-700 text-white shadow-xs'
-                      : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200/80'
+                      ? 'bg-[#0b2e22] text-white shadow-xs'
+                      : 'bg-[#f3f5f4] text-[#4a5851] hover:text-[#111815] hover:bg-neutral-200/80'
                   }`}
                 >
                   {opt.label}
@@ -434,7 +447,7 @@ export const InterventionLedgerView: React.FC = () => {
               <button
                 type="button"
                 onClick={handleResetFilters}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-neutral-100 hover:bg-neutral-200 text-neutral-700 text-[11px] font-semibold cursor-pointer"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#f3f5f4] hover:bg-neutral-200/80 text-[#4a5851] hover:text-[#111815] text-[11px] font-semibold cursor-pointer"
               >
                 <RotateCcw className="w-3 h-3" />
                 <span>Reset Filters</span>
@@ -444,7 +457,7 @@ export const InterventionLedgerView: React.FC = () => {
               type="button"
               onClick={() => void loadLedger()}
               aria-label="Refresh intervention ledger"
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-neutral-200 hover:bg-neutral-50 text-neutral-700 text-[11px] font-semibold cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg rw-btn-secondary text-[11px] font-semibold cursor-pointer"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-emerald-700' : ''}`} />
               <span>Refresh</span>
@@ -620,41 +633,39 @@ export const InterventionLedgerView: React.FC = () => {
 
       {/* Error State */}
       {errorMsg && (
-        <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-xs text-red-800 flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4 shrink-0" />
-          <span>{errorMsg}</span>
-        </div>
+        <ErrorBanner message={errorMsg} onRetry={() => void loadLedger()} />
       )}
 
       {/* Event Table */}
-      <div className="rounded-2xl glass-card overflow-hidden">
-        <div className="px-4 py-3 border-b border-neutral-200/80 flex flex-wrap items-center justify-between gap-2 bg-neutral-50/60">
-          <div className="flex items-center gap-2 text-xs font-bold text-neutral-800">
+      <div className="rounded-2xl rw-surface overflow-hidden">
+        <div className="px-4 py-3 border-b border-neutral-200/80 flex flex-wrap items-center justify-between gap-2 bg-[#fafbfb]">
+          <div className="flex items-center gap-2 text-xs font-bold text-[#111815]">
             <Filter className="w-3.5 h-3.5 text-emerald-700" />
             <span>Recorded Interventions</span>
-            <span className="text-[11px] font-medium text-neutral-500">
+            <span className="text-[11px] font-medium text-[#64726b]">
               ({data?.records.length ?? 0} matching events · Click any row to inspect calculation & evidence)
             </span>
           </div>
-          <span className="text-[11px] text-neutral-500">
-            Formula: ΔW × Attributed Hours = Wh (÷1000 = kWh)
+          <span className="text-[11px] text-[#4a5851] inline-flex items-center gap-1.5">
+            <span className="font-medium text-[#64726b]">Formula:</span>
+            <MathText
+              tex="E_{\mathrm{Wh}} = \Delta P \cdot t_{\mathrm{attr}},\;\; E_{\mathrm{kWh}} = \frac{E_{\mathrm{Wh}}}{1000}"
+              ariaLabel="E sub Wh equals Delta P times t sub attr, and E sub kWh equals E sub Wh divided by 1000"
+            />
           </span>
         </div>
 
         {isLoading && !data ? (
-          <div className="p-10 flex items-center justify-center gap-2 text-xs text-neutral-500">
-            <Loader2 className="w-4 h-4 animate-spin text-emerald-700" />
-            <span>Loading intervention ledger...</span>
-          </div>
+          <LoadingState message="Loading intervention ledger..." className="py-12" />
         ) : !data || data.records.length === 0 ? (
-          <div className="p-10 text-center space-y-2">
-            <p className="text-sm font-semibold text-neutral-800">
-              No interventions match the current filters
-            </p>
-            <p className="text-xs text-neutral-500 max-w-md mx-auto">
-              Expand the date range (e.g., Last 30 days) or clear building/room/trigger filters to inspect logged interventions.
-            </p>
-          </div>
+          <EmptyState
+            icon={Filter}
+            title="No interventions match the current filters"
+            description="Expand the date range (e.g., Last 30 days) or clear building, room, or trigger filters to inspect logged interventions."
+            actionLabel={hasActiveFilters ? 'Reset Filters' : undefined}
+            onAction={hasActiveFilters ? handleResetFilters : undefined}
+            className="border-0 shadow-none bg-transparent"
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
@@ -805,12 +816,24 @@ export const InterventionLedgerView: React.FC = () => {
       </div>
 
       {/* Event Detail Drawer Modal */}
+      <AnimatePresence>
       {selectedEventId && (
-        <div
-          className="fixed inset-0 z-50 bg-neutral-900/40 backdrop-blur-[2px] flex justify-end"
+        <motion.div
+          variants={backdropVariants}
+          initial="hidden"
+          animate="visible"
+          exit="exit"
+          className="fixed inset-0 z-50 bg-[#071e17]/40 backdrop-blur-[2px] flex justify-end"
           onClick={() => setSelectedEventId(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Intervention audit details"
         >
-          <div
+          <motion.div
+            variants={drawerRightVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
             className="w-full max-w-2xl bg-white h-full overflow-y-auto shadow-2xl border-l border-neutral-200 flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
@@ -1051,7 +1074,9 @@ export const InterventionLedgerView: React.FC = () => {
                         </div>
                       </div>
                       <div className="p-2.5 rounded-lg bg-white border border-neutral-200/80">
-                        <div className="text-[10px] text-neutral-500">Power Difference (ΔW)</div>
+                        <div className="text-[10px] text-neutral-500">
+                          Power Difference (<MathText tex="\Delta P" ariaLabel="Delta P" />)
+                        </div>
                         <div className="font-bold text-emerald-800 tabular-nums">
                           {detailData.record.energyCalculation.powerDifferenceWatts !== null
                             ? `${detailData.record.energyCalculation.powerDifferenceWatts} W`
@@ -1069,8 +1094,24 @@ export const InterventionLedgerView: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="p-3 rounded-lg bg-white border border-neutral-200 font-mono text-[11px] text-neutral-900">
-                      {detailData.record.energyCalculation.formulaExpression}
+                    <div className="p-3 rounded-lg bg-white border border-neutral-200 text-neutral-900 overflow-x-auto">
+                      {detailData.record.energyCalculation.calculable &&
+                      detailData.record.energyCalculation.powerDifferenceWatts !== null &&
+                      detailData.record.energyCalculation.attributedDurationHours !== null &&
+                      detailData.record.energyCalculation.attributedEnergyAvoidedWh !== null &&
+                      detailData.record.energyCalculation.attributedEnergyAvoidedKwh !== null ? (
+                        <MathText
+                          tex={`\\Delta P \\cdot t_{\\mathrm{attr}} = ${detailData.record.energyCalculation.powerDifferenceWatts}\\,\\mathrm{W} \\times ${detailData.record.energyCalculation.attributedDurationHours}\\,\\mathrm{h} = ${detailData.record.energyCalculation.attributedEnergyAvoidedWh}\\,\\mathrm{Wh} = ${detailData.record.energyCalculation.attributedEnergyAvoidedKwh}\\,\\mathrm{kWh}`}
+                          display
+                          compact
+                          className="text-[12px] sm:text-[13px] text-neutral-900"
+                          ariaLabel={detailData.record.energyCalculation.formulaExpression}
+                        />
+                      ) : (
+                        <span className="font-mono text-[11px]">
+                          {detailData.record.energyCalculation.formulaExpression}
+                        </span>
+                      )}
                     </div>
 
                     <div className="space-y-1.5 text-[11px] text-neutral-700">
@@ -1232,9 +1273,10 @@ export const InterventionLedgerView: React.FC = () => {
                 </>
               )}
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+      </AnimatePresence>
     </div>
   );
 };

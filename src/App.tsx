@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { motion, AnimatePresence, MotionConfig } from 'motion/react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Compass, ArrowLeft, Box, School, FileSpreadsheet } from 'lucide-react';
 import { EnergyProvider, useEnergy } from './context/EnergyContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
@@ -16,6 +16,8 @@ import { VoiceAssistantOverlay } from './components/voice/VoiceAssistantOverlay'
 import { DashboardView } from './components/dashboard/DashboardView';
 import { RoomwiseLogo } from './components/common/RoomwiseLogo';
 import { ROOMWISE_EASE } from './utils/motion';
+import { useDeviceClassification } from './utils/deviceDetection';
+import { AppRoute, getPathForTab, parseRouteFromUrl, WorkspaceTabId } from './utils/routing';
 
 const DigitalTwinView = lazy(() =>
   import('./components/digitaltwin/DigitalTwinView').then((m) => ({ default: m.DigitalTwinView }))
@@ -89,53 +91,10 @@ const ViewFallback: React.FC = () => (
   </div>
 );
 
-type AppRoute =
-  | { type: 'classroom'; roomCode: string }
-  | { type: 'access-card' }
-  | { type: 'admin-login' }
-  | { type: 'dashboard' };
-
-function parseRouteFromUrl(): AppRoute {
-  if (typeof window === 'undefined') return { type: 'dashboard' };
-
-  const path = window.location.pathname;
-  const hash = window.location.hash;
-  const search = new URLSearchParams(window.location.search);
-
-  if (
-    /^\/(?:access-card|mobile-access)\/?$/i.test(path) ||
-    /^#\/(?:access-card|mobile-access)/i.test(hash) ||
-    search.has('c') ||
-    search.has('challenge')
-  ) {
-    return { type: 'access-card' };
-  }
-
-  if (/^\/(?:admin-login|admin)\/?$/i.test(path) || /^#\/(?:admin-login|admin)/i.test(hash)) {
-    return { type: 'admin-login' };
-  }
-
-  const queryRoom = search.get('room') || search.get('classroom');
-  if (queryRoom) {
-    return { type: 'classroom', roomCode: queryRoom.trim() };
-  }
-
-  const pathMatch = path.match(/^\/classroom\/([^/?#]+)/i);
-  if (pathMatch) {
-    return { type: 'classroom', roomCode: decodeURIComponent(pathMatch[1]).trim() };
-  }
-
-  const hashMatch = hash.match(/^#\/classroom\/([^/?#]+)/i);
-  if (hashMatch) {
-    return { type: 'classroom', roomCode: decodeURIComponent(hashMatch[1]).trim() };
-  }
-
-  return { type: 'dashboard' };
-}
-
 const AppContent: React.FC = () => {
   const {
     activeTab,
+    setActiveTab,
     selectedRoom,
     setSelectedRoomId,
     qrModalRoom,
@@ -150,6 +109,10 @@ const AppContent: React.FC = () => {
   } = useAuth();
 
   const [currentRoute, setCurrentRoute] = useState<AppRoute>(parseRouteFromUrl);
+  const mainScrollRef = useRef<HTMLElement | null>(null);
+  const device = useDeviceClassification();
+  const isPhoneViewport =
+    device.isPhone || (device.viewportWidth > 0 && device.viewportWidth < 768);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -159,22 +122,35 @@ const AppContent: React.FC = () => {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  useEffect(() => {
+    if (mainScrollRef.current) {
+      mainScrollRef.current.scrollTo({ top: 0, behavior: 'auto' });
+    }
+  }, [activeTab]);
+
   const navigateToClassroom = (roomCode: string) => {
     setCurrentRoute({ type: 'classroom', roomCode });
-    window.history.pushState({}, '', `/classroom/${roomCode}`);
+    window.history.pushState({}, '', `/classroom/${encodeURIComponent(roomCode)}`);
+  };
+
+  const navigateToSection = (tab: WorkspaceTabId = 'dashboard') => {
+    const targetPath = getPathForTab(tab);
+    window.history.pushState({ tab }, '', targetPath);
+    setCurrentRoute({ type: 'dashboard', tab });
+    setActiveTab(tab);
   };
 
   const navigateToDashboard = () => {
-    setCurrentRoute({ type: 'dashboard' });
-    window.history.pushState({}, '', '/');
+    navigateToSection('dashboard');
   };
 
   useEffect(() => {
     if (currentRoute.type === 'admin-login' && !isAuthLoading && isAdminUnlocked) {
-      setCurrentRoute({ type: 'dashboard' });
+      setCurrentRoute({ type: 'dashboard', tab: 'dashboard' });
+      setActiveTab('dashboard');
       window.history.replaceState({}, '', '/');
     }
-  }, [currentRoute.type, isAuthLoading, isAdminUnlocked]);
+  }, [currentRoute.type, isAuthLoading, isAdminUnlocked, setActiveTab]);
 
   if (currentRoute.type === 'access-card') {
     return (
@@ -260,26 +236,112 @@ const AppContent: React.FC = () => {
     );
   }
 
+  if (currentRoute.type === 'not-found') {
+    return (
+      <div className="min-h-screen w-full bg-app-ambient text-[#111815] flex flex-col items-center justify-center p-4 sm:p-8 select-none">
+        <div className="w-full max-w-lg rounded-3xl glass-card p-6 sm:p-8 relative overflow-hidden space-y-5 text-center">
+          <div className="absolute top-0 left-0 right-0 h-1 gradient-rim-emerald" />
+          <div className="flex justify-center">
+            <RoomwiseLogo size="md" showSubtitle={false} />
+          </div>
+
+          <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center mx-auto">
+            <Compass className="w-6 h-6" />
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="text-[11px] font-mono font-bold uppercase tracking-widest text-emerald-800">
+              404 · Route Not Found
+            </div>
+            <h1 className="text-xl sm:text-2xl font-bold text-[#111815]">
+              This ROOMWISE page does not exist
+            </h1>
+            <p className="text-xs text-[#4a5851] leading-relaxed">
+              The path{' '}
+              <span className="font-mono font-semibold text-[#111815] bg-neutral-100 px-1.5 py-0.5 rounded">
+                {currentRoute.pathname}
+              </span>{' '}
+              is not a configured workspace view or classroom node.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => navigateToSection('dashboard')}
+              className="px-4 py-2 rounded-xl rw-btn-forest text-xs font-semibold flex items-center gap-1.5"
+            >
+              <ArrowLeft className="w-3.5 h-3.5 text-emerald-300" />
+              <span>Campus Overview</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => navigateToSection('campus-live')}
+              className="px-3.5 py-2 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 text-xs font-semibold text-[#111815] flex items-center gap-1.5"
+            >
+              <Box className="w-3.5 h-3.5 text-emerald-700" />
+              <span>Campus Live</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => navigateToSection('classrooms')}
+              className="px-3.5 py-2 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 text-xs font-semibold text-[#111815] flex items-center gap-1.5"
+            >
+              <School className="w-3.5 h-3.5 text-emerald-700" />
+              <span>Classrooms (25)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => navigateToSection('reports')}
+              className="px-3.5 py-2 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 text-xs font-semibold text-[#111815] flex items-center gap-1.5"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-700" />
+              <span>Reports &amp; BEE</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const isCampusLive = activeTab === 'campus-live';
+  const activeViewKey =
+    activeTab === 'environmental' || activeTab === 'solar'
+      ? 'environmental-solar'
+      : activeTab;
+
+  const useLightweightTransition = isCampusLive || isPhoneViewport;
+
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-app-ambient text-neutral-900 font-sans antialiased relative selection:bg-emerald-500 selection:text-white">
+    <div
+      data-device={isPhoneViewport ? 'phone' : 'desktop'}
+      className="flex h-dvh w-screen overflow-hidden bg-app-ambient text-[#111815] font-sans antialiased relative selection:bg-emerald-600 selection:text-white"
+    >
+      {!isCampusLive && (
+        <div className="rw-ambient-field" aria-hidden="true">
+          <div className="rw-ambient-orb-primary" />
+          <div className="rw-ambient-orb-secondary" />
+          {!isPhoneViewport && <div className="rw-ambient-orb-tertiary" />}
+        </div>
+      )}
+
       <Sidebar />
 
       <div className="flex-1 flex flex-col h-full overflow-hidden relative z-10 min-w-0">
         <Header />
 
-        <main className="flex-1 overflow-y-auto overflow-x-hidden">
+        <main ref={mainScrollRef} className="flex-1 overflow-y-auto overflow-x-hidden">
           <Suspense fallback={<ViewFallback />}>
             <AnimatePresence mode="wait">
               <motion.div
-                key={
-                  activeTab === 'environmental' || activeTab === 'solar'
-                    ? 'environmental-solar'
-                    : activeTab
-                }
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ duration: 0.18, ease: ROOMWISE_EASE }}
+                key={activeViewKey}
+                initial={useLightweightTransition ? { opacity: 0 } : { opacity: 0, y: 4 }}
+                animate={useLightweightTransition ? { opacity: 1 } : { opacity: 1, y: 0 }}
+                exit={useLightweightTransition ? { opacity: 0 } : { opacity: 0, y: -2 }}
+                transition={{
+                  duration: isPhoneViewport ? 0.12 : 0.15,
+                  ease: ROOMWISE_EASE,
+                }}
                 className="min-h-full"
               >
                 {activeTab === 'dashboard' && <DashboardView />}

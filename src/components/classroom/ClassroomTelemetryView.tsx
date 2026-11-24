@@ -18,13 +18,18 @@ import {
   CheckCircle2,
   ExternalLink,
   SlidersHorizontal,
+  AlertTriangle,
+  ArrowLeft,
 } from 'lucide-react';
 import { useEnergy } from '../../context/EnergyContext';
 import { useAuth } from '../../context/AuthContext';
 import { useDeviceClassification } from '../../utils/deviceDetection';
 import { RoomwiseLogo } from '../common/RoomwiseLogo';
 import { getRoomActivityState, summarizeApplianceGroup } from '../../utils/applianceUtils';
-import { computeAppliancesRatedPowerWatts } from '../../data/roomApplianceSpecs';
+import {
+  computeAppliancesRatedPowerWatts,
+  getRoomOperatingProfile,
+} from '../../data/roomApplianceSpecs';
 import { ApplianceControlDrawer } from '../classrooms/ApplianceControlDrawer';
 import { AnimatedNumber } from '../common/MotionPrimitives';
 import { ROOMWISE_EASE } from '../../utils/motion';
@@ -46,26 +51,130 @@ export const ClassroomTelemetryView: React.FC<Props> = ({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerFocus, setDrawerFocus] = useState<'lights' | 'fan' | null>(null);
 
+  const normalizedCode = roomCode.trim().toLowerCase();
   const room = useMemo(() => {
+    if (!normalizedCode) return null;
     return (
       classrooms.find(
         (c) =>
-          c.roomCode.toLowerCase() === roomCode.toLowerCase() ||
-          c.id.toLowerCase() === roomCode.toLowerCase()
-      ) || classrooms[0]
+          c.roomCode.toLowerCase() === normalizedCode ||
+          c.id.toLowerCase() === normalizedCode
+      ) || null
     );
-  }, [classrooms, roomCode]);
+  }, [classrooms, normalizedCode]);
 
   const lightSummary = useMemo(
-    () => summarizeApplianceGroup(room.appliances, 'lights'),
-    [room.appliances]
+    () => (room ? summarizeApplianceGroup(room.appliances, 'lights') : null),
+    [room]
   );
   const fanSummary = useMemo(
-    () => summarizeApplianceGroup(room.appliances, 'fan'),
-    [room.appliances]
+    () => (room ? summarizeApplianceGroup(room.appliances, 'fan') : null),
+    [room]
   );
 
+  if (!room || !lightSummary || !fanSummary) {
+    return (
+      <div className="min-h-screen bg-app-ambient text-neutral-900 select-none pb-12">
+        <header className="sticky top-0 z-30 glass-header px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3 min-w-0">
+            <RoomwiseLogo size="sm" showSubtitle={false} />
+            <div className="hidden sm:block border-l border-neutral-200 pl-3 min-w-0">
+              <div className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-800 truncate">
+                DAV Model School, IIT Kharagpur
+              </div>
+              <div className="text-xs text-neutral-500 font-medium truncate">
+                Classroom Telemetry Node
+              </div>
+            </div>
+          </div>
+
+          {onNavigateHome && (
+            <button
+              type="button"
+              onClick={onNavigateHome}
+              className="px-3 py-1.5 rounded-xl rw-btn-primary text-xs font-bold flex items-center gap-1.5 whitespace-nowrap"
+            >
+              <ArrowLeft className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Campus Dashboard</span>
+            </button>
+          )}
+        </header>
+
+        <main className="max-w-xl mx-auto p-4 sm:p-8 mt-8">
+          <div className="p-6 sm:p-8 rounded-3xl glass-card relative overflow-hidden space-y-5 text-center">
+            <div className="absolute top-0 left-0 right-0 h-1 gradient-rim-amber" />
+            <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 text-amber-700 flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+
+            <div className="space-y-1.5">
+              <h1 className="text-xl font-bold text-neutral-900">Classroom Node Not Found</h1>
+              <p className="text-xs text-neutral-600 leading-relaxed">
+                No monitored classroom matches the identifier{' '}
+                <span className="font-mono font-bold text-neutral-900 bg-neutral-100 px-1.5 py-0.5 rounded">
+                  {roomCode || '(empty)'}
+                </span>
+                . Check the door QR placard or select a valid classroom below.
+              </p>
+            </div>
+
+            {onSelectRoomCode && classrooms.length > 0 && (
+              <div className="text-left bg-neutral-50/90 p-3.5 rounded-2xl border border-neutral-200/80 space-y-1.5">
+                <label
+                  htmlFor="invalid-room-switcher"
+                  className="block text-[10px] font-bold uppercase tracking-wider text-neutral-500"
+                >
+                  Open a Monitored Classroom (25 Nodes)
+                </label>
+                <select
+                  id="invalid-room-switcher"
+                  defaultValue=""
+                  onChange={(e) => {
+                    if (e.target.value) onSelectRoomCode(e.target.value);
+                  }}
+                  className="w-full px-3 py-2 glass-input rounded-xl text-xs font-semibold text-[#111815]"
+                >
+                  <option value="" disabled>
+                    Select classroom code...
+                  </option>
+                  {classrooms.map((c) => (
+                    <option key={c.id} value={c.roomCode}>
+                      {c.roomCode} — {c.name} ({c.building})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center justify-center gap-2.5 pt-1">
+              {onNavigateHome && (
+                <button
+                  type="button"
+                  onClick={onNavigateHome}
+                  className="px-4 py-2 rounded-xl rw-btn-forest text-xs font-semibold flex items-center gap-1.5"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5 text-emerald-300" />
+                  <span>Return to Campus Overview</span>
+                </button>
+              )}
+              {onSelectRoomCode && classrooms[0] && (
+                <button
+                  type="button"
+                  onClick={() => onSelectRoomCode(classrooms[0].roomCode)}
+                  className="px-4 py-2 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-800 text-xs font-semibold"
+                >
+                  Open {classrooms[0].roomCode} ({classrooms[0].name})
+                </button>
+              )}
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   const isOccupied = room.occupancyStatus === 'Occupied';
+  const roomOperatingHours = getRoomOperatingProfile(room.type).activeHoursPerSchoolDay;
   const naturalDeliveredLux = Math.round(
     room.environment.naturalDaylightLux * room.calibration.learnedParameters.daylightPenetrationAlpha
   );
@@ -114,7 +223,7 @@ export const ClassroomTelemetryView: React.FC<Props> = ({
             <button
               type="button"
               onClick={onNavigateHome}
-              className="px-3 py-1.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold transition-all active:scale-[0.98] flex items-center gap-1.5 whitespace-nowrap"
+              className="px-3 py-1.5 rounded-xl rw-btn-primary text-xs font-bold flex items-center gap-1.5 whitespace-nowrap"
             >
               <span>Campus Dashboard</span>
               <ExternalLink className="w-3.5 h-3.5 text-emerald-400" />
@@ -130,10 +239,10 @@ export const ClassroomTelemetryView: React.FC<Props> = ({
                 openDrawerFor(null);
               }
             }}
-            className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all active:scale-[0.98] flex items-center gap-1.5 whitespace-nowrap ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap ${
               isAdminUnlocked
-                ? 'bg-emerald-600 text-white hover:bg-emerald-700'
-                : 'bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300/85'
+                ? 'rw-btn-forest'
+                : 'bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300/85 transition-colors'
             }`}
           >
             <Shield className="w-3.5 h-3.5" />
@@ -205,7 +314,7 @@ export const ClassroomTelemetryView: React.FC<Props> = ({
                 <select
                   value={room.roomCode}
                   onChange={(e) => onSelectRoomCode(e.target.value)}
-                  className="px-2.5 py-1.5 bg-white border border-neutral-300 rounded-xl text-xs font-semibold text-neutral-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="px-2.5 py-1.5 glass-input rounded-xl text-xs font-semibold text-[#111815]"
                 >
                   {classrooms.map((c) => (
                     <option key={c.id} value={c.roomCode}>
@@ -436,7 +545,7 @@ export const ClassroomTelemetryView: React.FC<Props> = ({
                 <span className="text-xs font-normal text-teal-700">kWh</span>
               </div>
               <div className="text-[10px] text-teal-700 mt-0.5 tabular-nums">
-                7.0 h/day comparative ref
+                {roomOperatingHours.toFixed(1)} h/day room-weighted
               </div>
             </div>
           </div>

@@ -26,7 +26,9 @@ import {
   computeAppliancesRatedPowerWatts,
 } from '../../data/roomApplianceSpecs';
 import { formatCapacityKW } from '../../utils/applianceUtils';
+import { buildSchoolDayDemandProfile } from '../../utils/demandProfile';
 import { AnimatedNumber } from '../common/MotionPrimitives';
+import { PageHeader } from '../common/DesignSystem';
 import {
   ROOMWISE_EASE,
   staggerContainerVariants,
@@ -44,6 +46,14 @@ export const DashboardView: React.FC = () => {
   } = useEnergy();
 
   const [historySnap, setHistorySnap] = useState<HistoryOverviewResponse | null>(null);
+  const [clockNow, setClockNow] = useState<Date>(() => new Date());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setClockNow(new Date());
+    }, 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -106,60 +116,52 @@ export const DashboardView: React.FC = () => {
       ? ((campusSummary.dailySavedKWh / campusSummary.dailyBaselineKWh) * 100).toFixed(1)
       : '0.0';
 
-  const hourlyData = [
-    { hour: '07:30', actual: 1.6, baseline: 3.4 },
-    { hour: '08:30', actual: 3.8, baseline: 11.2 },
-    { hour: '09:30', actual: 4.6, baseline: 14.8 },
-    { hour: '10:30', actual: liveActualKW, baseline: liveBaseKW },
-    { hour: '11:30', actual: 4.8, baseline: 15.6 },
-    { hour: '12:30', actual: 2.6, baseline: 12.8 },
-    { hour: '13:30', actual: 4.4, baseline: 14.2 },
-    { hour: '14:30', actual: 0.8, baseline: 4.5 },
-  ];
+  const demandProfile = buildSchoolDayDemandProfile({
+    liveActualKW,
+    liveBaseKW,
+    now: clockNow,
+  });
+  const hourlyData = demandProfile.slots;
 
   const maxHourValue = Math.max(19, Math.ceil(liveBaseKW * 1.15));
 
   return (
     <div className="p-4 sm:p-6 md:p-8 space-y-5 sm:space-y-6 max-w-7xl mx-auto">
       {/* Title & Audit Alert */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] sm:text-xs font-bold uppercase tracking-wider text-emerald-800">
+      <PageHeader
+        kicker={
+          <>
             <span className="whitespace-nowrap">Adaptive Automation Active</span>
             <span aria-hidden="true">·</span>
             <span className="whitespace-nowrap">WBSEDCL Educational HT-2</span>
-          </div>
-          <h1 className="text-lg sm:text-2xl font-bold text-neutral-900 tracking-tight mt-0.5">
-            Campus Energy Dashboard
-          </h1>
-          <p className="text-xs text-neutral-500 mt-0.5 hidden sm:block">
-            Autonomous environmental telemetry and closed-loop decisions across 25 classroom nodes in 5 blocks at{' '}
-            {settings.institutionName}.
-          </p>
-        </div>
-
-        {unresolvedAuditCount > 0 && (
-          <button
-            type="button"
-            onClick={() => setActiveTab('audit')}
-            className="flex items-center gap-3 p-3 sm:px-4 sm:py-3 glass-card-interactive border-amber-300/80 hover:border-amber-400 bg-amber-50/70 rounded-xl sm:rounded-2xl text-left group relative overflow-hidden shrink-0"
-          >
-            <div className="absolute top-0 left-0 right-0 h-0.5 gradient-rim-amber" />
-            <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-300/50 flex items-center justify-center text-amber-700 shrink-0">
-              <ShieldAlert className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="text-xs font-bold text-amber-950 flex items-center gap-1">
-                <span>{unresolvedAuditCount} Inefficiency Findings</span>
-                <ArrowUpRight className="w-3.5 h-3.5 text-amber-700 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+          </>
+        }
+        title="Campus Energy Overview"
+        subtitle={`Autonomous environmental telemetry and closed-loop decisions across 25 classroom nodes in 5 blocks at ${settings.institutionName}.`}
+        action={
+          unresolvedAuditCount > 0 ? (
+            <button
+              type="button"
+              onClick={() => setActiveTab('audit')}
+              className="flex items-center gap-3 px-3.5 py-2.5 rw-surface-interactive border-amber-300/80 hover:border-amber-400 bg-amber-50/70 rounded-xl sm:rounded-2xl text-left group relative overflow-hidden shrink-0"
+            >
+              <div className="absolute top-0 left-0 right-0 h-0.5 gradient-rim-amber" />
+              <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-300/50 flex items-center justify-center text-amber-700 shrink-0">
+                <ShieldAlert className="w-4 h-4" />
               </div>
-              <div className="text-[11px] text-amber-800 truncate max-w-[240px] sm:max-w-none">
-                Actionable phantom loads identified
+              <div>
+                <div className="text-xs font-bold text-amber-950 flex items-center gap-1">
+                  <span>{unresolvedAuditCount} Inefficiency Findings</span>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-amber-700 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                </div>
+                <div className="text-[11px] text-amber-800 truncate max-w-[240px] sm:max-w-none">
+                  Actionable phantom loads identified
+                </div>
               </div>
-            </div>
-          </button>
-        )}
-      </div>
+            </button>
+          ) : undefined
+        }
+      />
 
       {/* Live Campus Energy Flow Ribbon */}
       <div className="p-3.5 sm:p-4 px-4 sm:px-5 rounded-2xl glass-dark text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 overflow-hidden relative">
@@ -318,14 +320,16 @@ export const DashboardView: React.FC = () => {
 
       {/* Main Grid: Load Profile & 5 Buildings Distribution */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 sm:gap-6">
-        <div className="lg:col-span-2 p-4 sm:p-6 rounded-2xl glass-card relative overflow-hidden min-w-0">
+        <div className="lg:col-span-2 p-4 sm:p-6 rounded-2xl glass-card rw-card-alive relative overflow-hidden min-w-0">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
             <div className="min-w-0">
               <h3 className="text-sm font-bold text-neutral-900">
                 School-Day Electrical Demand Profile (25 Nodes)
               </h3>
               <p className="text-xs text-neutral-500">
-                Modelled day-school load curve (10:30 reflects active node state) vs Pre-Retrofit Reference (Installed Max: {liveRatedKWText} kW · Ref: {liveBaseKWText} kW)
+                {demandProfile.isWithinSchoolHours
+                  ? `Modelled day-school load curve (${demandProfile.activeLabel} reflects active node state) vs Pre-Retrofit Reference (Installed Max: ${liveRatedKWText} kW · Ref: ${liveBaseKWText} kW)`
+                  : `Modelled day-school curve (07:30–14:30) + live active node state at ${demandProfile.currentTimeIst} vs Pre-Retrofit Reference (Installed Max: ${liveRatedKWText} kW · Ref: ${liveBaseKWText} kW)`}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3 text-xs font-semibold shrink-0">
@@ -344,16 +348,18 @@ export const DashboardView: React.FC = () => {
             {hourlyData.map((d, i) => {
               const actualHeightPercent = Math.min(100, (d.actual / maxHourValue) * 100);
               const baselineHeightPercent = Math.min(100, (d.baseline / maxHourValue) * 100);
-              const isCurrent = d.hour === '10:30';
+              const isCurrent = d.isCurrent;
 
               return (
                 <div
-                  key={d.hour}
-                  className="flex-1 flex flex-col items-center h-full justify-end group relative min-w-[34px]"
+                  key={d.key}
+                  className={`flex-1 flex flex-col items-center h-full justify-end group relative min-w-[36px] ${
+                    d.isAfterHoursLive ? 'pl-2.5 sm:pl-3 border-l border-dashed border-emerald-600/35' : ''
+                  }`}
                 >
                   <div className="absolute top-0 opacity-0 -translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-150 bg-neutral-900 text-white text-[10px] py-1 px-2 rounded-lg pointer-events-none whitespace-nowrap z-20 font-mono tabular-nums shadow-md">
                     {d.hour}
-                    {isCurrent ? ' (Active Sim)' : ' (Illustrative)'} · {d.actual} kW / {d.baseline} kW ref
+                    {isCurrent ? ' IST (Active Sim)' : ' (Illustrative)'} · {d.actual} kW / {d.baseline} kW ref
                   </div>
 
                   <div className="w-full flex items-end justify-center gap-1 h-full">
@@ -381,11 +387,11 @@ export const DashboardView: React.FC = () => {
                     />
                   </div>
                   <span
-                    className={`text-[10px] mt-2 font-mono tabular-nums ${
+                    className={`text-[10px] mt-2 font-mono tabular-nums whitespace-nowrap ${
                       isCurrent ? 'font-bold text-emerald-800' : 'text-neutral-500'
                     }`}
                   >
-                    {d.hour}
+                    {d.isAfterHoursLive ? `${d.hour}*` : d.hour}
                   </span>
                 </div>
               );
@@ -521,10 +527,10 @@ export const DashboardView: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveTab('history')}
-              className="px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors whitespace-nowrap cursor-pointer shadow-2xs"
+              className="px-3.5 py-2 rounded-xl rw-btn-forest text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shadow-2xs"
             >
               <span>Energy History</span>
-              <ArrowUpRight className="w-3.5 h-3.5 shrink-0" />
+              <ArrowUpRight className="w-3.5 h-3.5 shrink-0 text-emerald-300" />
             </button>
           </div>
         </div>

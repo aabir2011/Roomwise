@@ -20,7 +20,8 @@ import { useEnergy } from '../../context/EnergyContext';
 import { BuildingName, Floor } from '../../types/energy';
 import { getRoomActivityState } from '../../utils/applianceUtils';
 import { computeAppliancesRatedPowerWatts } from '../../data/roomApplianceSpecs';
-import { ROOMWISE_EASE, SPRING_SNAPPY } from '../../utils/motion';
+import { EmptyState, PageHeader, SegmentedControl } from '../common/DesignSystem';
+import { ROOMWISE_EASE } from '../../utils/motion';
 
 export const ClassroomsView: React.FC = () => {
   const { classrooms, setSelectedRoomId, setQrModalRoom } = useEnergy();
@@ -74,53 +75,29 @@ export const ClassroomsView: React.FC = () => {
   return (
     <div className="p-4 sm:p-6 md:p-8 space-y-6 max-w-7xl mx-auto">
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3.5">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] sm:text-xs font-bold uppercase tracking-wider text-emerald-800">
+      <PageHeader
+        kicker={
+          <>
             <span className="whitespace-nowrap">25 Connected Classroom Nodes</span>
             <span aria-hidden="true">·</span>
             <span className="truncate">DAV Model School, IIT Kharagpur</span>
-          </div>
-          <h1 className="text-lg sm:text-2xl font-bold text-neutral-900 tracking-tight mt-0.5">
-            Classrooms & Laboratories Directory
-          </h1>
-          <p className="text-xs text-neutral-500 mt-0.5">
-            Environmental telemetry, PIR motion tracking, and explainable lighting and BLDC fan automation.
-          </p>
-        </div>
-
-        {/* View Switcher */}
-        <div className="flex items-center gap-2 self-start md:self-auto">
-          <div className="flex items-center p-1 glass-card rounded-xl">
-            {(['grid', 'table'] as const).map((mode) => {
-              const Icon = mode === 'grid' ? Grid : List;
-              const isSelected = viewMode === mode;
-              return (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => setViewMode(mode)}
-                  className={`relative p-1.5 px-3 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors whitespace-nowrap ${
-                    isSelected ? 'text-white' : 'text-neutral-600 hover:text-neutral-900'
-                  }`}
-                  title={mode === 'grid' ? 'Card Grid View' : 'Dense Data Table'}
-                >
-                  {isSelected && (
-                    <motion.span
-                      layoutId="classrooms-view-mode"
-                      transition={SPRING_SNAPPY}
-                      className="absolute inset-0 rounded-lg bg-neutral-900 shadow-2xs"
-                      aria-hidden="true"
-                    />
-                  )}
-                  <Icon className="relative z-10 w-3.5 h-3.5" />
-                  <span className="relative z-10 capitalize">{mode}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
+          </>
+        }
+        title="Classrooms & Laboratories Directory"
+        subtitle="Environmental telemetry, PIR motion tracking, and explainable lighting and BLDC fan automation."
+        action={
+          <SegmentedControl<'grid' | 'table'>
+            layoutId="classrooms-view-mode"
+            ariaLabel="Classroom view layout"
+            value={viewMode}
+            onChange={setViewMode}
+            options={[
+              { id: 'grid', label: 'Grid', icon: Grid },
+              { id: 'table', label: 'Table', icon: List },
+            ]}
+          />
+        }
+      />
 
       {/* Filter & Search Bar */}
       <div className="p-3.5 sm:p-4 glass-card rounded-2xl space-y-2.5">
@@ -197,24 +174,13 @@ export const ClassroomsView: React.FC = () => {
 
       {/* Empty State or Populated Views */}
       {filteredRooms.length === 0 ? (
-        <div className="p-10 sm:p-12 rounded-2xl glass-card text-center space-y-3">
-          <div className="w-11 h-11 rounded-2xl bg-neutral-100 border border-neutral-200 text-neutral-500 flex items-center justify-center mx-auto">
-            <School className="w-5 h-5" />
-          </div>
-          <div className="space-y-1">
-            <h3 className="text-sm font-bold text-neutral-900">No matching classrooms found</h3>
-            <p className="text-xs text-neutral-500 max-w-md mx-auto">
-              No classrooms or laboratories match your active search query or building filters. Reset filters to view all 25 campus nodes.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={resetFilters}
-            className="px-4 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-semibold transition-all active:scale-[0.98]"
-          >
-            Reset All Filters
-          </button>
-        </div>
+        <EmptyState
+          icon={School}
+          title="No matching classrooms found"
+          description="No classrooms or laboratories match your active search query or building filters. Reset filters to view all 25 campus nodes."
+          actionLabel="Reset All Filters"
+          onAction={resetFilters}
+        />
       ) : (
         <AnimatePresence mode="wait" initial={false}>
           {viewMode === 'grid' ? (
@@ -346,7 +312,7 @@ export const ClassroomsView: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setSelectedRoomId(room.id)}
-                        className="px-3.5 py-1.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-semibold transition-all active:scale-[0.98] flex items-center gap-1"
+                        className="px-3.5 py-1.5 rounded-xl rw-btn-primary text-xs font-semibold flex items-center gap-1"
                       >
                         <span>Inspect</span>
                         <ChevronRight className="w-3 h-3" />

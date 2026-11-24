@@ -25,6 +25,7 @@ import {
 import type { AuditFinding, BuildingName, Classroom, Floor } from '../../types/energy';
 import type { RoomHistoryDetailResponse } from '../../types/history';
 import { computeAppliancesRatedPowerWatts } from '../../data/roomApplianceSpecs';
+import { getCampusMeasurementByRoomwiseBuilding } from '../../data/campusBuildingMeasurements';
 import { getRoomActivityState, summarizeApplianceGroup } from '../../utils/applianceUtils';
 import { authFetch } from '../../context/AuthContext';
 import type {
@@ -235,6 +236,50 @@ export const RoomInspectorPanel: React.FC<RoomInspectorPanelProps> = ({
               />
             </div>
           </div>
+
+          {selectedBuilding && (() => {
+            const geom = getCampusMeasurementByRoomwiseBuilding(selectedBuilding);
+            if (!geom) return null;
+            return (
+              <div className="p-2.5 rounded-xl bg-[#101518] border border-white/8 space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-300">
+                    Building Footprint
+                  </span>
+                  <span className="text-[9.5px] font-mono text-[#9eb0a9] truncate">
+                    {geom.areaProvenance}
+                  </span>
+                </div>
+                <div className="flex items-baseline justify-between gap-2 tabular-nums">
+                  <span className="font-mono text-xs font-semibold text-[#f3f7f5]">
+                    {geom.authoritativeFootprintAreaM2.toLocaleString()} m²
+                    <span className="text-[10px] font-normal text-[#8d9d97] ml-1">
+                      ({geom.authoritativeFootprintAreaFt2.toLocaleString()} ft²)
+                    </span>
+                  </span>
+                  {geom.suppliedPerimeterM !== null ? (
+                    <span className="font-mono text-[10.5px] text-[#9eb0a9]">
+                      Perim. {geom.suppliedPerimeterM.toLocaleString()} m
+                    </span>
+                  ) : (
+                    <span className="font-mono text-[10px] text-[#8d9d97]">
+                      Indiv. perim.: Not available
+                    </span>
+                  )}
+                </div>
+                {geom.combinedComplexRef && (
+                  <p className="text-[10px] text-emerald-200/85 leading-snug">
+                    OB + NB measured jointly: {geom.combinedComplexRef.suppliedCombinedAreaM2.toLocaleString()} m²
+                    ({geom.combinedComplexRef.suppliedCombinedPerimeterM} m perimeter · Supplied calculated area).
+                    Wing share: {geom.combinedComplexRef.proportionalSharePercent}%.
+                  </p>
+                )}
+                <p className="text-[10px] text-[#7f918b] leading-snug">
+                  Source: {geom.measurementSource}. Vertical height &amp; roof profile: {geom.verticalGeometryProvenance}.
+                </p>
+              </div>
+            );
+          })()}
 
           <div className="space-y-3 pt-1">
             {groups.map((grp) => (

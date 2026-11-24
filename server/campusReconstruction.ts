@@ -10,6 +10,10 @@ import type {
   GeoPoint,
 } from '../src/types/solar.ts';
 import {
+  getCampusMeasurementById,
+  type AuthoritativeCampusFeatureRecord,
+} from '../src/data/campusBuildingMeasurements.ts';
+import {
   computePolygonsAreaM2,
   computePolygonsCentroid,
   haversineDistanceMeters,
@@ -98,6 +102,16 @@ function rotatePt(
   return [cx + dx * cos - dy * sin, cy + dx * sin + dy * cos];
 }
 
+function scalePtAround(
+  x: number,
+  y: number,
+  cx: number,
+  cy: number,
+  factor: number
+): [number, number] {
+  return [cx + (x - cx) * factor, cy + (y - cy) * factor];
+}
+
 function buildClosedGeoPolygon(
   localPts: Array<[number, number]>,
   ref: GeoPoint
@@ -153,60 +167,75 @@ export interface ReconstructedCampusStructure {
   tags: Record<string, string>;
   polygons: BuildingPolygon[];
   centroid: GeoPoint;
+  /** Authoritative horizontal footprint area (m²) from supplied Google Maps Measure Distance dataset */
   grossFootprintAreaM2: number;
+  /** Polygon-recalculated horizontal area (m²) retained for geometric consistency auditing */
+  polygonCalculatedAreaM2: number;
+  /** Linked authoritative geometric measurement record (single source of truth) */
+  measurementRecord: AuthoritativeCampusFeatureRecord | null;
   distanceFromCampusMeters: number;
 }
 
+// Uniform scaling factor calibrating the traced OB + NB vector outlines to the exact
+// supplied Google Maps Measure Distance combined complex area (1,209.21 m² vs prior 1,752.45 m²).
+const OB_NB_COMPLEX_SCALE = Math.sqrt(1209.21 / 1752.45);
+const OB_NB_SCALE_PIVOT: [number, number] = [2.0, 2.0];
+
 /**
- * Reconstructs the DAV Model School, IIT Kharagpur campus layout directly from the
- * annotated top-down visual reference images, anchored to canonical coordinates (22.3121, 87.2994).
+ * Reconstructs the DAV Model School, IIT Kharagpur campus layout calibrated directly to
+ * the user-supplied Google Maps Measure Distance polygon measurements, anchored to
+ * canonical coordinates (22.3121°N, 87.2994°E).
  *
- * Spatial frame (meters relative to DAV Model School pin at origin 0, 0):
- * - G+3 Block: Northwest multi-storey notched academic block near Gate 1 & Western Road.
- * - MPH: Separate ground-floor rectangular hall extension positioned directly south of G+3 Block.
- * - Pre-Primary Block (PP): Single-storey L-shaped ground-floor block south of MPH along the Gate 2 driveway.
- * - Old Building (OB): Diagonal NW-SE linear academic block northeast of the central pin.
- * - New Building (NB): Central-west angled courtyard academic complex around the central pin.
- * - Football Ground: Elongated southern sports field south of the internal school-bus driveway.
- * - Basketball Court (BB): Paved court directly east of the Football Ground.
- * - Red-marked eastern zone is strictly excluded (zero campus structures or features placed there).
+ * Authoritative supplied areas (total academic buildings = 2,366.80 m²):
+ * - G+3 Block: 601.55 m² (perimeter 133.98 m) — NW multi-storey notched academic block.
+ * - MPH: 168.51 m² (perimeter 52.27 m) — outward ground-floor extension flush on G+3 south flank.
+ * - Pre-Primary Block (PP): 387.53 m² (perimeter 105.86 m) — single-storey L-wing south of MPH.
+ * - Old Building (OB) + New Building (NB) Connected Complex: 1,209.21 m² combined (perimeter 285.74 m),
+ *   proportionally apportioned as OB = 298.46 m² and NB = 910.75 m² (sum === 1,209.21 m²).
+ * - Football Ground (non-building, non-solar): 5,300.83 m² (perimeter 344.17 m).
+ * - Basketball Court (non-building, non-solar): 737.14 m² (perimeter 113.93 m).
+ * - Eastern residential zone is strictly excluded.
  */
 export function buildReconstructedCampusStructures(
   campusRef: GeoPoint
 ): ReconstructedCampusStructure[] {
-  // 1. G+3 Block (Northwest multi-storey L/notched academic block, tilted +8° matching perimeter roads)
+  // 1. G+3 Block — Calibrated to supplied 601.55 m² (notched NW academic block, +8° campus axis)
+  // Includes the NW corner step-in and SE courtyard notch visible in the supplied satellite trace.
   const g3BaseLocal: Array<[number, number]> = [
-    [-64, 36], // SW corner overlooking MPH extension
-    [-44, 36], // S step inward
-    [-44, 46], // Inner courtyard notch corner
-    [-33, 46], // SE tip of upper wing
-    [-33, 66], // NE corner near Northern Road / Gate 1
-    [-64, 66], // NW corner near Western/Northern Road junction
+    [-63.0, 36.0],   // SW corner meeting MPH flush along south facade
+    [-48.8, 36.0],   // South facade east termination
+    [-48.8, 50.0],   // Inner SE courtyard notch corner
+    [-37.71, 50.0],  // SE tip of upper wing
+    [-37.71, 66.5],  // NE corner near Northern Road / Gate 1
+    [-59.2, 66.5],   // North edge before NW step-in
+    [-59.2, 62.7],   // NW subtle corner recess
+    [-63.0, 62.7],   // West facade north termination
   ].map(([x, y]) => rotatePt(x, y, -50, 51, 8));
 
-  // 2. MPH (Multipurpose Hall — Compact Attached Extension immediately south of G+3 Block)
-  // Compact footprint (~12m E-W × 12.5m N-S, aligned flush with G+3 Block's +8° axis)
-  // rising to 2nd-floor level (~8.2m), with a clear open space separating it from PP to the south.
+  // 2. MPH (Multipurpose Hall — Outward Attached Extension immediately south of G+3 Block)
+  // Calibrated to supplied 168.51 m² & 52.27 m perimeter (11.57 m E–W × 14.57 m N–S, +8° axis)
+  // flush against G+3's southern wall at y = 36.0, with a clear open gap separating it from PP.
   const mphBaseLocal: Array<[number, number]> = [
-    [-63, 23.5], // SW corner of compact MPH extension
-    [-51, 23.5], // SE corner of compact MPH extension
-    [-51, 36.0], // NE corner flush against G+3 Block south facade
-    [-63, 36.0], // NW corner flush against G+3 Block south facade
+    [-63.0, 21.43],  // SW corner of MPH extension
+    [-51.43, 21.43], // SE corner of MPH extension
+    [-51.43, 36.0],  // NE corner flush against G+3 Block south facade
+    [-63.0, 36.0],   // NW corner flush against G+3 Block south facade
   ].map(([x, y]) => rotatePt(x, y, -50, 51, 8));
 
-  // 3. PP — Pre-Primary Block (Distinct L-shaped single-storey ground-level block south of MPH,
-  // separated from MPH by a clear ~13.5m open space/walkway and positioned north of Gate 2 driveway)
+  // 3. PP — Pre-Primary Block (Distinct single-storey L-wing south of MPH)
+  // Calibrated to supplied 387.53 m² & 105.86 m perimeter (24.40 m S × 28.53 m W, wing widths 8.95 m / 8.58 m),
+  // separated from MPH by a clear ~14.9 m open landscaped walkway above Gate 2 driveway.
   const ppBaseLocal: Array<[number, number]> = [
-    [-63, -24], // SW corner above Gate 2 / Internal Campus Driveway
-    [-39, -24], // SE corner of eastward classroom wing along driveway
-    [-39, -14], // NE corner of eastward wing
-    [-51, -14], // Inner L-corner nook
-    [-51, 10],  // NE corner of vertical western wing (clearly separated from MPH)
-    [-63, 10],  // NW corner of vertical western wing
+    [-63.0, -22.03],  // SW corner above Gate 2 / Internal Campus Driveway
+    [-38.6, -22.03],  // SE corner of eastward classroom wing
+    [-38.6, -13.45],  // NE corner of eastward wing
+    [-54.05, -13.45], // Inner L-corner nook
+    [-54.05, 6.5],    // NE corner of vertical western wing (clearly separated from MPH)
+    [-63.0, 6.5],     // NW corner of vertical western wing
   ].map(([x, y]) => rotatePt(x, y, -50, 51, 8));
 
-  // 4. Old Building (OB) — Exact NW–SE diagonal linear wing traced from top-down vector outline,
-  // including its distinctive subtle NE recess step near the southeastern end-cap
+  // 4. Old Building (OB) — NW–SE diagonal linear wing traced from top-down Google Maps outline,
+  // uniformly scaled with NB to match the exact supplied combined OB+NB area (1,209.21 m²).
   const obLocal: Array<[number, number]> = [
     [-2.2, 34.9],  // NW-W corner
     [6.8, 40.8],   // NW-E corner
@@ -214,10 +243,10 @@ export function buildReconstructedCampusStructures(
     [27.8, 17.5],  // NE subtle step-in corner
     [33.1, 12.0],  // SE-NE corner
     [24.9, 5.7],   // SE-SW corner
-  ];
+  ].map(([x, y]) => scalePtAround(x, y, OB_NB_SCALE_PIVOT[0], OB_NB_SCALE_PIVOT[1], OB_NB_COMPLEX_SCALE));
 
-  // 5. New Building (NB) — Exact C/U-shaped angled courtyard complex traced from top-down vector outline,
-  // wrapping the shaded central courtyard with North-Central, West, Southwest & Southeast wings
+  // 5. New Building (NB) — C-shaped angled courtyard complex traced from Google Maps outline,
+  // uniformly scaled with OB to match the exact supplied combined OB+NB area (1,209.21 m²).
   const nbLocal: Array<[number, number]> = [
     [-14.5, 25.0], // NW apex
     [-26.3, -2.1], // Westernmost sharp elbow
@@ -239,13 +268,13 @@ export function buildReconstructedCampusStructures(
     [9.3, 12.2],   // North-Central Arm north-east shoulder (meets OB–NB connecting path)
     [6.2, 11.4],   // Shallow recess beneath campus pin
     [2.8, 17.2],   // North-Central Arm north shoulder
-  ];
+  ].map(([x, y]) => scalePtAround(x, y, OB_NB_SCALE_PIVOT[0], OB_NB_SCALE_PIVOT[1], OB_NB_COMPLEX_SCALE));
 
-  // 6. Football Ground — Large southern field south of the internal school-bus road
-  const footballLocal = buildRotatedRectPoints(3, -57, 114, 42, 7);
+  // 6. Football Ground — Calibrated to supplied 5,300.83 m² & 344.17 m perimeter (131.90 m × 40.19 m, +7°)
+  const footballLocal = buildRotatedRectPoints(3.5, -57.5, 131.9, 40.19, 7);
 
-  // 7. Basketball Court (BB) — Paved court immediately east of the Football Ground
-  const basketballLocal = buildRotatedRectPoints(76, -47, 19, 33, 8);
+  // 7. Basketball Court (BB) — Calibrated to supplied 737.14 m² & 113.93 m perimeter (19.87 m × 37.09 m, +8°)
+  const basketballLocal = buildRotatedRectPoints(83.5, -47.0, 19.87, 37.09, 8);
 
   const defs: Array<{
     id: string;
@@ -279,9 +308,9 @@ export function buildReconstructedCampusStructures(
       heightMeters: 14.5,
       parentBuildingId: null,
       relationshipNote:
-        'Primary 4-storey academic block (G+3) in the northwest campus corner, paired with the compact Multipurpose Hall (MPH) extension on its southern flank.',
+        'Primary 4-storey academic block (G+3) in the northwest campus corner (supplied footprint 601.55 m², perimeter 133.98 m), paired with the outward Multipurpose Hall (MPH) extension on its southern flank.',
       linkedRoomwiseBuilding: 'G+3 Block',
-      defaultRoofType: 'flat (concrete)',
+      defaultRoofType: 'flat (concrete — provisional plan area)',
       defaultTiltDegrees: 10,
       defaultAspectDegrees: 0,
       visualMeta: {
@@ -294,7 +323,7 @@ export function buildReconstructedCampusStructures(
         building: 'school',
         'building:levels': '4',
         'roof:shape': 'flat',
-        source: 'campus_image_reconstruction',
+        source: 'supplied_google_maps_measure_distance',
       },
       localPts: g3BaseLocal,
     },
@@ -302,7 +331,7 @@ export function buildReconstructedCampusStructures(
       id: 'campus/mph',
       name: 'MPH',
       shortLabel: 'MPH (2F Ht)',
-      campusLabel: 'Multipurpose Hall — Compact Extension of G+3 (2nd-Floor Level Height)',
+      campusLabel: 'Multipurpose Hall — Outward Ground-Floor Extension of G+3',
       featureKind: 'connected_wing',
       solarEligible: true,
       buildingType: 'school_hall',
@@ -310,9 +339,9 @@ export function buildReconstructedCampusStructures(
       heightMeters: 8.2,
       parentBuildingId: 'campus/g3-block',
       relationshipNote:
-        'Compact Multipurpose Hall attached to the southern flank of G+3 Block and rising to 2nd-floor level (~8.2 m), separated from Pre-Primary Block (PP) by a clear open space.',
+        'Outward Multipurpose Hall attached to the southern flank of G+3 Block (supplied footprint 168.51 m², perimeter 52.27 m), separated from Pre-Primary Block (PP) by a clear open space.',
       linkedRoomwiseBuilding: 'Multipurpose Hall',
-      defaultRoofType: 'flat (2nd-floor level hall roof)',
+      defaultRoofType: 'flat (hall roof — provisional plan area)',
       defaultTiltDegrees: 10,
       defaultAspectDegrees: 0,
       visualMeta: {
@@ -326,7 +355,7 @@ export function buildReconstructedCampusStructures(
         'building:part': 'hall',
         'building:levels': '2',
         'roof:shape': 'flat',
-        source: 'campus_image_reconstruction',
+        source: 'supplied_google_maps_measure_distance',
       },
       localPts: mphBaseLocal,
     },
@@ -342,9 +371,9 @@ export function buildReconstructedCampusStructures(
       heightMeters: 4.4,
       parentBuildingId: null,
       relationshipNote:
-        'Single-storey L-shaped Pre-Primary Block positioned south of MPH with a clear open space between them, immediately north of the Internal Campus Driveway near Gate 2.',
+        'Single-storey L-shaped Pre-Primary Block (supplied footprint 387.53 m², perimeter 105.86 m) positioned south of MPH with a clear open space between them, immediately north of the Internal Campus Driveway near Gate 2.',
       linkedRoomwiseBuilding: 'Pre-Primary Block',
-      defaultRoofType: 'flat (concrete / terrace)',
+      defaultRoofType: 'flat (concrete / terrace — provisional plan area)',
       defaultTiltDegrees: 10,
       defaultAspectDegrees: 0,
       visualMeta: {
@@ -357,7 +386,7 @@ export function buildReconstructedCampusStructures(
         building: 'school',
         'building:levels': '1',
         'roof:shape': 'flat',
-        source: 'campus_image_reconstruction',
+        source: 'supplied_google_maps_measure_distance',
       },
       localPts: ppBaseLocal,
     },
@@ -365,7 +394,7 @@ export function buildReconstructedCampusStructures(
       id: 'campus/old-building',
       name: 'Old Building (OB)',
       shortLabel: 'Old Building (OB)',
-      campusLabel: 'Central-North Diagonal Academic Wing (OB)',
+      campusLabel: 'Central-North Diagonal Academic Wing (OB — Part of OB+NB Complex)',
       featureKind: 'academic_building',
       solarEligible: true,
       buildingType: 'school',
@@ -373,9 +402,9 @@ export function buildReconstructedCampusStructures(
       heightMeters: 10.6,
       parentBuildingId: null,
       relationshipNote:
-        'Elongated NW–SE diagonal academic block connected directly to New Building (NB) via the covered central connecting corridor.',
+        'Elongated NW–SE diagonal academic block connected directly to New Building (NB) via the covered central connecting corridor. Measured jointly with NB as one 1,209.21 m² complex (perimeter 285.74 m); 298.46 m² allocated proportionally to OB.',
       linkedRoomwiseBuilding: 'Old Building',
-      defaultRoofType: 'flat (concrete)',
+      defaultRoofType: 'flat (concrete — provisional plan area)',
       defaultTiltDegrees: 10,
       defaultAspectDegrees: 0,
       visualMeta: {
@@ -388,7 +417,7 @@ export function buildReconstructedCampusStructures(
         building: 'school',
         'building:levels': '3',
         'roof:shape': 'flat',
-        source: 'campus_image_reconstruction',
+        source: 'supplied_google_maps_measure_distance_combined_complex',
       },
       localPts: obLocal,
     },
@@ -396,7 +425,7 @@ export function buildReconstructedCampusStructures(
       id: 'campus/new-building',
       name: 'New Building (NB)',
       shortLabel: 'New Building (NB)',
-      campusLabel: 'Central Multi-Wing Courtyard Complex (NB)',
+      campusLabel: 'Central Multi-Wing Courtyard Complex (NB — Part of OB+NB Complex)',
       featureKind: 'academic_building',
       solarEligible: true,
       buildingType: 'school',
@@ -404,9 +433,9 @@ export function buildReconstructedCampusStructures(
       heightMeters: 11.4,
       parentBuildingId: null,
       relationshipNote:
-        'Central multi-segment C-shaped courtyard complex wrapping the shaded courtyard tree and linked directly to Old Building (OB) via a covered connecting corridor.',
+        'Central C-shaped courtyard complex wrapping the shaded courtyard tree and linked directly to Old Building (OB) via a covered connecting corridor. Measured jointly with OB as one 1,209.21 m² complex (perimeter 285.74 m); 910.75 m² allocated proportionally to NB.',
       linkedRoomwiseBuilding: 'New Building',
-      defaultRoofType: 'flat (concrete)',
+      defaultRoofType: 'flat (concrete — provisional plan area)',
       defaultTiltDegrees: 10,
       defaultAspectDegrees: 0,
       visualMeta: {
@@ -419,7 +448,7 @@ export function buildReconstructedCampusStructures(
         building: 'school',
         'building:levels': '3',
         'roof:shape': 'flat',
-        source: 'campus_image_reconstruction',
+        source: 'supplied_google_maps_measure_distance_combined_complex',
       },
       localPts: nbLocal,
     },
@@ -427,7 +456,7 @@ export function buildReconstructedCampusStructures(
       id: 'campus/basketball-court',
       name: 'Basketball Court (BB)',
       shortLabel: 'Basketball Court (BB)',
-      campusLabel: 'Southeast Outdoor Sports Court',
+      campusLabel: 'Southeast Outdoor Sports Court (Non-Building)',
       featureKind: 'sports_ground',
       solarEligible: false,
       buildingType: 'sports_court',
@@ -435,7 +464,7 @@ export function buildReconstructedCampusStructures(
       heightMeters: null,
       parentBuildingId: null,
       relationshipNote:
-        'Outdoor basketball court adjacent to the eastern edge of the Football Ground. Represented as a non-roof campus sports facility.',
+        'Outdoor basketball court adjacent to the eastern edge of the Football Ground (supplied area 737.14 m², perimeter 113.93 m). Excluded from building footprint and rooftop PV totals.',
       linkedRoomwiseBuilding: null,
       defaultRoofType: 'open sports court (non-roof)',
       defaultTiltDegrees: 0,
@@ -449,7 +478,7 @@ export function buildReconstructedCampusStructures(
       tags: {
         leisure: 'pitch',
         sport: 'basketball',
-        source: 'campus_image_reconstruction',
+        source: 'supplied_google_maps_measure_distance',
       },
       localPts: basketballLocal,
     },
@@ -457,7 +486,7 @@ export function buildReconstructedCampusStructures(
       id: 'campus/football-ground',
       name: 'Football Ground',
       shortLabel: 'Football Ground',
-      campusLabel: 'Main Southern Sports Field',
+      campusLabel: 'Main Southern Sports Field (Non-Building)',
       featureKind: 'sports_ground',
       solarEligible: false,
       buildingType: 'sports_field',
@@ -465,7 +494,7 @@ export function buildReconstructedCampusStructures(
       heightMeters: null,
       parentBuildingId: null,
       relationshipNote:
-        'Primary open-air football and assembly field south of the internal campus driveway. Represented as a non-roof campus ground.',
+        'Primary open-air football and assembly field south of the internal campus driveway (supplied area 5,300.83 m², perimeter 344.17 m). Excluded from building footprint and rooftop PV totals.',
       linkedRoomwiseBuilding: null,
       defaultRoofType: 'open playing field (non-roof)',
       defaultTiltDegrees: 0,
@@ -479,7 +508,7 @@ export function buildReconstructedCampusStructures(
       tags: {
         leisure: 'pitch',
         sport: 'soccer',
-        source: 'campus_image_reconstruction',
+        source: 'supplied_google_maps_measure_distance',
       },
       localPts: footballLocal,
     },
@@ -487,9 +516,16 @@ export function buildReconstructedCampusStructures(
 
   return defs.map((d) => {
     const polygons = [buildClosedGeoPolygon(d.localPts, campusRef)];
-    const { areaM2 } = computePolygonsAreaM2(polygons);
+    const { areaM2: polygonCalculatedAreaM2 } = computePolygonsAreaM2(polygons);
     const centroid = computePolygonsCentroid(polygons);
     const distanceFromCampusMeters = Math.round(haversineDistanceMeters(campusRef, centroid));
+    const measurementRecord = getCampusMeasurementById(d.id) ?? null;
+
+    // Never silently overwrite authoritative supplied footprint area with recalculated polygon area.
+    const authoritativeAreaM2 = measurementRecord
+      ? measurementRecord.authoritativeFootprintAreaM2
+      : polygonCalculatedAreaM2;
+
     return {
       id: d.id,
       name: d.name,
@@ -510,14 +546,16 @@ export function buildReconstructedCampusStructures(
       tags: d.tags,
       polygons,
       centroid,
-      grossFootprintAreaM2: areaM2,
+      grossFootprintAreaM2: authoritativeAreaM2,
+      polygonCalculatedAreaM2,
+      measurementRecord,
       distanceFromCampusMeters,
     };
   });
 }
 
 /**
- * Builds the campus boundary parcel (explicitly excluding the red-marked eastern area),
+ * Builds the campus boundary parcel (explicitly excluding the eastern residential area),
  * perimeter & internal roads, OB-NB connecting corridor, Gate 1 & Gate 2 markers, and restrained trees.
  */
 export function buildReconstructedCampusOverlay(campusRef: GeoPoint): CampusVisualOverlay {
@@ -529,11 +567,19 @@ export function buildReconstructedCampusOverlay(campusRef: GeoPoint): CampusVisu
     [42, 74],
     [48, 22],
     [52, -16],
-    [94, -14],
-    [96, -70],
-    [-60, -86],
+    [100, -14],
+    [102, -72],
+    [-64, -88],
     [-70, -34],
   ];
+
+  const obNbPathLocal: Array<[number, number]> = (
+    [
+      [9.2, 7.8],
+      [13.4, 11.2],
+      [17.8, 14.8],
+    ] as Array<[number, number]>
+  ).map(([x, y]) => scalePtAround(x, y, OB_NB_SCALE_PIVOT[0], OB_NB_SCALE_PIVOT[1], OB_NB_COMPLEX_SCALE));
 
   const roads: CampusVisualOverlay['roads'] = [
     {
@@ -571,7 +617,7 @@ export function buildReconstructedCampusOverlay(campusRef: GeoPoint): CampusVisu
         [-68, -37],
         [-10, -31.5],
         [52, -23.5],
-        [108, -16],
+        [112, -16],
       ]),
     },
     {
@@ -580,9 +626,9 @@ export function buildReconstructedCampusOverlay(campusRef: GeoPoint): CampusVisu
       kind: 'perimeter_road',
       widthMeters: 6.5,
       points: toGeo([
-        [-64, -94],
+        [-66, -94],
         [15, -85],
-        [114, -69],
+        [118, -69],
       ]),
     },
     {
@@ -601,12 +647,8 @@ export function buildReconstructedCampusOverlay(campusRef: GeoPoint): CampusVisu
       id: 'path-ob-nb-connector',
       label: 'OB–NB Connecting Corridor',
       kind: 'pathway',
-      widthMeters: 5.8,
-      points: toGeo([
-        [9.2, 7.8],
-        [13.4, 11.2],
-        [17.8, 14.8],
-      ]),
+      widthMeters: 4.8,
+      points: toGeo(obNbPathLocal),
     },
     {
       id: 'path-mph-pp-gap',
@@ -614,9 +656,9 @@ export function buildReconstructedCampusOverlay(campusRef: GeoPoint): CampusVisu
       kind: 'pathway',
       widthMeters: 3.0,
       points: toGeo([
-        [-70, 14],
-        [-54, 15.5],
-        [-36, 15.5],
+        [-70, 13],
+        [-54, 14.5],
+        [-36, 14.5],
       ]),
     },
     {
@@ -652,16 +694,16 @@ export function buildReconstructedCampusOverlay(campusRef: GeoPoint): CampusVisu
     [-25, 40, 5.6],
     [-38, 22, 5.4],  // Foliage pocket between MPH and NB
     [-36, 2, 5.2],   // Open nook between PP and NB west wing
-    [-4.5, -1.5, 5.0], // Signature central NB courtyard shade tree
+    [-3.4, -0.9, 4.4], // Signature central NB courtyard shade tree
     [38, 2, 6.0],
     [40, -10, 5.8],
     [22, 56, 6.8],
     [36, 46, 6.2],
-    [-42, -82, 6.4],
-    [-16, -81, 6.6],
-    [16, -79, 6.8],
-    [45, -75, 6.4],
-    [60, -72, 5.6],
+    [-42, -84, 6.4],
+    [-16, -83, 6.6],
+    [16, -81, 6.8],
+    [45, -77, 6.4],
+    [60, -74, 5.6],
   ];
 
   const trees: CampusVisualOverlay['trees'] = treeCoords.map(([e, n, r], idx) => ({
@@ -671,9 +713,9 @@ export function buildReconstructedCampusOverlay(campusRef: GeoPoint): CampusVisu
   }));
 
   return {
-    sourceLabel: 'Image-reconstructed campus layout',
+    sourceLabel: 'Supplied Google Maps footprint geometry',
     referenceNote:
-      'Campus footprint reconstructed from top-down aerial reference of DAV Model School, IIT Kharagpur (including G+3 Block, MPH extension, Pre-Primary Block, Old Building, New Building, Football Ground, and Basketball Court), anchored to configured campus coordinates (22.3121°N, 87.2994°E).',
+      'Horizontal building footprints calibrated to supplied Google Maps Measure Distance measurements (2,366.80 m² total academic building footprint across G+3 Block, MPH extension, Pre-Primary Block, Old Building & New Building; Football Ground 5,300.83 m² and Basketball Court 737.14 m² excluded from building and solar totals), anchored to 22.3121°N, 87.2994°E.',
     campusParcel: buildClosedGeoPolygon(parcelLocal, campusRef),
     roads,
     gates,

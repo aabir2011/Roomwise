@@ -41,6 +41,7 @@ import type {
 } from '../../types/space';
 import { AnimatedNumber } from '../common/MotionPrimitives';
 import { PageHeader, SegmentedControl } from '../common/DesignSystem';
+import { MathText } from '../common/MathText';
 import { ROOMWISE_EASE } from '../../utils/motion';
 
 type InnerTab = 'recommendations' | 'sections' | 'rooms-timetable' | 'history';
@@ -51,7 +52,7 @@ const ANALYSIS_STAGES = [
   'Checking max occupancy limits',
   'Verifying timetable availability',
   'Checking policy & suitability',
-  'Computing kW × h energy impact',
+  'Computing kilowatt-hour energy impact',
   'Resolving room conflicts',
 ];
 
@@ -581,7 +582,13 @@ export const SpaceIntelligenceView: React.FC = () => {
       <PageHeader
         kicker="Attendance-Aware Constraint Solver · Register Separate From PIR"
         title="Space Intelligence"
-        subtitle="Evaluates section attendance against classroom capacity, timetable windows, policy constraints, and kW × hours energy impact."
+        subtitle={
+          <>
+            Evaluates section attendance against classroom capacity, timetable windows, policy
+            constraints, and <MathText tex="\mathrm{kW}\cdot\mathrm{h}" ariaLabel="kilowatt-hour" />{' '}
+            energy impact.
+          </>
+        }
         action={
           <>
             <a
@@ -980,7 +987,7 @@ export const SpaceIntelligenceView: React.FC = () => {
           </div>
         </div>
 
-        <div className="p-4 sm:px-5 bg-emerald-50/35">
+        <div className="p-4 sm:px-5 bg-emerald-50/35 rw-card-alive">
           <div className="text-[11px] font-medium text-emerald-800">Estimated Savings</div>
           <div className="mt-1 flex items-baseline gap-1 tabular-nums">
             <span className="text-2xl font-semibold text-emerald-900 font-mono">
@@ -1220,11 +1227,17 @@ export const SpaceIntelligenceView: React.FC = () => {
                           exit={{ opacity: 0, height: 0 }}
                           className="border-t border-neutral-200/80 bg-neutral-50/60 px-4 sm:px-5 py-4 space-y-4 overflow-hidden"
                         >
-                          <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono text-neutral-600 tabular-nums">
-                            <span>
-                              Energy: {prop.existingEnergyKWh} kWh ({prop.existingRoomCode}) → {prop.proposedEnergyKWh} kWh ({prop.proposedRoomCode}) over {prop.durationHours}h
-                            </span>
-                            <span>
+                          <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-neutral-700 tabular-nums">
+                            <div className="inline-flex flex-wrap items-center gap-1.5 overflow-x-auto">
+                              <MathText
+                                tex={`\\Delta E = ${prop.existingEnergyKWh}\\,\\mathrm{kWh} - ${prop.proposedEnergyKWh}\\,\\mathrm{kWh} = ${prop.netEnergySavingsKWh}\\,\\mathrm{kWh}\\;\\;(\\Delta t = ${prop.durationHours}\\,\\mathrm{h})`}
+                                ariaLabel={`Delta E equals ${prop.existingEnergyKWh} kWh minus ${prop.proposedEnergyKWh} kWh equals ${prop.netEnergySavingsKWh} kWh over ${prop.durationHours} hours`}
+                              />
+                              <span className="font-mono text-neutral-500">
+                                ({prop.existingRoomCode} → {prop.proposedRoomCode})
+                              </span>
+                            </div>
+                            <span className="font-mono text-neutral-600">
                               Attendance source: {prop.attendanceSource} · {prop.attendanceDate}
                             </span>
                           </div>

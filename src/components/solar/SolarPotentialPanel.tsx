@@ -27,6 +27,7 @@ import {
   YAxis,
 } from 'recharts';
 import { SectionHeading, TelemetryReadout } from '../common/DesignSystem';
+import { MathText } from '../common/MathText';
 import type {
   SolarPlanningScenarioId,
   SolarScenarioComparisonRow,
@@ -153,7 +154,7 @@ export const SolarPotentialPanel: React.FC<SolarPotentialPanelProps> = ({
           <p className="text-xs text-neutral-600 leading-relaxed">
             {isProvisional
               ? campusSummary.fallbackNotice
-              : `${campusSummary.selectedBuildingsCount} mapped roofs (${campusSummary.combinedGrossFootprintAreaM2.toLocaleString()} m² gross) · ${campusSummary.calculatedBuildingsCount}/${campusSummary.selectedBuildingsCount} evaluated via PVGIS 5.3 · Active: ${displayedScenarioLabel}.`}
+              : `${campusSummary.selectedBuildingsCount} academic buildings (${campusSummary.combinedGrossFootprintAreaM2.toLocaleString()} m² supplied horizontal footprint · actual roof-surface area: Not available) · ${campusSummary.calculatedBuildingsCount}/${campusSummary.selectedBuildingsCount} evaluated via PVGIS 5.3 · Active: ${displayedScenarioLabel}.`}
           </p>
         </div>
 
@@ -235,7 +236,7 @@ export const SolarPotentialPanel: React.FC<SolarPotentialPanelProps> = ({
                   }
                   className={`text-left p-3.5 rounded-xl border transition-all cursor-pointer ${
                     isSelected
-                      ? 'border-[#0b2e22] bg-emerald-50/55 ring-1 ring-[#0b2e22]/20'
+                      ? 'border-[#0b2e22] bg-emerald-50/55 rw-card-alive ring-1 ring-[#0b2e22]/20'
                       : 'border-neutral-200 bg-[#fafcfb] hover:border-neutral-300 hover:bg-white'
                   }`}
                 >
@@ -255,9 +256,14 @@ export const SolarPotentialPanel: React.FC<SolarPotentialPanelProps> = ({
                       · {Math.round(sc.annualGenerationKwh).toLocaleString()} kWh/yr
                     </span>
                   </div>
-                  <div className="mt-1 text-[11px] font-mono text-neutral-500 tabular-nums">
-                    {sc.usableRoofFractionPercent}% usable × {sc.packingFactorPercent}% pack ={' '}
-                    {sc.netRoofCoveragePercent}% net · {sc.estimatedPanelCount} panels
+                  <div className="mt-1 text-[11px] text-neutral-600 tabular-nums flex flex-wrap items-baseline gap-1">
+                    <MathText
+                      tex={`${sc.usableRoofFractionPercent}\\% \\times ${sc.packingFactorPercent}\\% = ${sc.netRoofCoveragePercent}\\%`}
+                      ariaLabel={`${sc.usableRoofFractionPercent} percent times ${sc.packingFactorPercent} percent equals ${sc.netRoofCoveragePercent} percent`}
+                    />
+                    <span className="font-mono text-neutral-500">
+                      net · {sc.estimatedPanelCount} panels
+                    </span>
                   </div>
                   <p className="mt-1.5 text-[11px] text-neutral-600 leading-snug">{sc.summary}</p>
                 </button>
@@ -286,11 +292,11 @@ export const SolarPotentialPanel: React.FC<SolarPotentialPanelProps> = ({
           footnote={`${displayedPanelAreaM2.toLocaleString()} m² net glass (${displayedNetCoveragePct}% of gross)`}
         />
         <TelemetryReadout
-          label={isProvisional ? 'Provisional Roof Area' : 'Usable Roof Area'}
+          label={isProvisional ? 'Provisional Roof Area' : 'Usable PV Area (Provisional)'}
           value={displayedUsableAreaM2.toLocaleString()}
           unit="m² usable"
-          detail={`${campusSummary.combinedGrossFootprintAreaM2.toLocaleString()} m² gross · ${displayedObstructionSetbackM2.toLocaleString()} m² setbacks/utilities`}
-          footnote={`${displayedRowSpacingM2.toLocaleString()} m² row-spacing & walkways (${displayedUsablePct}% × ${displayedPackingPct}%)`}
+          detail={`${campusSummary.combinedGrossFootprintAreaM2.toLocaleString()} m² footprint plan · ${displayedObstructionSetbackM2.toLocaleString()} m² setbacks/obstructions`}
+          footnote={`${displayedRowSpacingM2.toLocaleString()} m² spacing/aisles (${displayedUsablePct}% × ${displayedPackingPct}%) · Actual roof surface: Not available`}
         />
         <TelemetryReadout
           label="PVGIS 5.3 Parameters"
@@ -495,12 +501,13 @@ export const SolarPotentialPanel: React.FC<SolarPotentialPanelProps> = ({
           </div>
         ) : (
           <div className="overflow-x-auto -mx-4 sm:mx-0">
-            <table className="w-full min-w-[660px] text-xs border-collapse">
+            <table className="w-full min-w-[740px] text-xs border-collapse">
               <thead>
                 <tr className="border-b border-neutral-200 text-neutral-500 text-left">
                   <th className="py-2 pl-4 sm:pl-0 pr-2 w-8 whitespace-nowrap">Subset</th>
                   <th className="py-2 px-2 font-medium whitespace-nowrap">Building</th>
-                  <th className="py-2 px-2 font-medium text-right whitespace-nowrap">Usable m²</th>
+                  <th className="py-2 px-2 font-medium text-right whitespace-nowrap">Footprint m²</th>
+                  <th className="py-2 px-2 font-medium text-right whitespace-nowrap">Usable PV m²</th>
                   <th className="py-2 px-2 font-medium text-right whitespace-nowrap">Capacity</th>
                   <th className="py-2 px-2 font-medium text-right whitespace-nowrap">Tilt / Az</th>
                   <th className="py-2 px-2 font-medium text-right whitespace-nowrap">Annual PVGIS</th>
@@ -522,9 +529,15 @@ export const SolarPotentialPanel: React.FC<SolarPotentialPanelProps> = ({
                     </td>
                     <td className="py-2 px-2">
                       <div className="font-semibold text-neutral-900">{b.displayName}</div>
-                      <div className="text-[10px] text-neutral-500 capitalize">
-                        {b.selectionStatus} · {b.roofConfig.roofType}
+                      <div className="text-[10px] text-neutral-500">
+                        {b.geometry.areaProvenanceLabel}
+                        {b.geometry.suppliedPerimeterM !== null
+                          ? ` · Perim. ${b.geometry.suppliedPerimeterM} m`
+                          : ' · Part of 1,209.21 m² OB+NB complex'}
                       </div>
+                    </td>
+                    <td className="py-2 px-2 text-right font-mono text-neutral-900">
+                      {b.geometry.grossFootprintAreaM2.toLocaleString()}
                     </td>
                     <td className="py-2 px-2 text-right font-mono text-neutral-700">
                       {b.capacity.usableRoofAreaM2.toLocaleString()}
@@ -564,6 +577,14 @@ export const SolarPotentialPanel: React.FC<SolarPotentialPanelProps> = ({
                 ))}
               </tbody>
             </table>
+            <p className="mt-2.5 text-[11px] text-neutral-500 leading-relaxed">
+              Horizontal footprint areas derive from supplied Google Maps Measure Distance polygons
+              (total {campusSummary.combinedGrossFootprintAreaM2.toLocaleString()} m² across academic buildings;
+              OB + NB measured together as 1,209.21 m² with zero double-counting). Actual roof-surface area is{' '}
+              <span className="font-medium text-neutral-700">Not available</span>; usable PV areas and setbacks remain
+              provisional pending an on-site roof survey. Football Ground (5,300.83 m²) and Basketball Court
+              (737.14 m²) are excluded from building and solar totals.
+            </p>
           </div>
         )}
       </div>

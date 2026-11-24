@@ -38,6 +38,7 @@ import { useEnergy } from '../../context/EnergyContext';
 import { useAuth, authFetch } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { PageHeader, SectionHeading, SegmentedControl } from '../common/DesignSystem';
+import { MathText } from '../common/MathText';
 import type { EnvironmentalOverviewResponse } from '../../types/environmental';
 
 type EnvSection = 'overview' | 'forecast' | 'air-quality' | 'radiation' | 'archive';
@@ -531,7 +532,9 @@ export const EnvironmentalIntelligenceView: React.FC<EnvironmentalIntelligenceVi
                         <th className="py-2.5 px-3 whitespace-nowrap">Room</th>
                         <th className="py-2.5 px-3 whitespace-nowrap">Status</th>
                         <th className="py-2.5 px-3 text-right whitespace-nowrap">Indoor Temp</th>
-                        <th className="py-2.5 px-3 text-right whitespace-nowrap">Δ Outdoor</th>
+                        <th className="py-2.5 px-3 text-right whitespace-nowrap normal-case">
+                          <MathText tex="\Delta T_{\mathrm{out}}" ariaLabel="Delta outdoor temperature" />
+                        </th>
                         <th className="py-2.5 px-3 text-right whitespace-nowrap">Natural LDR</th>
                         <th className="py-2.5 px-3 text-right whitespace-nowrap">Live Load</th>
                         <th className="py-2.5 px-3 whitespace-nowrap">Context</th>

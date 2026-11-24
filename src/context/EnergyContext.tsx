@@ -44,9 +44,15 @@ import {
 } from '../utils/applianceUtils';
 import { evaluateLiveAuditFindings } from '../utils/auditEngine';
 import { ensureDemoResetOnPageLoad } from '../utils/demoReset';
+import { getPathForTab, parseRouteFromUrl, VALID_WORKSPACE_TABS } from '../utils/routing';
 import { useAuth, authFetch } from './AuthContext';
 
 export interface ApplianceCommandResult {
+  ok: boolean;
+  error?: string;
+}
+
+export interface SettingsUpdateResult {
   ok: boolean;
   error?: string;
 }
@@ -76,7 +82,7 @@ interface EnergyContextType {
   setQrModalRoom: (room: Classroom | null) => void;
   setCurrentStaffId: (id: string) => void;
   setIsMobileMenuOpen: (open: boolean) => void;
-  updateSettings: (newSettings: Partial<SchoolSettings>) => void;
+  updateSettings: (newSettings: Partial<SchoolSettings>) => Promise<SettingsUpdateResult>;
   toggleSimulation: () => void;
   setSimulationRunning: (running: boolean) => void;
   exportAnalyticsCsv: () => { count: number; fileName: string };
@@ -142,21 +148,7 @@ interface EnergyContextType {
 
 const EnergyContext = createContext<EnergyContextType | undefined>(undefined);
 
-const VALID_TABS = new Set([
-  'dashboard',
-  'digital-twin',
-  'campus-live',
-  'classrooms',
-  'environmental-solar',
-  'environmental',
-  'solar',
-  'space-intelligence',
-  'analytics',
-  'history',
-  'audit',
-  'reports',
-  'settings',
-]);
+const VALID_TABS = VALID_WORKSPACE_TABS;
 
 function computeDailyKWhFromWatts(watts: number, roomType?: Classroom['type']): number {
   const { activeHoursPerSchoolDay } = getRoomOperatingProfile(roomType);
@@ -309,9 +301,12 @@ export const EnergyProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     });
   }, [auditFindings]);
 
-  const [activeTab, setActiveTabState] = useState<string>('dashboard');
+  const [activeTab, setActiveTabState] = useState<string>(() => {
+    const initialRoute = parseRouteFromUrl();
+    return initialRoute.type === 'dashboard' ? initialRoute.tab : 'dashboard';
+  });
   const [voiceNavDirective, setVoiceNavDirectiveState] = useState<VoiceNavDirective | null>(null);
-  const tabHistoryRef = useRef<string[]>(['dashboard']);
+  const tabHistoryRef = useRef<string[]>([activeTab]);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [qrModalRoom, setQrModalRoom] = useState<Classroom | null>(null);
   const [isSimulating, setIsSimulating] = useState<boolean>(true);
@@ -333,16 +328,44 @@ export const EnergyProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setApplianceControlError(null);
   }, []);
 
-  const setActiveTab = useCallback((tab: string) => {
-    if (VALID_TABS.has(tab)) {
-      const stack = tabHistoryRef.current;
-      if (stack[stack.length - 1] !== tab) {
-        stack.push(tab);
-        if (stack.length > 20) stack.shift();
+  const syncBrowserPathForTab = useCallback((tab: string) => {
+    if (typeof window === 'undefined') return;
+    const currentRoute = parseRouteFromUrl();
+    // Only synchronize history when currently on a workspace section URL (or transitioning into one)
+    if (currentRoute.type === 'dashboard' || currentRoute.type === 'not-found') {
+      const targetPath = getPathForTab(tab);
+      if (window.location.pathname !== targetPath || window.location.search) {
+        window.history.pushState({ tab }, '', targetPath);
       }
-      setActiveTabState(tab);
     }
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onPopState = () => {
+      const parsed = parseRouteFromUrl();
+      if (parsed.type === 'dashboard') {
+        setActiveTabState(parsed.tab);
+      }
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  const setActiveTab = useCallback(
+    (tab: string) => {
+      if (VALID_TABS.has(tab)) {
+        const stack = tabHistoryRef.current;
+        if (stack[stack.length - 1] !== tab) {
+          stack.push(tab);
+          if (stack.length > 20) stack.shift();
+        }
+        setActiveTabState(tab);
+        syncBrowserPathForTab(tab);
+      }
+    },
+    [syncBrowserPathForTab]
+  );
 
   const goBackTab = useCallback((): string => {
     const stack = tabHistoryRef.current;
@@ -351,8 +374,9 @@ export const EnergyProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
     const prev = stack[stack.length - 1] || 'dashboard';
     setActiveTabState(prev);
+    syncBrowserPathForTab(prev);
     return prev;
-  }, []);
+  }, [syncBrowserPathForTab]);
 
   const setVoiceNavDirective = useCallback((directive: VoiceNavDirective | null) => {
     setVoiceNavDirectiveState(directive);
@@ -938,22 +962,45 @@ export const EnergyProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     [setApplianceOutput]
   );
 
-  const updateSettings = useCallback((newSettings: Partial<SchoolSettings>) => {
-    setSettings((prev) => {
-      const merged: SchoolSettings = {
-        ...prev,
-        ...newSettings,
-        schoolHours: newSettings.schoolHours
-          ? { ...prev.schoolHours, ...newSettings.schoolHours }
-          : prev.schoolHours,
-      };
-      return merged;
-    });
-    void authFetch('/api/settings', {
-      method: 'PATCH',
-      body: JSON.stringify(newSettings),
-    }).catch(() => {});
-  }, []);
+  const updateSettings = useCallback(
+    async (newSettings: Partial<SchoolSettings>): Promise<SettingsUpdateResult> => {
+      try {
+        const res = await authFetch('/api/settings', {
+          method: 'PATCH',
+          body: JSON.stringify(newSettings),
+        });
+        const body = await res.json().catch(() => null);
+        if (!res.ok || !body?.ok) {
+          return {
+            ok: false,
+            error:
+              body?.error ||
+              (res.status === 401 || res.status === 403
+                ? 'Administrator authentication required to save system parameters.'
+                : `Server rejected settings update (HTTP ${res.status}).`),
+          };
+        }
+        if (body.settings) {
+          setSettings(body.settings as SchoolSettings);
+        } else {
+          setSettings((prev) => ({
+            ...prev,
+            ...newSettings,
+            schoolHours: newSettings.schoolHours
+              ? { ...prev.schoolHours, ...newSettings.schoolHours }
+              : prev.schoolHours,
+          }));
+        }
+        return { ok: true };
+      } catch {
+        return {
+          ok: false,
+          error: 'Network error while saving system parameters. Changes were not persisted.',
+        };
+      }
+    },
+    []
+  );
 
   const toggleSimulation = useCallback(() => {
     setIsSimulating((prev) => !prev);

@@ -4,7 +4,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   Activity,
   AlertTriangle,
@@ -22,6 +22,7 @@ import {
   Loader2,
   RefreshCw,
   Search,
+  Sigma,
   Thermometer,
   Users,
   Zap,
@@ -29,6 +30,7 @@ import {
 import { authFetch } from '../../context/AuthContext';
 import { useEnergy } from '../../context/EnergyContext';
 import { useToast } from '../../context/ToastContext';
+import { MathText } from '../common/MathText';
 import type {
   HistoricalAnomaliesResponse,
   HistoricalInvestigationResponse,
@@ -41,8 +43,15 @@ import type {
 import { getIstDateString, shiftIstDate } from '../../utils/historyDates';
 import { formatCapacityKW } from '../../utils/applianceUtils';
 import { AnimatedNumber } from '../common/MotionPrimitives';
-import { ROOMWISE_EASE } from '../../utils/motion';
+import {
+  ErrorBanner,
+  LoadingState,
+  PageHeader,
+  SegmentedControl,
+} from '../common/DesignSystem';
+import { ROOMWISE_EASE, tabContentVariants } from '../../utils/motion';
 import { InterventionLedgerView } from './InterventionLedgerView';
+import { RcemModelPanel } from './RcemModelPanel';
 
 const PRESET_OPTIONS: Array<{ id: HistoryDatePreset; label: string }> = [
   { id: 'today', label: 'Today' },
@@ -326,107 +335,118 @@ export const EnergyHistoryView: React.FC = () => {
   return (
     <div className="p-4 sm:p-6 md:p-8 space-y-6 max-w-7xl mx-auto">
       {/* Header & Controls */}
-      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
-        <div>
-          <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-emerald-800">
-            <History className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
-            <span>Persisted Time-Series Ledger · Asia/Kolkata (IST)</span>
-          </div>
-          <h1 className="text-xl md:text-2xl font-bold text-neutral-900 tracking-tight mt-0.5">
-            Energy History & Historical Intelligence
-          </h1>
-          <p className="text-xs text-neutral-500 mt-0.5 max-w-2xl">
-            Retained kW × hours integration across all 25 classroom nodes at {settings.institutionName}, with comparable baselines, time-of-day profiling, and anomaly evidence.
-          </p>
-        </div>
+      <PageHeader
+        kicker={
+          <>
+            <span>Persisted Time-Series Ledger</span>
+            <span aria-hidden="true">·</span>
+            <span>Asia/Kolkata (IST)</span>
+          </>
+        }
+        title="Energy History & Historical Intelligence"
+        subtitle={
+          <>
+            Retained <MathText tex="\mathrm{kW}\cdot\mathrm{h}" ariaLabel="kilowatt-hours" /> integration
+            across all 25 classroom nodes at {settings.institutionName}, with comparable baselines,
+            time-of-day profiling, and intervention records.
+          </>
+        }
+        action={
+          activeSubView === 'consumption' ? (
+            <>
+              <button
+                type="button"
+                onClick={() => void handleRunInvestigation()}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl rw-btn-forest text-xs font-semibold shadow-xs whitespace-nowrap"
+              >
+                <Activity className="w-3.5 h-3.5 shrink-0 text-emerald-300" />
+                <span>Explain Period Drivers</span>
+              </button>
 
-        {activeSubView === 'consumption' && (
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => void handleRunInvestigation()}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold transition-colors shadow-xs cursor-pointer whitespace-nowrap"
-            >
-              <Activity className="w-3.5 h-3.5 shrink-0" />
-              <span>Explain Period Drivers</span>
-            </button>
+              <button
+                type="button"
+                onClick={handleExportHistoryCsv}
+                disabled={!overview}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl rw-btn-primary disabled:opacity-50 text-xs font-semibold shadow-xs whitespace-nowrap"
+              >
+                <Download className="w-3.5 h-3.5 shrink-0" />
+                <span>Export Range (.csv)</span>
+              </button>
 
-            <button
-              type="button"
-              onClick={handleExportHistoryCsv}
-              disabled={!overview}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 disabled:opacity-50 text-white text-xs font-semibold transition-colors shadow-xs cursor-pointer whitespace-nowrap"
-            >
-              <Download className="w-3.5 h-3.5 shrink-0" />
-              <span>Export Range (.csv)</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => void loadHistoryData()}
-              aria-label="Refresh historical data"
-              className="p-2 rounded-xl bg-white border border-neutral-200 hover:bg-neutral-50 text-neutral-700 transition-colors cursor-pointer"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-emerald-700' : ''}`} />
-            </button>
-          </div>
-        )}
-      </div>
+              <button
+                type="button"
+                onClick={() => void loadHistoryData()}
+                aria-label="Refresh historical data"
+                className="p-2 rounded-xl rw-btn-secondary text-[#4a5851]"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-emerald-700' : ''}`} />
+              </button>
+            </>
+          ) : undefined
+        }
+      />
 
       {/* Sub-Navigation inside Energy History: Consumption History vs Intervention Ledger */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200/80 pb-3">
-        <div
-          role="tablist"
-          aria-label="Energy History Views"
-          className="inline-flex items-center p-1 rounded-xl bg-neutral-100 border border-neutral-200/80"
-        >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeSubView === 'consumption'}
-            onClick={() => setActiveSubView('consumption')}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-              activeSubView === 'consumption'
-                ? 'bg-white text-neutral-900 shadow-xs'
-                : 'text-neutral-600 hover:text-neutral-900'
-            }`}
-          >
-            <History className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
-            <span>Consumption History</span>
-          </button>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <SegmentedControl<'consumption' | 'interventions'>
+          layoutId="history-subview-tabs"
+          tone="light"
+          ariaLabel="Energy History Views"
+          value={activeSubView}
+          onChange={setActiveSubView}
+          options={[
+            { id: 'consumption', label: 'Consumption History', icon: History },
+            { id: 'interventions', label: 'Intervention Ledger', icon: ClipboardList },
+          ]}
+        />
 
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[#64726b]">
+          <p>
+            {activeSubView === 'consumption'
+              ? 'Persisted hourly & daily energy consumption across all 25 campus rooms.'
+              : 'Auditable event-level control actions, counterfactual energy estimates, and overlap isolation.'}
+          </p>
+          <span aria-hidden="true" className="hidden sm:inline text-neutral-300">·</span>
           <button
             type="button"
-            role="tab"
-            aria-selected={activeSubView === 'interventions'}
-            onClick={() => setActiveSubView('interventions')}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-              activeSubView === 'interventions'
-                ? 'bg-white text-neutral-900 shadow-xs'
-                : 'text-neutral-600 hover:text-neutral-900'
-            }`}
+            onClick={() => {
+              document
+                .getElementById('rcem-model-panel')
+                ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }}
+            className="inline-flex items-center gap-1 font-semibold text-emerald-800 hover:text-emerald-950 transition-colors whitespace-nowrap"
           >
-            <ClipboardList className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
-            <span>Intervention Ledger</span>
+            <Sigma className="w-3 h-3 shrink-0" aria-hidden="true" />
+            <span>RCEM Mathematical Model</span>
           </button>
         </div>
-
-        <p className="text-[11px] text-neutral-500">
-          {activeSubView === 'consumption'
-            ? 'Persisted hourly & daily energy consumption across all 25 campus rooms.'
-            : 'Auditable event-level control actions, counterfactual energy estimates, and overlap isolation.'}
-        </p>
       </div>
 
+      <AnimatePresence mode="wait" initial={false}>
       {activeSubView === 'interventions' ? (
-        <InterventionLedgerView />
+        <motion.div
+          key="interventions"
+          variants={tabContentVariants}
+          initial="hidden"
+          animate="visible"
+          exit="exit"
+        >
+          <InterventionLedgerView />
+        </motion.div>
       ) : (
-        <>
+        <motion.div
+          key="consumption"
+          variants={tabContentVariants}
+          initial="hidden"
+          animate="visible"
+          exit="exit"
+          className="space-y-6"
+        >
       {/* Date Range & Scope Filter Strip */}
-      <div className="p-3.5 sm:p-4 rounded-2xl glass-card space-y-3">
+      <div className="p-3.5 sm:p-4 rounded-2xl rw-surface space-y-3">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-neutral-600 mr-1">
+            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#4a5851] mr-1">
               <Calendar className="w-3.5 h-3.5 text-emerald-700" />
               <span>Period:</span>
             </span>
@@ -439,15 +459,15 @@ export const EnergyHistoryView: React.FC = () => {
                   onClick={() => setPreset(opt.id)}
                   className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                     active
-                      ? 'bg-emerald-700 text-white shadow-2xs'
-                      : 'bg-neutral-100/80 text-neutral-700 hover:bg-neutral-200/70'
+                      ? 'bg-[#0b2e22] text-white shadow-2xs'
+                      : 'bg-[#f3f5f4] text-[#4a5851] hover:text-[#111815] hover:bg-neutral-200/70'
                   }`}
                 >
                   <span>{opt.label}</span>
                   {opt.id === 'today' && (
                     <span
                       className={`text-[9px] uppercase tracking-wider px-1 py-0.5 rounded font-bold ${
-                        active ? 'bg-emerald-600 text-emerald-50' : 'bg-amber-100 text-amber-800'
+                        active ? 'bg-emerald-500/25 text-emerald-200' : 'bg-emerald-50 text-emerald-800 border border-emerald-200/70'
                       }`}
                     >
                       Live
@@ -459,14 +479,14 @@ export const EnergyHistoryView: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
-            <label htmlFor="history-block-filter" className="text-[11px] font-semibold text-neutral-500">
+            <label htmlFor="history-block-filter" className="text-[11px] font-semibold text-[#64726b]">
               Block:
             </label>
             <select
               id="history-block-filter"
               value={selectedBuilding}
               onChange={(e) => setSelectedBuilding(e.target.value)}
-              className="px-2.5 py-1.5 rounded-lg bg-white border border-neutral-200 text-xs font-semibold text-neutral-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+              className="px-2.5 py-1.5 rounded-lg glass-input text-xs font-semibold text-[#111815]"
             >
               <option value="All">All 5 Campus Blocks</option>
               <option value="G+3 Block">G+3 Block</option>
@@ -531,23 +551,11 @@ export const EnergyHistoryView: React.FC = () => {
       </div>
 
       {errorMsg && (
-        <div className="p-4 rounded-2xl border border-red-200 bg-red-50/70 text-xs text-red-900 flex items-center justify-between">
-          <span>{errorMsg}</span>
-          <button
-            type="button"
-            onClick={() => void loadHistoryData()}
-            className="px-3 py-1 rounded-lg bg-red-700 text-white font-semibold"
-          >
-            Retry
-          </button>
-        </div>
+        <ErrorBanner message={errorMsg} onRetry={() => void loadHistoryData()} />
       )}
 
       {isLoading && !overview ? (
-        <div className="py-20 flex flex-col items-center justify-center gap-3 text-xs text-neutral-500">
-          <Loader2 className="w-6 h-6 animate-spin text-emerald-700" />
-          <span>Querying persisted campus energy intervals...</span>
-        </div>
+        <LoadingState message="Querying persisted campus energy intervals..." />
       ) : overview ? (
         <>
           {/* 5 Overview KPI Cards */}
@@ -746,39 +754,33 @@ export const EnergyHistoryView: React.FC = () => {
           )}
 
           {/* Main Interactive Consumption Trend Chart */}
-          <div className="p-5 sm:p-6 rounded-2xl glass-card space-y-4">
+          <div className="p-5 sm:p-6 rounded-2xl glass-card rw-card-alive space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h2 className="text-sm sm:text-base font-bold text-neutral-900">
                   Consumption Trend ({overview.range.granularity === 'hourly' ? 'Hourly Profile (IST)' : 'Daily Consumption'})
                 </h2>
                 <p className="text-xs text-neutral-500 mt-0.5">
-                  Actual integrated consumption (kW × hours) vs Estimated Pre-Retrofit Reference ({formatCapacityKW((overview.preRetrofitReferenceMaxKW ?? overview.legacyBaselineMaxKW ?? 18.635) * 1000)} kW ref · {(overview.installedRatedMaxKW ?? 13.39).toFixed(2)} kW Installed Rated Max).
+                  Actual integrated consumption (
+                  <MathText tex="\mathrm{kW}\cdot\mathrm{h}" ariaLabel="kilowatt-hours" />) vs
+                  Estimated Pre-Retrofit Reference ({formatCapacityKW((overview.preRetrofitReferenceMaxKW ?? overview.legacyBaselineMaxKW ?? 18.635) * 1000)} kW ref · {(overview.installedRatedMaxKW ?? 13.39).toFixed(2)} kW Installed Rated Max).
                 </p>
               </div>
 
-              <div className="inline-flex max-w-full overflow-x-auto rounded-xl bg-neutral-100 p-1 text-xs font-semibold shrink-0 self-start sm:self-auto">
-                {(
-                  [
-                    { id: 'total', label: 'Total School' },
-                    { id: 'building', label: 'Block-wise' },
-                    { id: 'classroom', label: 'Classroom-wise' },
-                  ] as const
-                ).map((mode) => (
-                  <button
-                    key={mode.id}
-                    type="button"
-                    onClick={() => setGroupingMode(mode.id)}
-                    className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
-                      groupingMode === mode.id
-                        ? 'bg-white text-neutral-900 shadow-2xs'
-                        : 'text-neutral-600 hover:text-neutral-900'
-                    }`}
-                  >
-                    {mode.label}
-                  </button>
-                ))}
-              </div>
+              <SegmentedControl<HistoryGroupingMode>
+                layoutId="history-grouping-tabs"
+                size="sm"
+                tone="light"
+                ariaLabel="Consumption trend grouping"
+                value={groupingMode}
+                onChange={setGroupingMode}
+                className="shrink-0 self-start sm:self-auto"
+                options={[
+                  { id: 'total', label: 'Total School' },
+                  { id: 'building', label: 'Block-wise' },
+                  { id: 'classroom', label: 'Classroom-wise' },
+                ]}
+              />
             </div>
 
             {/* Interactive Hover Readout Bar */}
@@ -1496,8 +1498,12 @@ export const EnergyHistoryView: React.FC = () => {
           )}
         </>
       ) : null}
-        </>
+        </motion.div>
       )}
+      </AnimatePresence>
+
+      {/* ROOMWISE Counterfactual Energy Model (RCEM) Mathematical Specification */}
+      <RcemModelPanel />
     </div>
   );
 };

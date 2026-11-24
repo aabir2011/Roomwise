@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { MeasurementProvenanceLabel } from '../data/campusBuildingMeasurements';
+
 export type PvgisTechnology = 'crystSi' | 'CIS' | 'CdTe' | 'Unknown';
 export type PvgisMountingPlace = 'building' | 'free';
 export type PvgisRadiationDatabaseChoice = 'PVGIS-SARAH3' | 'PVGIS-ERA5' | 'auto';
@@ -234,7 +236,11 @@ export interface BuildingPvgisResult {
 export interface DiscoveredBuilding {
   id: string;
   source: BuildingSourceKind;
-  sourceLabel: 'Image-reconstructed' | 'Administrator-confirmed' | 'Mapped geometry';
+  sourceLabel:
+    | 'Supplied footprint'
+    | 'Image-reconstructed'
+    | 'Administrator-confirmed'
+    | 'Mapped geometry';
   featureKind: CampusFeatureKind;
   solarEligible: boolean;
   osmType: 'way' | 'relation' | 'manual' | 'reconstructed';
@@ -269,7 +275,29 @@ export interface DiscoveredBuilding {
   geometry: {
     visualFootprintAreaM2: number;
     grossFootprintAreaM2: number;
-    grossAreaSource: 'image_reconstructed' | 'osm_geometry' | 'admin_override' | 'manual_geometry';
+    grossFootprintAreaFt2: number;
+    grossAreaSource:
+      | 'supplied_measured'
+      | 'image_reconstructed'
+      | 'osm_geometry'
+      | 'admin_override'
+      | 'manual_geometry';
+    suppliedDirectAreaM2: number | null;
+    suppliedDirectAreaFt2: number | null;
+    suppliedPerimeterM: number | null;
+    suppliedPerimeterFt: number | null;
+    estimatedRoofPlanAreaM2: number | null;
+    actualRoofSurfaceAreaM2: number | null;
+    areaProvenanceLabel: MeasurementProvenanceLabel;
+    perimeterProvenanceLabel: MeasurementProvenanceLabel;
+    verticalGeometryProvenanceLabel: MeasurementProvenanceLabel;
+    roofSurfaceAreaProvenanceLabel: MeasurementProvenanceLabel;
+    measurementSource: string | null;
+    measurementMethod: string | null;
+    polygonVsAuthoritativeDeltaM2: number | null;
+    polygonVsAuthoritativeDeltaPercent: number | null;
+    combinedComplexNote: string | null;
+    lastUpdated: string | null;
     componentCount: number;
     hasInvalidGeometryWarning: boolean;
     duplicateOverlapNote: string | null;
@@ -380,6 +408,9 @@ export interface CampusSolarSummary {
   excludedBuildingsCount: number;
   calculatedBuildingsCount: number;
   combinedGrossFootprintAreaM2: number;
+  combinedGrossFootprintAreaFt2: number;
+  combinedEstimatedRoofPlanAreaM2: number;
+  actualRoofSurfaceAreaLabel: 'Not available';
   combinedObstructionSetbackAreaM2: number;
   combinedUsableRoofAreaM2: number;
   combinedEstimatedPanelCount: number;

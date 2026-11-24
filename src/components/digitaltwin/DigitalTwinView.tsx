@@ -20,11 +20,9 @@ import {
 import { useEnergy } from '../../context/EnergyContext';
 import { BuildingName, Floor } from '../../types/energy';
 import { formatCapacityKW, getRoomActivityState } from '../../utils/applianceUtils';
-import {
-  computeAppliancesRatedPowerWatts,
-  OPERATING_HOURS_PER_DAY,
-} from '../../data/roomApplianceSpecs';
+import { computeAppliancesRatedPowerWatts } from '../../data/roomApplianceSpecs';
 import { AnimatedNumber } from '../common/MotionPrimitives';
+import { EmptyState, PageHeader } from '../common/DesignSystem';
 import { ROOMWISE_EASE, SPRING_SNAPPY } from '../../utils/motion';
 
 type HeatmapMode = 'power' | 'lux' | 'thermal' | 'occupancy' | 'calibration';
@@ -57,6 +55,10 @@ export const DigitalTwinView: React.FC = () => {
     0
   );
   const totalBase = displayedRooms.reduce((acc, r) => acc + r.baselinePowerWatts, 0);
+  const displayedDailySavedKWh = displayedRooms.reduce(
+    (acc, r) => acc + Math.max(0, r.dailyBaselineKWh - r.dailyActualKWh),
+    0
+  );
   const totalRegisteredSeats = displayedRooms.reduce((acc, r) => acc + r.capacity, 0);
   const roomsWithMotion = displayedRooms.filter((r) => getRoomActivityState(r) === 'Motion detected').length;
   const curtailedFromRatedPct =
@@ -132,34 +134,31 @@ export const DigitalTwinView: React.FC = () => {
   return (
     <div className="p-4 sm:p-6 md:p-8 space-y-6 max-w-7xl mx-auto">
       {/* Page Title */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3.5">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] sm:text-xs font-bold uppercase tracking-wider text-emerald-800">
+      <PageHeader
+        kicker={
+          <>
             <span className="whitespace-nowrap">Spatial Architectural Twin</span>
             <span aria-hidden="true">·</span>
             <span className="truncate">{settings.institutionName}</span>
+          </>
+        }
+        title="Campus Digital Twin (5 Buildings)"
+        subtitle="Architectural simulation across G+3 Block, New Building, Pre-Primary Block, Old Building, and Multipurpose Hall."
+        action={
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-neutral-200/90 text-xs text-[#4a5851] whitespace-nowrap">
+            <Compass className="w-3.5 h-3.5 text-emerald-700" />
+            <span className="font-mono text-[11px] font-semibold text-[#111815]">
+              IIT Kharagpur Microclimate Grid
+            </span>
           </div>
-          <h1 className="text-lg sm:text-2xl font-bold text-neutral-900 tracking-tight mt-0.5">
-            Campus Digital Twin (5 Buildings)
-          </h1>
-          <p className="text-xs text-neutral-500 mt-0.5">
-            Architectural simulation across G+3 Block, New Building, Pre-Primary Block, Old Building, and Multipurpose Hall.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2 self-start lg:self-auto">
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-neutral-200 text-xs text-neutral-700 shadow-2xs whitespace-nowrap">
-            <Compass className="w-3.5 h-3.5 text-emerald-600" />
-            <span className="font-mono text-[11px] font-semibold">IIT Kharagpur Microclimate Grid</span>
-          </div>
-        </div>
-      </div>
+        }
+      />
 
       {/* Building & Floor Selectors */}
-      <div className="p-4 glass-card rounded-2xl space-y-3">
+      <div className="p-4 rw-surface rounded-2xl space-y-3">
         <div>
-          <div className="text-[11px] font-bold text-neutral-600 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-            <Building2 className="w-3.5 h-3.5 text-emerald-600" />
+          <div className="text-[11px] font-bold text-[#4a5851] uppercase tracking-wider mb-2 flex items-center gap-1.5">
+            <Building2 className="w-3.5 h-3.5 text-emerald-700" />
             <span>Select Campus Building</span>
           </div>
           <div className="flex flex-wrap gap-1.5">
@@ -177,14 +176,14 @@ export const DigitalTwinView: React.FC = () => {
                   className={`relative px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap ${
                     isSelected
                       ? 'text-white'
-                      : 'bg-white/80 hover:bg-white text-neutral-700 border border-neutral-200/80'
+                      : 'bg-white/85 hover:bg-white text-[#4a5851] hover:text-[#111815] border border-neutral-200/80'
                   }`}
                 >
                   {isSelected && (
                     <motion.span
                       layoutId="twin-bldg-active"
                       transition={SPRING_SNAPPY}
-                      className="absolute inset-0 rounded-xl bg-emerald-700 shadow-xs"
+                      className="absolute inset-0 rounded-xl bg-[#0b2e22] shadow-xs"
                       aria-hidden="true"
                     />
                   )}
@@ -199,7 +198,7 @@ export const DigitalTwinView: React.FC = () => {
 
         <div className="pt-2.5 border-t border-neutral-200/70 flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[11px] font-bold text-neutral-500 uppercase tracking-wider mr-1">
+            <span className="text-[11px] font-bold text-[#64726b] uppercase tracking-wider mr-1">
               Floor:
             </span>
             {(['All', ...floorsList] as const).map((fl) => {
@@ -212,14 +211,14 @@ export const DigitalTwinView: React.FC = () => {
                   className={`relative px-2.5 py-1 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
                     isSelected
                       ? 'text-white font-semibold'
-                      : 'bg-white/80 text-neutral-600 hover:bg-white border border-neutral-200/80'
+                      : 'bg-white/85 text-[#4a5851] hover:text-[#111815] hover:bg-white border border-neutral-200/80'
                   }`}
                 >
                   {isSelected && (
                     <motion.span
                       layoutId="twin-floor-active"
                       transition={SPRING_SNAPPY}
-                      className="absolute inset-0 rounded-lg bg-neutral-900 shadow-2xs"
+                      className="absolute inset-0 rounded-lg bg-[#111815] shadow-2xs"
                       aria-hidden="true"
                     />
                   )}
@@ -229,16 +228,16 @@ export const DigitalTwinView: React.FC = () => {
             })}
           </div>
 
-          <div className="text-xs text-neutral-500 font-medium tabular-nums">
-            Showing <strong className="text-neutral-900">{displayedRooms.length}</strong> classrooms
+          <div className="text-xs text-[#64726b] font-medium tabular-nums">
+            Showing <strong className="text-[#111815]">{displayedRooms.length}</strong> classrooms
           </div>
         </div>
       </div>
 
       {/* Heatmap Overlay Selector Bar */}
-      <div className="p-3.5 glass-card rounded-2xl flex flex-wrap items-center justify-between gap-3 text-xs">
-        <span className="font-bold text-neutral-700 uppercase tracking-wider text-[11px] flex items-center gap-1.5 shrink-0">
-          <Layers className="w-3.5 h-3.5 text-emerald-600" />
+      <div className="p-3.5 rw-surface rounded-2xl flex flex-wrap items-center justify-between gap-3 text-xs">
+        <span className="font-bold text-[#4a5851] uppercase tracking-wider text-[11px] flex items-center gap-1.5 shrink-0">
+          <Layers className="w-3.5 h-3.5 text-emerald-700" />
           <span>Heatmap Overlay</span>
         </span>
 
@@ -254,14 +253,14 @@ export const DigitalTwinView: React.FC = () => {
                 className={`relative px-3 py-1.5 rounded-xl font-semibold transition-colors flex items-center gap-1.5 whitespace-nowrap ${
                   isSelected
                     ? 'text-white'
-                    : 'bg-white/80 text-neutral-700 hover:bg-white border border-neutral-200/80'
+                    : 'bg-white/85 text-[#4a5851] hover:text-[#111815] hover:bg-white border border-neutral-200/80'
                 }`}
               >
                 {isSelected && (
                   <motion.span
                     layoutId="twin-heatmap-active"
                     transition={SPRING_SNAPPY}
-                    className="absolute inset-0 rounded-xl bg-neutral-900 shadow-2xs"
+                    className="absolute inset-0 rounded-xl bg-[#0b2e22] shadow-2xs"
                     aria-hidden="true"
                   />
                 )}
@@ -296,24 +295,17 @@ export const DigitalTwinView: React.FC = () => {
           </div>
 
           {displayedRooms.length === 0 ? (
-            <div className="py-12 text-center space-y-2">
-              <div className="text-sm font-bold text-neutral-800">
-                No rooms on this building / floor combination
-              </div>
-              <p className="text-xs text-neutral-500">
-                Reset the floor filter to inspect all configured levels for this building.
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedBuilding('All');
-                  setSelectedFloor('All');
-                }}
-                className="mt-2 px-4 py-2 rounded-xl bg-neutral-900 text-white text-xs font-semibold hover:bg-neutral-800 transition-colors"
-              >
-                Show All Classrooms
-              </button>
-            </div>
+            <EmptyState
+              icon={Building2}
+              title="No rooms on this building / floor combination"
+              description="Reset the floor filter to inspect all configured levels for this building."
+              actionLabel="Show All Classrooms"
+              onAction={() => {
+                setSelectedBuilding('All');
+                setSelectedFloor('All');
+              }}
+              className="border-0 shadow-none bg-transparent"
+            />
           ) : (
             buildingsList.map((bldg) => {
               const bldgRooms = displayedRooms.filter((r) => r.building === bldg);
@@ -429,13 +421,13 @@ export const DigitalTwinView: React.FC = () => {
               <div className="text-emerald-800 font-semibold">Est. Daily Diff vs Pre-Retrofit Ref</div>
               <div className="text-xl font-bold font-mono text-emerald-900 mt-1">
                 <AnimatedNumber
-                  value={Math.max(0, totalBase - totalPower) * 0.001 * OPERATING_HOURS_PER_DAY * settings.tariffPerKWhINR}
+                  value={displayedDailySavedKWh * settings.tariffPerKWhINR}
                   decimals={2}
                   prefix="₹"
                 />
               </div>
               <div className="text-[11px] text-emerald-700 mt-0.5">
-                7.0h window · WBSEDCL educational tariff
+                Room-weighted schedule · WBSEDCL educational tariff
               </div>
             </div>
           </div>

@@ -27,6 +27,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { SectionHeading } from '../common/DesignSystem';
+import { MathText } from '../common/MathText';
 import { CampusFootprintMap } from './CampusFootprintMap';
 import type {
   BuildingSelectionStatus,
@@ -282,18 +283,18 @@ export const BuildingRoofMappingPanel: React.FC<BuildingRoofMappingPanelProps> =
           </div>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-neutral-500 tabular-nums">
             <span className="font-mono text-neutral-700">
-              {academicCount} solar-eligible roofs
+              {academicCount} academic buildings ({campusSummary.combinedGrossFootprintAreaM2.toLocaleString()} m² footprint)
             </span>
             <span aria-hidden="true">·</span>
             <span className="font-mono text-neutral-700">
-              {campusSummary.combinedUsableRoofAreaM2.toLocaleString()} m² usable
+              {campusSummary.combinedUsableRoofAreaM2.toLocaleString()} m² usable (provisional)
             </span>
             <span aria-hidden="true">·</span>
             <span className="font-mono text-emerald-800 font-semibold">
               {campusSummary.combinedCapacityKwp} kWp
             </span>
             <span aria-hidden="true">·</span>
-            <span>{sportsCount} sports grounds</span>
+            <span>{sportsCount} non-building sports grounds</span>
             <span aria-hidden="true">·</span>
             <span className="inline-flex items-center gap-1 font-mono text-[11px]">
               <MapPin className="w-3 h-3 text-emerald-700" />
@@ -638,21 +639,33 @@ export const BuildingRoofMappingPanel: React.FC<BuildingRoofMappingPanelProps> =
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-3 text-xs">
                     <div className="p-3 rounded-xl bg-[#f6f8f7] border border-neutral-200/70">
-                      <div className="text-[11px] text-neutral-500">Reconstructed Ground Area</div>
+                      <div className="text-[11px] text-neutral-500">
+                        Supplied Ground Area ({selectedBuilding.geometry.areaProvenanceLabel})
+                      </div>
                       <div className="mt-1 font-mono font-bold text-neutral-900 tabular-nums">
                         {selectedBuilding.geometry.grossFootprintAreaM2.toLocaleString()} m²
+                      </div>
+                      <div className="text-[10px] font-mono text-neutral-500">
+                        {selectedBuilding.geometry.grossFootprintAreaFt2.toLocaleString()} ft²
+                        {selectedBuilding.geometry.suppliedPerimeterM !== null
+                          ? ` · Perim. ${selectedBuilding.geometry.suppliedPerimeterM} m`
+                          : ''}
                       </div>
                     </div>
                     <div className="p-3 rounded-xl bg-[#f6f8f7] border border-neutral-200/70">
                       <div className="text-[11px] text-neutral-500">Campus Classification</div>
                       <div className="mt-1 font-semibold text-neutral-900">
-                        Open Sports Facility
+                        Open Sports Facility (Non-Building)
+                      </div>
+                      <div className="text-[10px] text-neutral-500">
+                        Source: {selectedBuilding.geometry.measurementSource || 'Campus map'}
                       </div>
                     </div>
                   </div>
                   <p className="text-xs text-neutral-500 leading-relaxed">
                     Open-air sports facilities are preserved on the campus map for spatial orientation
-                    and excluded from rooftop PV capacity and classroom electrical load tallies.
+                    and strictly excluded from academic building footprint totals, rooftop PV capacity,
+                    and classroom electrical load tallies.
                   </p>
                 </div>
               ) : (
@@ -701,25 +714,39 @@ export const BuildingRoofMappingPanel: React.FC<BuildingRoofMappingPanelProps> =
                     </button>
                   </div>
 
-                  {/* 2. Concise Roof & Sizing Metrics */}
+                  {/* 2. Authoritative Building Footprint vs Provisional Roof & PV Sizing Metrics */}
                   <div className="grid grid-cols-2 gap-2.5 text-xs tabular-nums">
                     <div className="p-2.5 rounded-xl bg-[#f6f8f7] border border-neutral-200/70 min-w-0">
-                      <div className="text-[11px] text-neutral-500 whitespace-nowrap">Gross Roof Area</div>
+                      <div className="text-[11px] text-neutral-500 whitespace-nowrap">
+                        Building Footprint
+                      </div>
                       <div className="mt-0.5 font-mono font-bold text-neutral-900">
                         {selectedBuilding.geometry.grossFootprintAreaM2.toLocaleString()} m²
                       </div>
-                      <div className="text-[10px] text-neutral-500 truncate">
-                        {selectedBuilding.capacity.obstructionSetbackAreaM2.toLocaleString()} m² setbacks/utilities
+                      <div className="text-[10px] font-mono text-neutral-500 truncate">
+                        {selectedBuilding.geometry.grossFootprintAreaFt2.toLocaleString()} ft²
+                        {selectedBuilding.geometry.suppliedPerimeterM !== null
+                          ? ` · Perim. ${selectedBuilding.geometry.suppliedPerimeterM} m`
+                          : ''}
+                      </div>
+                      <div className="text-[10px] text-emerald-800/90 truncate mt-0.5">
+                        {selectedBuilding.geometry.areaProvenanceLabel}
                       </div>
                     </div>
 
                     <div className="p-2.5 rounded-xl bg-[#f6f8f7] border border-neutral-200/70 min-w-0">
-                      <div className="text-[11px] text-neutral-500 whitespace-nowrap">Usable Area</div>
+                      <div className="text-[11px] text-neutral-500 whitespace-nowrap">
+                        Usable PV Area (Provisional)
+                      </div>
                       <div className="mt-0.5 font-mono font-bold text-neutral-900">
                         {selectedBuilding.capacity.usableRoofAreaM2.toLocaleString()} m²
                       </div>
                       <div className="text-[10px] text-neutral-500 truncate">
-                        {selectedBuilding.capacity.rowSpacingWalkwayAreaM2.toLocaleString()} m² row-spacing/aisles
+                        {selectedBuilding.capacity.obstructionSetbackAreaM2.toLocaleString()} m² setbacks ·{' '}
+                        {selectedBuilding.capacity.rowSpacingWalkwayAreaM2.toLocaleString()} m² spacing
+                      </div>
+                      <div className="text-[10px] text-neutral-500 truncate mt-0.5">
+                        Actual roof surface: {selectedBuilding.geometry.roofSurfaceAreaProvenanceLabel}
                       </div>
                     </div>
 
@@ -730,21 +757,39 @@ export const BuildingRoofMappingPanel: React.FC<BuildingRoofMappingPanelProps> =
                       </div>
                       <div className="text-[10px] text-neutral-500 truncate">
                         {selectedBuilding.capacity.estimatedPanelCount} panels (
-                        {selectedBuilding.capacity.estimatedPanelAreaM2} m² glass)
+                        {selectedBuilding.capacity.estimatedPanelAreaM2} m² net glass)
                       </div>
                     </div>
 
                     <div className="p-2.5 rounded-xl bg-[#f6f8f7] border border-neutral-200/70 min-w-0">
-                      <div className="text-[11px] text-neutral-500 whitespace-nowrap">Roof Orientation</div>
-                      <div className="mt-0.5 font-semibold text-neutral-900 capitalize truncate">
-                        {selectedBuilding.roofConfig.roofType}
+                      <div className="text-[11px] text-neutral-500 whitespace-nowrap">Roof Plan &amp; Tilt</div>
+                      <div className="mt-0.5 font-semibold text-neutral-900 truncate">
+                        {selectedBuilding.geometry.estimatedRoofPlanAreaM2?.toLocaleString() ?? '—'} m² plan
                       </div>
                       <div className="text-[10px] font-mono text-neutral-500 truncate">
                         {selectedBuilding.roofConfig.tiltDegrees}° tilt ·{' '}
-                        {selectedBuilding.roofConfig.aspectDegrees}° az
+                        {selectedBuilding.roofConfig.aspectDegrees}° az · Height: {selectedBuilding.geometry.verticalGeometryProvenanceLabel}
                       </div>
                     </div>
                   </div>
+
+                  {selectedBuilding.geometry.combinedComplexNote && (
+                    <div className="rounded-xl border border-emerald-200/80 bg-emerald-50/40 px-3 py-2 text-[11px] text-emerald-950 leading-relaxed">
+                      <span className="font-semibold">Combined OB + NB Measurement: </span>
+                      {selectedBuilding.geometry.combinedComplexNote}
+                    </div>
+                  )}
+
+                  {selectedBuilding.geometry.measurementSource && (
+                    <div className="text-[10.5px] text-neutral-500 leading-relaxed">
+                      <span className="font-medium text-neutral-700">Geometry Source:</span>{' '}
+                      {selectedBuilding.geometry.measurementSource}
+                      {selectedBuilding.geometry.lastUpdated
+                        ? ` (updated ${selectedBuilding.geometry.lastUpdated})`
+                        : ''}
+                      . Horizontal footprint plan area does not equal actual roof-surface area or verified usable solar area.
+                    </div>
+                  )}
 
                   {/* 3. Analytical Confirmation Status Controls */}
                   <div className="flex flex-wrap items-center gap-2">
@@ -895,7 +940,12 @@ export const BuildingRoofMappingPanel: React.FC<BuildingRoofMappingPanelProps> =
                           </div>
                           <div>
                             <label className="block text-[11px] text-neutral-500 mb-0.5">
-                              Aspect (0=S, ±90=E/W)
+                              Aspect (
+                              <MathText
+                                tex="0^\circ = \mathrm{S},\; \pm 90^\circ = \mathrm{E/W}"
+                                ariaLabel="0 degrees equals South, plus or minus 90 degrees equals East or West"
+                              />
+                              )
                             </label>
                             <input
                               type="number"
@@ -977,8 +1027,10 @@ export const BuildingRoofMappingPanel: React.FC<BuildingRoofMappingPanelProps> =
                     </span>
                     <span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-neutral-500 tabular-nums">
                       <span>
-                        ΔE {selectedBuilding.override?.offsetEastMeters ?? 0}m · ΔN{' '}
-                        {selectedBuilding.override?.offsetNorthMeters ?? 0}m
+                        <MathText
+                          tex={`\\Delta E = ${selectedBuilding.override?.offsetEastMeters ?? 0}\\,\\mathrm{m},\\; \\Delta N = ${selectedBuilding.override?.offsetNorthMeters ?? 0}\\,\\mathrm{m}`}
+                          ariaLabel={`Delta E equals ${selectedBuilding.override?.offsetEastMeters ?? 0} meters, Delta N equals ${selectedBuilding.override?.offsetNorthMeters ?? 0} meters`}
+                        />
                       </span>
                       {showPositionTools ? (
                         <ChevronUp className="w-4 h-4" />

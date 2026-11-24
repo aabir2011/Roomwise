@@ -14,19 +14,62 @@
   --color-ink-muted: #4a5851;
 }
 
+:root {
+  /* Semantic Surface Tokens */
+  --rw-bg-canvas: #fafbfb;
+  --rw-bg-surface: rgba(255, 255, 255, 0.91);
+  --rw-bg-surface-solid: #ffffff;
+  --rw-bg-muted: #f3f5f4;
+  --rw-bg-sage: #eef3f0;
+  --rw-bg-forest: #0b2e22;
+  --rw-bg-forest-deep: #071e17;
+
+  /* Hairline Border Tokens */
+  --rw-border-subtle: rgba(17, 24, 21, 0.065);
+  --rw-border-default: rgba(17, 24, 21, 0.09);
+  --rw-border-strong: rgba(17, 24, 21, 0.15);
+  --rw-border-accent: rgba(5, 150, 105, 0.28);
+
+  /* Ink & Typography Hierarchy */
+  --rw-text-primary: #111815;
+  --rw-text-secondary: #4a5851;
+  --rw-text-muted: #64726b;
+
+  /* Accent & Semantic Tokens */
+  --rw-accent: #059669;
+  --rw-accent-strong: #047857;
+  --rw-status-positive: #047857;
+  --rw-status-warning: #b45309;
+  --rw-status-critical: #be123c;
+  --rw-status-info: #0369a1;
+
+  /* Elevation & Motion Tokens */
+  --rw-shadow-surface: 0 1px 2px rgba(17, 24, 21, 0.025), 0 8px 24px -12px rgba(11, 46, 34, 0.055);
+  --rw-shadow-hover: 0 12px 26px -12px rgba(6, 78, 59, 0.13), 0 2px 6px -1px rgba(17, 24, 21, 0.04);
+  --rw-shadow-float: 0 28px 56px -16px rgba(7, 30, 23, 0.2), 0 6px 16px -6px rgba(17, 24, 21, 0.08);
+  --rw-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --rw-duration-fast: 150ms;
+  --rw-duration-base: 220ms;
+}
+
 @layer base {
   html {
-    background-color: #fafbfb;
-    color: #111815;
+    background-color: var(--rw-bg-canvas);
+    color: var(--rw-text-primary);
     overflow-x: clip;
   }
 
   body {
     font-family: var(--font-sans);
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
-    background-color: #fafbfb;
-    color: #111815;
+    background-color: var(--rw-bg-canvas);
+    color: var(--rw-text-primary);
     overflow-x: clip;
+  }
+
+  h1,
+  h2 {
+    text-wrap: balance;
   }
 
   button:not(:disabled),
@@ -39,13 +82,19 @@
   a:focus-visible,
   input:focus-visible,
   select:focus-visible,
-  [role="switch"]:focus-visible {
+  textarea:focus-visible,
+  [role="switch"]:focus-visible,
+  [role="tab"]:focus-visible {
     outline: 2px solid rgba(5, 150, 105, 0.55);
     outline-offset: 2px;
   }
 }
 
-/* Energy Flow Compositor Animations */
+/* ============================================================================
+   GPU-COMPOSITOR MOTION PRIMITIVES
+   Transform & opacity only — zero layout reflow, disabled under reduced-motion
+   ============================================================================ */
+
 @keyframes energy-flow-dash {
   from {
     stroke-dashoffset: 36;
@@ -56,13 +105,115 @@
 }
 
 @keyframes voice-breathe {
-  0%, 100% {
+  0%,
+  100% {
     transform: scale(1);
     opacity: 0.72;
   }
   50% {
     transform: scale(1.06);
     opacity: 1;
+  }
+}
+
+@keyframes rw-ambient-drift-a {
+  0%,
+  100% {
+    transform: translate3d(-6%, -4%, 0) scale(1);
+    opacity: 0.9;
+  }
+  25% {
+    transform: translate3d(20%, 8%, 0) scale(1.08);
+    opacity: 1;
+  }
+  50% {
+    transform: translate3d(12%, 22%, 0) scale(0.96);
+    opacity: 0.88;
+  }
+  75% {
+    transform: translate3d(-2%, 12%, 0) scale(1.04);
+    opacity: 0.96;
+  }
+}
+
+@keyframes rw-ambient-drift-b {
+  0%,
+  100% {
+    transform: translate3d(6%, 6%, 0) scale(1);
+    opacity: 0.88;
+  }
+  25% {
+    transform: translate3d(-18%, -10%, 0) scale(1.07);
+    opacity: 1;
+  }
+  50% {
+    transform: translate3d(-24%, 6%, 0) scale(0.95);
+    opacity: 0.86;
+  }
+  75% {
+    transform: translate3d(-8%, 14%, 0) scale(1.03);
+    opacity: 0.94;
+  }
+}
+
+@keyframes rw-ambient-drift-c {
+  0%,
+  100% {
+    transform: translate3d(2%, -2%, 0) scale(1);
+    opacity: 0.84;
+  }
+  25% {
+    transform: translate3d(-16%, 14%, 0) scale(1.07);
+    opacity: 0.96;
+  }
+  50% {
+    transform: translate3d(-22%, -6%, 0) scale(0.94);
+    opacity: 0.82;
+  }
+  75% {
+    transform: translate3d(-6%, -14%, 0) scale(1.03);
+    opacity: 0.92;
+  }
+}
+
+@keyframes rw-forest-aurora {
+  0%,
+  100% {
+    transform: translate3d(-26%, -10%, 0) scale(1);
+    opacity: 0.88;
+  }
+  35% {
+    transform: translate3d(24%, 12%, 0) scale(1.09);
+    opacity: 1;
+  }
+  68% {
+    transform: translate3d(4%, -16%, 0) scale(0.96);
+    opacity: 0.9;
+  }
+}
+
+@keyframes rw-card-wash-drift {
+  0%,
+  100% {
+    transform: translate3d(-16%, -10%, 0) scale(1);
+    opacity: 0.84;
+  }
+  35% {
+    transform: translate3d(18%, 12%, 0) scale(1.08);
+    opacity: 1;
+  }
+  70% {
+    transform: translate3d(6%, 22%, 0) scale(0.96);
+    opacity: 0.88;
+  }
+}
+
+@keyframes rw-rim-flow {
+  0% {
+    transform: translate3d(-50%, 0, 0);
+  }
+  100% {
+    transform: translate3d(0%, 0, 0);
   }
 }
 
@@ -76,6 +227,78 @@
   will-change: transform, opacity;
 }
 
+/* KaTeX mathematical typesetting alignment */
+.rw-math-display .katex-display {
+  margin: 0.15em 0;
+}
+
+.rw-math-inline .katex {
+  font-size: 1.03em;
+}
+
+/* Selective Architectural Ambient Atmospheric Field (Workspace Canvas Only) */
+.rw-ambient-field {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+  contain: layout style paint;
+}
+
+.rw-ambient-orb-primary {
+  position: absolute;
+  top: -12%;
+  left: -6%;
+  width: 60vw;
+  height: 52vh;
+  border-radius: 9999px;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(16, 185, 129, 0.145) 0%,
+    rgba(5, 150, 105, 0.068) 38%,
+    rgba(16, 185, 129, 0.018) 58%,
+    transparent 72%
+  );
+  animation: rw-ambient-drift-a 16s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+  will-change: transform, opacity;
+}
+
+.rw-ambient-orb-secondary {
+  position: absolute;
+  bottom: -14%;
+  right: -6%;
+  width: 56vw;
+  height: 50vh;
+  border-radius: 9999px;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(13, 148, 136, 0.13) 0%,
+    rgba(52, 211, 153, 0.06) 40%,
+    rgba(167, 243, 208, 0.02) 60%,
+    transparent 72%
+  );
+  animation: rw-ambient-drift-b 19s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+  will-change: transform, opacity;
+}
+
+.rw-ambient-orb-tertiary {
+  position: absolute;
+  top: 18%;
+  right: 4%;
+  width: 44vw;
+  height: 40vh;
+  border-radius: 9999px;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(16, 185, 129, 0.095) 0%,
+    rgba(14, 165, 233, 0.045) 42%,
+    transparent 68%
+  );
+  animation: rw-ambient-drift-c 22s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+  will-change: transform, opacity;
+}
+
 /* Global Touch & Highlight Optimization */
 * {
   -webkit-tap-highlight-color: transparent;
@@ -83,11 +306,31 @@
 
 /* Reduced Motion & Battery Saver support */
 @media (prefers-reduced-motion: reduce) {
-  *, ::before, ::after {
+  *,
+  ::before,
+  ::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+
+  .rw-ambient-orb-primary,
+  .rw-ambient-orb-secondary,
+  .rw-ambient-orb-tertiary,
+  .rw-flow-stream,
+  .rw-voice-aura,
+  .rw-forest-hero::before,
+  .glass-dark::before,
+  .rw-surface-sage::before,
+  .rw-card-alive::before,
+  .rw-card-alive-alt::before,
+  .gradient-rim-emerald::before,
+  .gradient-rim-amber::before,
+  .gradient-rim-blue::before,
+  .gradient-rim-teal::before {
+    animation: none !important;
+    will-change: auto !important;
   }
 }
 
@@ -96,90 +339,158 @@
    Porcelain White + Cool Grey + Deep Forest Hero + Selective Frosted Glass
    ============================================================================ */
 
-/* Primary Ambient Porcelain Canvas (60%) */
+/* Primary Ambient Porcelain Canvas */
 .bg-app-ambient {
-  background-color: #fafbfb;
+  background-color: var(--rw-bg-canvas);
   background-image:
     radial-gradient(ellipse 80% 50% at 10% -5%, rgba(16, 185, 129, 0.055) 0%, transparent 65%),
     radial-gradient(ellipse 70% 45% at 95% 0%, rgba(13, 148, 136, 0.04) 0%, transparent 60%),
-    radial-gradient(ellipse 65% 50% at 85% 100%, rgba(167, 243, 208, 0.08) 0%, transparent 70%);
+    radial-gradient(ellipse 65% 50% at 85% 100%, rgba(52, 211, 153, 0.06) 0%, transparent 70%);
 }
 
-/* Architectural Clean Surface — subtle crisp hairline, zero heavy drop shadows */
+/* Architectural Clean Surface — crisp 1px hairline, restrained elevation */
 .rw-surface,
 .glass-card {
-  background: rgba(255, 255, 255, 0.94);
-  border: 1px solid rgba(17, 24, 21, 0.08);
-  box-shadow:
-    0 1px 2px rgba(17, 24, 21, 0.025),
-    0 8px 24px -12px rgba(11, 46, 34, 0.05);
+  background: var(--rw-bg-surface);
+  border: 1px solid var(--rw-border-default);
+  box-shadow: var(--rw-shadow-surface);
 }
 
 .rw-surface-muted {
-  background: #f3f5f4;
-  border: 1px solid rgba(17, 24, 21, 0.07);
+  background: var(--rw-bg-muted);
+  border: 1px solid var(--rw-border-subtle);
 }
 
 .rw-surface-sage {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   background: linear-gradient(155deg, rgba(238, 243, 240, 0.92) 0%, rgba(255, 255, 255, 0.96) 100%);
   border: 1px solid rgba(5, 150, 105, 0.14);
+}
+
+/* Signature Alive Card Wash — subtle drifting emerald/teal gradient inside select highlight cards */
+.rw-card-alive,
+.rw-card-alive-alt {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.rw-surface-sage::before,
+.rw-card-alive::before,
+.rw-card-alive-alt::before {
+  content: '';
+  position: absolute;
+  top: -38%;
+  left: -22%;
+  width: 115%;
+  height: 155%;
+  border-radius: 9999px;
+  pointer-events: none;
+  z-index: -1;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(16, 185, 129, 0.125) 0%,
+    rgba(13, 148, 136, 0.055) 42%,
+    transparent 70%
+  );
+  animation: rw-card-wash-drift 15s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+  will-change: transform, opacity;
+}
+
+.rw-card-alive-alt::before {
+  background: radial-gradient(
+    ellipse at center,
+    rgba(13, 148, 136, 0.115) 0%,
+    rgba(52, 211, 153, 0.055) 44%,
+    transparent 70%
+  );
+  animation-duration: 18s;
+  animation-delay: -6s;
 }
 
 /* Interactive Node / Card Surface */
 .rw-surface-interactive,
 .glass-card-interactive {
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid rgba(17, 24, 21, 0.085);
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--rw-border-default);
   box-shadow:
     0 1px 2px rgba(17, 24, 21, 0.025),
-    0 6px 18px -10px rgba(11, 46, 34, 0.06);
+    0 6px 18px -10px rgba(11, 46, 34, 0.055);
   transition:
-    transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
-    box-shadow 180ms cubic-bezier(0.16, 1, 0.3, 1),
-    border-color 180ms cubic-bezier(0.16, 1, 0.3, 1),
-    background-color 180ms ease;
-  will-change: transform;
+    transform 170ms var(--rw-ease),
+    box-shadow 170ms var(--rw-ease),
+    border-color 170ms var(--rw-ease),
+    background-color 170ms ease;
 }
 
 .rw-surface-interactive:hover,
 .glass-card-interactive:hover {
   transform: translate3d(0, -1.5px, 0);
-  background: #ffffff;
+  background: var(--rw-bg-surface-solid);
   border-color: rgba(5, 150, 105, 0.34);
-  box-shadow:
-    0 12px 26px -12px rgba(6, 78, 59, 0.14),
-    0 2px 6px -1px rgba(17, 24, 21, 0.04);
+  box-shadow: var(--rw-shadow-hover);
 }
 
 .rw-surface-interactive:active,
 .glass-card-interactive:active {
-  transform: translate3d(0, 0, 0) scale(0.992);
+  transform: translate3d(0, 0, 0) scale(0.994);
 }
 
 /* Deep Forest Intelligence Surface (Hero Panels & Signature Ribbon) */
 .rw-forest-hero,
 .glass-dark {
-  background:
-    radial-gradient(ellipse 90% 80% at 85% 15%, rgba(16, 185, 129, 0.22) 0%, transparent 60%),
-    radial-gradient(ellipse 65% 75% at 10% 100%, rgba(13, 148, 136, 0.16) 0%, transparent 65%),
-    linear-gradient(142deg, #071e17 0%, #0b2e22 52%, #0e3a2b 100%);
-  border: 1px solid rgba(167, 243, 208, 0.16);
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: linear-gradient(138deg, #051712 0%, #09261d 54%, #0c3326 100%);
+  border: 1px solid rgba(167, 243, 208, 0.19);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 18px 38px -16px rgba(7, 30, 23, 0.45),
-    0 4px 12px -4px rgba(7, 30, 23, 0.22);
+    inset 0 1px 0 rgba(209, 250, 229, 0.14),
+    0 18px 38px -16px rgba(7, 30, 23, 0.48),
+    0 4px 12px -4px rgba(7, 30, 23, 0.24);
+}
+
+.rw-forest-hero::before,
+.glass-dark::before {
+  content: '';
+  position: absolute;
+  top: -42%;
+  left: -18%;
+  width: 135%;
+  height: 185%;
+  border-radius: 9999px;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    radial-gradient(
+      ellipse 46% 52% at 64% 40%,
+      rgba(52, 211, 153, 0.4) 0%,
+      rgba(16, 185, 129, 0.2) 34%,
+      rgba(5, 150, 105, 0.05) 56%,
+      transparent 72%
+    ),
+    radial-gradient(
+      ellipse 42% 48% at 24% 66%,
+      rgba(45, 212, 191, 0.32) 0%,
+      rgba(13, 148, 136, 0.14) 36%,
+      transparent 66%
+    );
+  animation: rw-forest-aurora 7.5s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+  will-change: transform, opacity;
 }
 
 /* Selective Frosted Chrome: Header & Sidebar */
 .glass-header {
-  background: rgba(250, 251, 251, 0.84);
+  background: rgba(250, 251, 251, 0.86);
   backdrop-filter: blur(18px) saturate(165%);
   -webkit-backdrop-filter: blur(18px) saturate(165%);
   border-bottom: 1px solid rgba(17, 24, 21, 0.075);
 }
 
 .glass-sidebar {
-  background: rgba(255, 255, 255, 0.90);
+  background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(16px) saturate(160%);
   -webkit-backdrop-filter: blur(16px) saturate(160%);
   border-right: 1px solid rgba(17, 24, 21, 0.075);
@@ -191,35 +502,108 @@
   background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(22px) saturate(165%);
   -webkit-backdrop-filter: blur(22px) saturate(165%);
-  border: 1px solid rgba(17, 24, 21, 0.10);
-  box-shadow:
-    0 28px 56px -16px rgba(7, 30, 23, 0.20),
-    0 6px 16px -6px rgba(17, 24, 21, 0.08);
+  border: 1px solid rgba(17, 24, 21, 0.1);
+  box-shadow: var(--rw-shadow-float);
+}
+
+/* Standardized Architectural Action Buttons */
+.rw-btn-forest {
+  background-color: #0b2e22;
+  color: #ffffff;
+  border: 1px solid rgba(7, 30, 23, 0.2);
+  transition:
+    background-color var(--rw-duration-fast) var(--rw-ease),
+    transform var(--rw-duration-fast) var(--rw-ease),
+    box-shadow var(--rw-duration-fast) var(--rw-ease);
+}
+
+.rw-btn-forest:hover:not(:disabled) {
+  background-color: #114231;
+}
+
+.rw-btn-forest:active:not(:disabled) {
+  transform: scale(0.985);
+}
+
+.rw-btn-primary {
+  background-color: #111815;
+  color: #ffffff;
+  border: 1px solid rgba(17, 24, 21, 0.12);
+  transition:
+    background-color var(--rw-duration-fast) var(--rw-ease),
+    transform var(--rw-duration-fast) var(--rw-ease);
+}
+
+.rw-btn-primary:hover:not(:disabled) {
+  background-color: #1f2b26;
+}
+
+.rw-btn-primary:active:not(:disabled) {
+  transform: scale(0.985);
+}
+
+.rw-btn-secondary {
+  background-color: #ffffff;
+  color: #111815;
+  border: 1px solid rgba(17, 24, 21, 0.12);
+  transition:
+    background-color var(--rw-duration-fast) var(--rw-ease),
+    border-color var(--rw-duration-fast) var(--rw-ease),
+    transform var(--rw-duration-fast) var(--rw-ease);
+}
+
+.rw-btn-secondary:hover:not(:disabled) {
+  background-color: #f3f5f4;
+  border-color: rgba(17, 24, 21, 0.2);
+}
+
+.rw-btn-secondary:active:not(:disabled) {
+  transform: scale(0.985);
 }
 
 /* Form Input Surface */
-.glass-input {
-  background: rgba(255, 255, 255, 0.94);
+.glass-input,
+.rw-input {
+  background: rgba(255, 255, 255, 0.95);
   border: 1px solid rgba(17, 24, 21, 0.13);
+  color: var(--rw-text-primary);
   transition:
-    border-color 150ms cubic-bezier(0.16, 1, 0.3, 1),
-    box-shadow 150ms cubic-bezier(0.16, 1, 0.3, 1),
-    background-color 150ms ease;
+    border-color var(--rw-duration-fast) var(--rw-ease),
+    box-shadow var(--rw-duration-fast) var(--rw-ease),
+    background-color var(--rw-duration-fast) ease;
 }
 
-.glass-input:hover:not(:disabled) {
-  border-color: rgba(17, 24, 21, 0.22);
+.glass-input:hover:not(:disabled),
+.rw-input:hover:not(:disabled) {
+  border-color: rgba(17, 24, 21, 0.24);
 }
 
-.glass-input:focus {
+.glass-input:focus,
+.rw-input:focus {
   background: #ffffff;
   border-color: #059669;
   box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.14);
+  outline: none;
 }
 
-/* Subtle Architectural Rim Accent Lines */
+/* Architectural Rim Accent Lines — Seamless GPU-Composited Flowing Gradient */
+.gradient-rim-emerald,
+.gradient-rim-amber,
+.gradient-rim-blue,
+.gradient-rim-teal {
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.gradient-rim-emerald:not(.absolute),
+.gradient-rim-amber:not(.absolute),
+.gradient-rim-blue:not(.absolute),
+.gradient-rim-teal:not(.absolute) {
+  position: relative;
+}
+
 .gradient-rim-emerald {
-  background: linear-gradient(90deg, #047857 0%, #10b981 65%, #34d399 100%);
+  background: linear-gradient(90deg, #065f46 0%, #10b981 65%, #34d399 100%);
 }
 .gradient-rim-amber {
   background: linear-gradient(90deg, #b45309 0%, #d97706 100%);
@@ -229,6 +613,92 @@
 }
 .gradient-rim-teal {
   background: linear-gradient(90deg, #0f766e 0%, #059669 100%);
+}
+
+.gradient-rim-emerald::before,
+.gradient-rim-amber::before,
+.gradient-rim-blue::before,
+.gradient-rim-teal::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 200%;
+  pointer-events: none;
+  animation: rw-rim-flow 4.4s linear infinite;
+  will-change: transform;
+}
+
+.gradient-rim-emerald::before {
+  background: linear-gradient(
+    90deg,
+    #064e3b 0%,
+    #059669 16%,
+    #34d399 30%,
+    #6ee7b7 38%,
+    #10b981 44%,
+    #064e3b 50%,
+    #059669 66%,
+    #34d399 80%,
+    #6ee7b7 88%,
+    #10b981 94%,
+    #064e3b 100%
+  );
+}
+
+.gradient-rim-blue::before {
+  background: linear-gradient(
+    90deg,
+    #0c4a6e 0%,
+    #0284c7 16%,
+    #2dd4bf 30%,
+    #5eead4 38%,
+    #0ea5e9 44%,
+    #0c4a6e 50%,
+    #0284c7 66%,
+    #2dd4bf 80%,
+    #5eead4 88%,
+    #0ea5e9 94%,
+    #0c4a6e 100%
+  );
+  animation-delay: -1.1s;
+}
+
+.gradient-rim-teal::before {
+  background: linear-gradient(
+    90deg,
+    #115e59 0%,
+    #0d9488 16%,
+    #34d399 30%,
+    #6ee7b7 38%,
+    #14b8a6 44%,
+    #115e59 50%,
+    #0d9488 66%,
+    #34d399 80%,
+    #6ee7b7 88%,
+    #14b8a6 94%,
+    #115e59 100%
+  );
+  animation-delay: -2.2s;
+}
+
+.gradient-rim-amber::before {
+  background: linear-gradient(
+    90deg,
+    #92400e 0%,
+    #d97706 16%,
+    #f59e0b 30%,
+    #fcd34d 38%,
+    #d97706 44%,
+    #92400e 50%,
+    #d97706 66%,
+    #f59e0b 80%,
+    #fcd34d 88%,
+    #d97706 94%,
+    #92400e 100%
+  );
+  animation-delay: -0.8s;
 }
 
 /* Precision Continuous Appliance Slider */
@@ -250,8 +720,8 @@ input[type="range"].roomwise-slider::-webkit-slider-thumb {
   border: 2px solid var(--slider-accent, #059669);
   box-shadow: 0 1px 4px rgba(15, 23, 42, 0.22);
   transition:
-    transform 140ms cubic-bezier(0.16, 1, 0.3, 1),
-    box-shadow 140ms cubic-bezier(0.16, 1, 0.3, 1);
+    transform 140ms var(--rw-ease),
+    box-shadow 140ms var(--rw-ease);
 }
 
 input[type="range"].roomwise-slider:not(:disabled):hover::-webkit-slider-thumb {
@@ -272,8 +742,8 @@ input[type="range"].roomwise-slider::-moz-range-thumb {
   border: 2px solid var(--slider-accent, #059669);
   box-shadow: 0 1px 4px rgba(15, 23, 42, 0.22);
   transition:
-    transform 140ms cubic-bezier(0.16, 1, 0.3, 1),
-    box-shadow 140ms cubic-bezier(0.16, 1, 0.3, 1);
+    transform 140ms var(--rw-ease),
+    box-shadow 140ms var(--rw-ease);
 }
 
 input[type="range"].roomwise-slider:not(:disabled):hover::-moz-range-thumb {
@@ -285,8 +755,116 @@ input[type="range"].roomwise-slider:not(:disabled):active::-moz-range-thumb {
   box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.18);
 }
 
-/* Smooth GPU scrolling & Crisp Scrollbar */
+/* Smooth GPU scrolling */
 main {
   -webkit-overflow-scrolling: touch;
   scroll-behavior: smooth;
+  overscroll-behavior-y: contain;
+}
+
+/* ============================================================================
+   PHONE VIEWING DEFAULT OPTIMIZATIONS
+   Alive 2-orb GPU-composited drift with lightweight mobile blur & touch ergonomics
+   ============================================================================ */
+@media (max-width: 767px), (pointer: coarse) {
+  :root {
+    --rw-bg-surface: rgba(255, 255, 255, 0.93);
+  }
+
+  button,
+  a,
+  select,
+  [role="button"],
+  [role="tab"],
+  [role="switch"] {
+    touch-action: manipulation;
+  }
+
+  /* Portrait-proportioned 2-orb GPU drift: poised, noticeable motion with minimal mobile layer cost */
+  .rw-ambient-orb-primary {
+    top: -8%;
+    left: -16%;
+    width: 96vw;
+    height: 44vh;
+    background: radial-gradient(
+      ellipse at center,
+      rgba(16, 185, 129, 0.135) 0%,
+      rgba(5, 150, 105, 0.062) 42%,
+      transparent 72%
+    );
+    animation: rw-ambient-drift-a 18s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+    will-change: transform, opacity;
+  }
+
+  .rw-ambient-orb-secondary {
+    bottom: -10%;
+    right: -16%;
+    width: 92vw;
+    height: 42vh;
+    background: radial-gradient(
+      ellipse at center,
+      rgba(13, 148, 136, 0.12) 0%,
+      rgba(52, 211, 153, 0.055) 44%,
+      transparent 72%
+    );
+    animation: rw-ambient-drift-b 22s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+    will-change: transform, opacity;
+  }
+
+  .rw-ambient-orb-tertiary {
+    display: none;
+  }
+
+  /* Lightweight frosted chrome to maintain 60fps scrolling on mobile GPUs */
+  .glass-header {
+    background: rgba(250, 251, 251, 0.93);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  .glass-sidebar {
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  .rw-glass-float,
+  .glass-modal {
+    background: rgba(255, 255, 255, 0.97);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+
+  .rw-surface-interactive,
+  .glass-card-interactive {
+    background: rgba(255, 255, 255, 0.94);
+  }
+
+  /* Keep alive card washes smooth & immediately noticeable on mobile GPUs */
+  .rw-forest-hero::before,
+  .glass-dark::before {
+    animation-duration: 8.5s;
+  }
+
+  .rw-surface-sage::before,
+  .rw-card-alive::before,
+  .rw-card-alive-alt::before {
+    animation-duration: 18s;
+  }
+}
+
+/* Runtime phone-class fallback (keeps 2-orb GPU drift alive, hides 3rd orb to save a layer) */
+[data-device="phone"] .rw-ambient-orb-tertiary {
+  display: none;
+}
+
+/* Prevent sticky hover-lift states on touch-first screens */
+@media (hover: none) {
+  .rw-surface-interactive:hover,
+  .glass-card-interactive:hover {
+    transform: none;
+    box-shadow:
+      0 1px 2px rgba(17, 24, 21, 0.025),
+      0 6px 18px -10px rgba(11, 46, 34, 0.055);
+  }
 }

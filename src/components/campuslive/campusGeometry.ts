@@ -389,8 +389,8 @@ export function buildCampusModel(
   fbGroup.name = 'Sports_FootballGround';
   fbGroup.position.set(-5.5, 0, 22.9);
 
-  const fbW = 28.0;
-  const fbD = 9.4;
+  const fbW = 29.2;
+  const fbD = 8.9;
   const fbBorder = new THREE.Mesh(
     trackGeo(new THREE.BoxGeometry(fbW + 0.5, 0.04, fbD + 0.5)),
     shared.curb
@@ -423,7 +423,7 @@ export function buildCampusModel(
   }
   campusGridGroup.add(fbGroup);
 
-  // Basketball Court (BB — immediately east of Football Ground, zero overlap)
+  // Basketball Court (BB — immediately east of Football Ground, zero overlap, 1:1.87 aspect)
   const bbTex = trackTex(createBasketballCourtTexture(maxAnisotropy));
   const bbMat = trackMat(
     new THREE.MeshStandardMaterial({
@@ -435,10 +435,10 @@ export function buildCampusModel(
   );
   const bbGroup = new THREE.Group();
   bbGroup.name = 'Sports_BasketballCourt';
-  bbGroup.position.set(15.2, 0, 23.2);
+  bbGroup.position.set(15.6, 0, 23.2);
 
-  const bbW = 7.2;
-  const bbD = 10.2;
+  const bbW = 6.2;
+  const bbD = 11.5;
   const bbBase = new THREE.Mesh(
     trackGeo(new THREE.BoxGeometry(bbW + 0.44, 0.06, bbD + 0.44)),
     shared.curb
@@ -484,20 +484,20 @@ export function buildCampusModel(
   }
   campusGridGroup.add(bbGroup);
 
-  // Central shaded tree planter ring inside NB's inner courtyard pocket
+  // Central shaded tree planter ring inside NB's calibrated inner courtyard pocket
   const planterRing = new THREE.Mesh(
-    trackGeo(new THREE.CylinderGeometry(1.3, 1.4, 0.24, 18)),
+    trackGeo(new THREE.CylinderGeometry(1.15, 1.25, 0.24, 18)),
     shared.curb
   );
-  planterRing.position.set(0.7, 0.15, 3.1);
+  planterRing.position.set(1.33, 0.15, 2.59);
   planterRing.receiveShadow = enableShadows;
   root.add(planterRing);
 
   const planterSoil = new THREE.Mesh(
-    trackGeo(new THREE.CylinderGeometry(1.1, 1.1, 0.26, 18)),
+    trackGeo(new THREE.CylinderGeometry(0.98, 0.98, 0.26, 18)),
     shared.lawn
   );
-  planterSoil.position.set(0.7, 0.16, 3.1);
+  planterSoil.position.set(1.33, 0.16, 2.59);
   root.add(planterSoil);
 
   // =========================================================================
@@ -835,8 +835,8 @@ export function buildCampusModel(
 
     // Subtle stairwell mumty strictly on G+3 Block for architectural authenticity
     if (bSpec.architecturalStyle === 'g3-notched') {
-      const mumty = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(2.2, 1.35, 1.9)), roofCopingMat);
-      mumty.position.set(-2.4, 0.14 + 0.675, -2.2);
+      const mumty = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(1.9, 1.35, 1.7)), roofCopingMat);
+      mumty.position.set(-1.6, 0.14 + 0.675, -1.9);
       mumty.castShadow = enableShadows;
       roofGroup.add(mumty);
     }
