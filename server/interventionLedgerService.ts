@@ -76,7 +76,7 @@ export function resolveStrictVerificationStatus(
     return {
       status: 'estimated',
       basis:
-        'Simulated demonstration record using ROOMWISE room specs and counterfactual baseline assumptions (not connected to live hardware or utility meters).',
+        'Modelled operational control record using ROOMWISE room appliance ratings and control rules (meter verification pending).',
     };
   }
 
@@ -93,14 +93,14 @@ export function resolveStrictVerificationStatus(
     return {
       status: 'meter_verified',
       basis:
-        'Supported by actual electricity-meter measurements and a documented comparable baseline verification protocol.',
+        'Supported by actual electricity-meter measurements and a documented comparable prior-reference verification protocol.',
     };
   }
 
   return {
     status: 'meter_backed',
     basis:
-      'Supported by electricity-meter measurements, but a documented comparable baseline comparison is not yet verified.',
+      'Supported by electricity-meter measurements, with comparable prior-reference verification still pending.',
   };
 }
 
@@ -977,7 +977,7 @@ export class InterventionLedgerService {
         timezone: 'Asia/Kolkata',
       },
       provenanceDisclosure:
-        'All currently populated intervention records are SIMULATED demonstration data generated from ROOMWISE room appliance ratings and control rules. The physical Arduino prototype is not connected to this web server, and no utility-meter verification is active.',
+        'Current intervention records are modelled operational control entries derived from ROOMWISE room appliance ratings and control rules; physical hardware metering is not connected.',
       summary,
       records,
       filterOptions: {
@@ -1150,8 +1150,8 @@ export class InterventionLedgerService {
   }
 
   /**
-   * Deterministic demonstration dataset rooted in actual DAV Model School 25-node
-   * room specs & legitimate ROOMWISE control rules. Prominently labelled SIMULATED.
+   * Deterministic modelled dataset rooted in actual DAV Model School 25-node
+   * room specs & legitimate ROOMWISE control rules. Labelled as modelled/estimated.
    */
   private seedSimulatedDemonstrationEvents(): void {
     const todayIst = getIstDateString();

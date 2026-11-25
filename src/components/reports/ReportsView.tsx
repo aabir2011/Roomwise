@@ -14,6 +14,7 @@ import { useEnergy } from '../../context/EnergyContext';
 import { SCHOOL_DAYS_PER_MONTH } from '../../data/roomApplianceSpecs';
 import { AnimatedNumber } from '../common/MotionPrimitives';
 import { PageHeader, SegmentedControl } from '../common/DesignSystem';
+import { AcronymHint } from '../common/AcronymHint';
 import { NationalPolicyAlignmentSection } from './NationalPolicyAlignmentSection';
 
 type ReportsSubTab = 'summary' | 'policy';
@@ -26,16 +27,12 @@ export const ReportsView: React.FC = () => {
     window.print();
   };
 
-  const monthlyActualKWhNum = campusSummary.dailyActualKWh * SCHOOL_DAYS_PER_MONTH;
-  const monthlyBaselineKWhNum = campusSummary.dailyBaselineKWh * SCHOOL_DAYS_PER_MONTH;
-  const monthlySavedKWhNum = campusSummary.dailySavedKWh * SCHOOL_DAYS_PER_MONTH;
-  const monthlySavingsINRNum = campusSummary.dailyCostSavedINR * SCHOOL_DAYS_PER_MONTH;
-  const monthlyCarbonAbatementNum =
-    (campusSummary.dailyEmissionsAvoidedKgCO2 * SCHOOL_DAYS_PER_MONTH) / 1000;
-  const efficiencyPct =
-    campusSummary.dailyBaselineKWh > 0
-      ? ((campusSummary.dailySavedKWh / campusSummary.dailyBaselineKWh) * 100).toFixed(1)
-      : '0.0';
+  const monthlyActualKWhNum = campusSummary.monthlyActualKWh;
+  const monthlyRatedCeilingKWhNum = Number(
+    (campusSummary.dailyRatedCeilingKWh * SCHOOL_DAYS_PER_MONTH).toFixed(1)
+  );
+  const monthlyCostINRNum = campusSummary.monthlyCostINR;
+  const monthlyCarbonFootprintNum = campusSummary.monthlyEmissionsTonnesCO2;
 
   const formattedReportDate = new Date().toLocaleDateString('en-IN', {
     day: 'numeric',
@@ -112,52 +109,54 @@ export const ReportsView: React.FC = () => {
             <div className="text-left sm:text-right font-mono text-xs text-neutral-600 tabular-nums">
               <div className="font-bold text-neutral-900">REF: ROOMWISE-25NODE</div>
               <div>Generated: {formattedReportDate}</div>
-              <div>Tariff: WBSEDCL HT-2 (₹{settings.tariffPerKWhINR.toFixed(2)}/kWh)</div>
+              <div>
+                Tariff: <AcronymHint term="WBSEDCL" /> <AcronymHint term="HT-2" /> (₹{settings.tariffPerKWhINR.toFixed(2)}/kWh)
+              </div>
             </div>
           </div>
 
           {/* 4 Quantitative Balance Metrics */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
             <div className="p-3.5 sm:p-4 rounded-xl border border-neutral-200/90">
-              <div className="text-[11px] text-neutral-500 font-medium">Monthly Demand</div>
+              <div className="text-[11px] text-neutral-600 font-medium">Monthly Demand</div>
               <div className="text-lg sm:text-xl font-bold font-mono text-neutral-900 mt-1 tabular-nums">
                 <AnimatedNumber value={monthlyActualKWhNum} decimals={1} />{' '}
-                <span className="text-xs font-normal text-neutral-500">kWh</span>
+                <span className="text-xs font-normal text-neutral-600">kWh</span>
               </div>
-              <div className="text-[11px] text-neutral-500 mt-0.5 tabular-nums">
-                vs {monthlyBaselineKWhNum.toFixed(1)} kWh Pre-Retrofit Ref
+              <div className="text-[11px] text-neutral-600 mt-0.5 tabular-nums">
+                Ceiling: {monthlyRatedCeilingKWhNum.toFixed(1)} kWh rated max
               </div>
             </div>
 
             <div className="p-3.5 sm:p-4 rounded-xl border border-emerald-200 bg-emerald-50/40 rw-card-alive print:bg-emerald-50">
-              <div className="text-[11px] text-emerald-800 font-medium">Est. Energy Saved</div>
+              <div className="text-[11px] text-emerald-800 font-medium">Rated Utilisation</div>
               <div className="text-lg sm:text-xl font-bold font-mono text-emerald-900 mt-1 tabular-nums">
-                <AnimatedNumber value={monthlySavedKWhNum} decimals={1} />{' '}
-                <span className="text-xs font-normal text-emerald-800/80">kWh</span>
+                <AnimatedNumber value={campusSummary.ratedUtilizationPercent} decimals={1} />
+                <span className="text-xs font-normal text-emerald-800/80">%</span>
               </div>
               <div className="text-[11px] text-emerald-800 font-semibold mt-0.5 tabular-nums">
-                {efficiencyPct}% vs Ref ({SCHOOL_DAYS_PER_MONTH} school days/mo)
+                {campusSummary.headroomPercent}% headroom ({SCHOOL_DAYS_PER_MONTH} school days/mo)
               </div>
             </div>
 
             <div className="p-3.5 sm:p-4 rounded-xl border border-neutral-200/90">
-              <div className="text-[11px] text-neutral-500 font-medium">Est. Cost Savings</div>
+              <div className="text-[11px] text-neutral-600 font-medium">Est. Monthly Cost</div>
               <div className="text-lg sm:text-xl font-bold font-mono text-neutral-900 mt-1 tabular-nums">
-                <AnimatedNumber value={monthlySavingsINRNum} decimals={2} prefix="₹" />
+                <AnimatedNumber value={monthlyCostINRNum} decimals={2} prefix="₹" />
               </div>
-              <div className="text-[11px] text-neutral-500 mt-0.5 tabular-nums">
+              <div className="text-[11px] text-neutral-600 mt-0.5 tabular-nums">
                 Tariff: ₹{settings.tariffPerKWhINR}/kWh (25-node scope)
               </div>
             </div>
 
             <div className="p-3.5 sm:p-4 rounded-xl border border-neutral-200/90">
-              <div className="text-[11px] text-neutral-500 font-medium">Est. Carbon Offset</div>
+              <div className="text-[11px] text-neutral-600 font-medium">Est. Monthly Emissions</div>
               <div className="text-lg sm:text-xl font-bold font-mono text-neutral-900 mt-1 tabular-nums">
-                <AnimatedNumber value={monthlyCarbonAbatementNum} decimals={2} />{' '}
-                <span className="text-xs font-normal text-neutral-500">t CO₂</span>
+                <AnimatedNumber value={monthlyCarbonFootprintNum} decimals={2} />{' '}
+                <span className="text-xs font-normal text-neutral-600">t CO₂</span>
               </div>
-              <div className="text-[11px] text-neutral-500 mt-0.5 tabular-nums">
-                CEA Eastern Grid: {settings.gridCarbonFactorKgCO2PerKWh} kg/kWh
+              <div className="text-[11px] text-neutral-600 mt-0.5 tabular-nums">
+                <AcronymHint term="CEA" /> Eastern Grid: {settings.gridCarbonFactorKgCO2PerKWh} kg/kWh
               </div>
             </div>
           </div>
@@ -165,10 +164,12 @@ export const ReportsView: React.FC = () => {
           {/* Subtle BEE / ECBC Readiness Reference Strip */}
           <div className="px-4 py-3 rounded-xl border border-neutral-200/80 bg-neutral-50/75 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-neutral-600">
             <div>
-              <span className="font-semibold text-neutral-800">BEE / ECBC Readiness:</span>{' '}
+              <span className="font-semibold text-neutral-800">
+                <AcronymHint term="BEE" /> / <AcronymHint term="ECBC" /> Readiness:
+              </span>{' '}
               Formal whole-campus EPI and BEE Star certification require 12-month utility bills, surveyed built-up area, and accredited inspection.
             </div>
-            <span className="text-[11px] font-mono text-neutral-500 shrink-0">
+            <span className="text-[11px] font-mono text-neutral-600 shrink-0">
               Internal reference
             </span>
           </div>
@@ -225,7 +226,7 @@ export const ReportsView: React.FC = () => {
           </div>
 
           {/* Subtle Footer */}
-          <div className="pt-4 border-t border-neutral-100 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-neutral-400">
+          <div className="pt-4 border-t border-neutral-100 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-neutral-600">
             <span>
               Generated by ROOMWISE Energy Platform · DAV Model School, IIT Kharagpur
             </span>

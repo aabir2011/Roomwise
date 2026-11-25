@@ -488,7 +488,7 @@ function persistRuntimeState() {
       roomAppliances: roomAppliancesObj,
       schoolSettings: persistedSchoolSettings,
     };
-    fs.writeFileSync(RUNTIME_STATE_PATH, JSON.stringify(payload, null, 2), 'utf8');
+    fs.writeFileSync(RUNTIME_STATE_PATH, JSON.stringify(payload), 'utf8');
   } catch (err) {
     console.warn('[auth] Failed to persist runtime state:', err);
   }
@@ -2464,7 +2464,7 @@ async function startServer() {
         console.warn('[ledger] Failed to record live appliance command intervention:', ledgerErr);
       }
     }
-    energyHistoryService.recordLiveSnapshot(Array.from(roomApplianceStore.values()), now, 'event');
+    energyHistoryService.recordRoomControlSnapshot(roomState, now);
 
     res.json({
       ok: true,
@@ -3506,6 +3506,54 @@ async function startServer() {
     roomState.updatedAt = now;
     persistRuntimeState();
 
+    // Explicit post-write state verification against authoritative store before returning ok
+    const storedRoom = roomApplianceStore.get(roomState.roomId);
+    if (!storedRoom) {
+      return { ok: false, error: `State verification failed: classroom '${roomState.roomId}' missing after update.` };
+    }
+
+    let verifiedUnit: ServerApplianceCommandOutput['verifiedUnit'];
+    if (input.action === 'set_unit' || input.action === 'restore_unit_auto') {
+      const checkedUnit = storedRoom.appliances.find((a) => a.id === input.applianceId);
+      const expectedMode = input.action === 'set_unit' ? 'MANUAL' : 'AUTO';
+      const expectedPct =
+        input.action === 'set_unit'
+          ? clampPercent(input.outputPercent ?? 0)
+          : checkedUnit?.outputPercent;
+      if (
+        !checkedUnit ||
+        checkedUnit.operatingMode !== expectedMode ||
+        (typeof expectedPct === 'number' && checkedUnit.outputPercent !== expectedPct)
+      ) {
+        return {
+          ok: false,
+          error: `State verification failed for unit '${input.applianceId}' in ${storedRoom.roomCode}.`,
+        };
+      }
+      verifiedUnit = {
+        id: checkedUnit.id,
+        unitCode: checkedUnit.unitCode,
+        name: checkedUnit.name,
+        outputPercent: checkedUnit.outputPercent ?? 0,
+        operatingMode: checkedUnit.operatingMode ?? expectedMode,
+        currentPowerWatts: checkedUnit.currentPowerWatts,
+      };
+    } else if (input.action === 'set_group') {
+      const targetType = input.type || 'lights';
+      const expectedPct = clampPercent(input.outputPercent ?? 0);
+      const mismatched = storedRoom.appliances.find(
+        (a) =>
+          (targetType === 'all' || a.type === targetType) &&
+          (a.operatingMode !== 'MANUAL' || a.outputPercent !== expectedPct)
+      );
+      if (mismatched) {
+        return {
+          ok: false,
+          error: `State verification failed for group '${targetType}' in ${storedRoom.roomCode}.`,
+        };
+      }
+    }
+
     recordAudit({
       type: 'appliance_command',
       summary: auditSummary,
@@ -3513,10 +3561,10 @@ async function startServer() {
       deviceName: `${input.admin.deviceName} · Voice`,
     });
 
-    const totalPowerWatts = roomState.appliances.reduce((acc, a) => acc + a.currentPowerWatts, 0);
+    const totalPowerWatts = storedRoom.appliances.reduce((acc, a) => acc + a.currentPowerWatts, 0);
     energyHistoryService.recordControlEvent({
-      roomId: roomState.roomId,
-      roomCode: roomState.roomCode,
+      roomId: storedRoom.roomId,
+      roomCode: storedRoom.roomCode,
       eventType: `voice_${input.action}`,
       summary: auditSummary,
       actor: `${input.admin.adminName} (Voice)`,
@@ -3524,15 +3572,17 @@ async function startServer() {
       afterWatts: totalPowerWatts,
       tsMs: now,
     });
-    energyHistoryService.recordLiveSnapshot(Array.from(roomApplianceStore.values()), now, 'event');
+    energyHistoryService.recordRoomControlSnapshot(storedRoom, now);
 
     return {
       ok: true,
-      roomId: roomState.roomId,
-      roomCode: roomState.roomCode,
-      appliances: roomState.appliances,
+      verified: true,
+      roomId: storedRoom.roomId,
+      roomCode: storedRoom.roomCode,
+      appliances: storedRoom.appliances,
       totalPowerWatts,
       summary: auditSummary,
+      verifiedUnit,
     };
   };
 
@@ -3999,6 +4049,90 @@ async function startServer() {
     }
   });
 
+  app.post('/api/voice/command/stream', async (req, res) => {
+    const body = (req.body || {}) as {
+      sessionId?: string;
+      text?: string;
+      activeTab?: string;
+      selectedRoomId?: string | null;
+      settings?: SchoolSettings;
+      classrooms?: Classroom[];
+      resolvedFindingIds?: string[];
+    };
+
+    const text = typeof body.text === 'string' ? body.text.trim() : '';
+    if (!text) {
+      res.status(400).json({ ok: false, error: 'Command text is required.' });
+      return;
+    }
+
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders?.();
+
+    let closed = false;
+    res.on('close', () => {
+      if (!res.writableEnded) {
+        closed = true;
+      }
+    });
+
+    const writeEvent = (event: string, payload: unknown) => {
+      if (closed || res.writableEnded) return;
+      try {
+        res.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
+      } catch {
+        closed = true;
+      }
+    };
+
+    try {
+      const authHeader = req.headers.authorization;
+      const bearer =
+        typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
+          ? authHeader.slice(7).trim()
+          : null;
+      const adminIdentity = resolveAdminFromWs(req as unknown as IncomingMessage, bearer);
+      const sessionId =
+        typeof body.sessionId === 'string' && body.sessionId.trim()
+          ? body.sessionId.trim()
+          : `http_${req.ip || 'default'}`;
+
+      const result = await voiceCommandExecutor.executeCommand({
+        sessionId,
+        text,
+        activeTab: typeof body.activeTab === 'string' ? body.activeTab : 'dashboard',
+        selectedRoomId: body.selectedRoomId ?? null,
+        settings: body.settings || persistedSchoolSettings,
+        classrooms: Array.isArray(body.classrooms) ? body.classrooms : undefined,
+        resolvedFindingIds: Array.isArray(body.resolvedFindingIds)
+          ? body.resolvedFindingIds
+          : [],
+        adminIdentity,
+        geminiOptions: {
+          sessionId,
+          onToolStatus: (status) => writeEvent('tool_status', status),
+          onClientMessage: (msg) => writeEvent('client_message', msg),
+          onTextDelta: (delta) => writeEvent('text_delta', { delta }),
+        },
+      });
+
+      writeEvent('done', result);
+    } catch (err) {
+      console.error('[voice] /api/voice/command/stream error:', err);
+      writeEvent('error', {
+        ok: false,
+        error: err instanceof Error ? err.message : 'Failed to execute voice command.',
+      });
+    } finally {
+      if (!res.writableEnded) {
+        res.end();
+      }
+    }
+  });
+
   // Serve local wake-word worker & model with cached gzip compression and immutable headers in dev & prod
   const modelsDir =
     process.env.NODE_ENV === 'production' && fs.existsSync(path.join(__dirname, 'dist', 'models'))
@@ -4131,6 +4265,23 @@ async function startServer() {
 
   httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`[Roomwise] Full-stack server running on http://0.0.0.0:${PORT}`);
+
+    // Non-blocking background warm-up for Open-Meteo environmental cache so first
+    // weather/daylight queries hit warm memory instead of waiting on cold external fetch.
+    const warmupTimer = setTimeout(() => {
+      environmentalService
+        .getOverview({
+          settings: persistedSchoolSettings,
+          classrooms: INITIAL_CLASSROOMS,
+          forceRefresh: false,
+        })
+        .catch(() => {
+          // Non-fatal: live requests will retry automatically on demand
+        });
+    }, 1200);
+    if (typeof warmupTimer.unref === 'function') {
+      warmupTimer.unref();
+    }
   });
 }
 

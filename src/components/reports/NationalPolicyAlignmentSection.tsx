@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useEnergy } from '../../context/EnergyContext';
 import { SectionHeading } from '../common/DesignSystem';
+import { AcronymHint } from '../common/AcronymHint';
 
 interface OfficialSourceLink {
   label: string;
@@ -348,8 +349,8 @@ export const NationalPolicyAlignmentSection: React.FC = () => {
       {/* Compact Technical Reference: Energy Conservation Building Code (ECBC) */}
       <div className="rw-surface rounded-2xl p-5 sm:p-6 space-y-4">
         <SectionHeading
-          title="Technical Reference: Energy Conservation Building Code (ECBC)"
-          meta="BEE Building-Efficiency Framework"
+          title={<>Technical Reference: Energy Conservation Building Code (<AcronymHint term="ECBC" />)</>}
+          meta={<><AcronymHint term="BEE" /> Building-Efficiency Framework</>}
           subtitle="Contextual engineering reference for automated lighting controls and occupancy sensing."
           action={
             <a

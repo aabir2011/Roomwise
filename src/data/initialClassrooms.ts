@@ -164,9 +164,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       },
     ],
     currentPowerWatts: 192,
-    baselinePowerWatts: 580,
     dailyActualKWh: 1.15,
-    dailyBaselineKWh: 3.48,
     decision: {
       timestamp: '10:44:20',
       lightingAction: 'Bank 1 ON (120W) | Bank 2 OFF (Daylight Harvesting)',
@@ -176,7 +174,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       energyImpactWatts: 388,
       ruleExplanation: 'Rule R-LUM-2 (Daylight Harvesting) verified by learned alpha 0.68.',
     },
-    qrCodeData: 'https://roomwise.davkgp.internal/rooms/g3-g01',
+    qrCodeData: '/classroom/G3-G01',
     coordinates: { gridCol: 1, gridRow: 1, widthCols: 2, heightRows: 2 },
   },
 
@@ -249,9 +247,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       },
     ],
     currentPowerWatts: 192,
-    baselinePowerWatts: 580,
     dailyActualKWh: 1.15,
-    dailyBaselineKWh: 3.48,
     decision: {
       timestamp: '10:44:00',
       lightingAction: 'Bank 1 ON, Bank 2 OFF',
@@ -261,7 +257,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       energyImpactWatts: 388,
       ruleExplanation: 'Nominal conservation cycle.',
     },
-    qrCodeData: 'https://roomwise.davkgp.internal/rooms/g3-g02',
+    qrCodeData: '/classroom/G3-G02',
     coordinates: { gridCol: 3, gridRow: 1, widthCols: 2, heightRows: 2 },
   },
 
@@ -334,9 +330,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       },
     ],
     currentPowerWatts: 224,
-    baselinePowerWatts: 580,
     dailyActualKWh: 1.34,
-    dailyBaselineKWh: 3.48,
     decision: {
       timestamp: '10:43:50',
       lightingAction: 'Bank 1 ON, Bank 2 OFF (50%)',
@@ -346,7 +340,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       energyImpactWatts: 356,
       ruleExplanation: 'High thermal load adaptation.',
     },
-    qrCodeData: 'https://roomwise.davkgp.internal/rooms/g3-101',
+    qrCodeData: '/classroom/G3-101',
     coordinates: { gridCol: 1, gridRow: 3, widthCols: 2, heightRows: 2 },
   },
 
@@ -419,9 +413,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       },
     ],
     currentPowerWatts: 192,
-    baselinePowerWatts: 580,
     dailyActualKWh: 1.15,
-    dailyBaselineKWh: 3.48,
     decision: {
       timestamp: '10:43:10',
       lightingAction: 'Bank 1 ON, Bank 2 OFF',
@@ -431,7 +423,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       energyImpactWatts: 388,
       ruleExplanation: 'Standard daylight harvesting cycle.',
     },
-    qrCodeData: 'https://roomwise.davkgp.internal/rooms/g3-102',
+    qrCodeData: '/classroom/G3-102',
     coordinates: { gridCol: 3, gridRow: 3, widthCols: 2, heightRows: 2 },
   },
 
@@ -521,9 +513,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       },
     ],
     currentPowerWatts: 463,
-    baselinePowerWatts: 960,
     dailyActualKWh: 2.78,
-    dailyBaselineKWh: 5.76,
     decision: {
       timestamp: '10:44:15',
       lightingAction: '100% Task lighting engaged (320W)',
@@ -533,7 +523,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       energyImpactWatts: 497,
       ruleExplanation: 'Laboratory precision profile active.',
     },
-    qrCodeData: 'https://roomwise.davkgp.internal/rooms/g3-201',
+    qrCodeData: '/classroom/G3-201',
     coordinates: { gridCol: 1, gridRow: 5, widthCols: 2, heightRows: 2 },
   },
 
@@ -606,9 +596,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       },
     ],
     currentPowerWatts: 438,
-    baselinePowerWatts: 880,
     dailyActualKWh: 2.63,
-    dailyBaselineKWh: 5.28,
     decision: {
       timestamp: '10:44:05',
       lightingAction: 'Full Illuminance (320W)',
@@ -618,7 +606,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       energyImpactWatts: 442,
       ruleExplanation: 'Chemistry safety interlock active.',
     },
-    qrCodeData: 'https://roomwise.davkgp.internal/rooms/g3-202',
+    qrCodeData: '/classroom/G3-202',
     coordinates: { gridCol: 3, gridRow: 5, widthCols: 2, heightRows: 2 },
   },
 
@@ -700,9 +688,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       },
     ],
     currentPowerWatts: 407,
-    baselinePowerWatts: 820,
     dailyActualKWh: 2.44,
-    dailyBaselineKWh: 4.92,
     decision: {
       timestamp: '10:43:40',
       lightingAction: 'Task illumination 405 lux maintained',
@@ -712,7 +698,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       energyImpactWatts: 413,
       ruleExplanation: 'Controlled biotechnology thermal envelope.',
     },
-    qrCodeData: 'https://roomwise.davkgp.internal/rooms/g3-203',
+    qrCodeData: '/classroom/G3-203',
     coordinates: { gridCol: 5, gridRow: 5, widthCols: 2, heightRows: 2 },
   },
 
@@ -802,9 +788,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       },
     ],
     currentPowerWatts: 1490,
-    baselinePowerWatts: 3100,
     dailyActualKWh: 8.94,
-    dailyBaselineKWh: 18.60,
     decision: {
       timestamp: '10:44:30',
       lightingAction: 'Dimmed to 60% (192W)',
@@ -814,7 +798,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       energyImpactWatts: 1610,
       ruleExplanation: 'High-draw IT thermal modulation active.',
     },
-    qrCodeData: 'https://roomwise.davkgp.internal/rooms/g3-301',
+    qrCodeData: '/classroom/G3-301',
     coordinates: { gridCol: 1, gridRow: 7, widthCols: 3, heightRows: 2 },
   },
 
@@ -887,9 +871,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       },
     ],
     currentPowerWatts: 288,
-    baselinePowerWatts: 580,
     dailyActualKWh: 1.73,
-    dailyBaselineKWh: 3.48,
     decision: {
       timestamp: '10:43:20',
       lightingAction: '240W engaged for 340 lux reading standard',
@@ -899,7 +881,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       energyImpactWatts: 292,
       ruleExplanation: 'High-comfort profile in faculty zone.',
     },
-    qrCodeData: 'https://roomwise.davkgp.internal/rooms/g3-302',
+    qrCodeData: '/classroom/G3-302',
     coordinates: { gridCol: 4, gridRow: 7, widthCols: 3, heightRows: 2 },
   },
 
@@ -976,9 +958,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       },
     ],
     currentPowerWatts: 192,
-    baselinePowerWatts: 580,
     dailyActualKWh: 1.15,
-    dailyBaselineKWh: 3.48,
     decision: {
       timestamp: '10:44:00',
       lightingAction: 'Bank 1 ON, Bank 2 OFF',
@@ -988,7 +968,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       energyImpactWatts: 388,
       ruleExplanation: 'Standard daylight harvesting cycle.',
     },
-    qrCodeData: 'https://roomwise.davkgp.internal/rooms/nb-g01',
+    qrCodeData: '/classroom/NB-G01',
     coordinates: { gridCol: 1, gridRow: 1, widthCols: 2, heightRows: 2 },
   },
 
@@ -1061,9 +1041,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       },
     ],
     currentPowerWatts: 192,
-    baselinePowerWatts: 580,
     dailyActualKWh: 1.15,
-    dailyBaselineKWh: 3.48,
     decision: {
       timestamp: '10:43:55',
       lightingAction: 'Bank 1 ON, Bank 2 OFF',
@@ -1073,7 +1051,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       energyImpactWatts: 388,
       ruleExplanation: 'Standard daylight harvesting mode.',
     },
-    qrCodeData: 'https://roomwise.davkgp.internal/rooms/nb-g02',
+    qrCodeData: '/classroom/NB-G02',
     coordinates: { gridCol: 3, gridRow: 1, widthCols: 2, heightRows: 2 },
   },
 
@@ -1146,9 +1124,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       },
     ],
     currentPowerWatts: 168,
-    baselinePowerWatts: 540,
     dailyActualKWh: 1.01,
-    dailyBaselineKWh: 3.24,
     decision: {
       timestamp: '10:44:10',
       lightingAction: 'Bank 1 ON, Bank 2 OFF',
@@ -1158,7 +1134,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       energyImpactWatts: 372,
       ruleExplanation: 'Target lux achieved with zero over-illumination.',
     },
-    qrCodeData: 'https://roomwise.davkgp.internal/rooms/nb-101',
+    qrCodeData: '/classroom/NB-101',
     coordinates: { gridCol: 1, gridRow: 3, widthCols: 2, heightRows: 2 },
   },
 
@@ -1231,9 +1207,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       },
     ],
     currentPowerWatts: 0,
-    baselinePowerWatts: 540,
     dailyActualKWh: 0.85,
-    dailyBaselineKWh: 3.24,
     decision: {
       timestamp: '10:32:00',
       lightingAction: 'All Lights Cut Off (0W)',
@@ -1243,7 +1217,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       energyImpactWatts: 540,
       ruleExplanation: 'Rule R-VAC-1 (Automated Vacancy Shedding) saving 540W continuous waste.',
     },
-    qrCodeData: 'https://roomwise.davkgp.internal/rooms/nb-102',
+    qrCodeData: '/classroom/NB-102',
     coordinates: { gridCol: 3, gridRow: 3, widthCols: 2, heightRows: 2 },
   },
 
@@ -1316,9 +1290,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       },
     ],
     currentPowerWatts: 196,
-    baselinePowerWatts: 515,
     dailyActualKWh: 1.38,
-    dailyBaselineKWh: 3.09,
     decision: {
       timestamp: '10:44:18',
       lightingAction: '100% Illumination for staff paper grading (160W)',
@@ -1328,7 +1300,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       energyImpactWatts: 319,
       ruleExplanation: 'High-comfort profile active during working hours.',
     },
-    qrCodeData: 'https://roomwise.davkgp.internal/rooms/nb-103',
+    qrCodeData: '/classroom/NB-103',
     coordinates: { gridCol: 5, gridRow: 3, widthCols: 2, heightRows: 2 },
   },
 
@@ -1401,9 +1373,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       },
     ],
     currentPowerWatts: 224,
-    baselinePowerWatts: 580,
     dailyActualKWh: 1.34,
-    dailyBaselineKWh: 3.48,
     decision: {
       timestamp: '10:44:25',
       lightingAction: 'Bank 1 ON, Bank 2 OFF',
@@ -1413,7 +1383,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       energyImpactWatts: 356,
       ruleExplanation: 'Thermal comfort maintained while saving 356W against induction baseline.',
     },
-    qrCodeData: 'https://roomwise.davkgp.internal/rooms/nb-201',
+    qrCodeData: '/classroom/NB-201',
     coordinates: { gridCol: 1, gridRow: 5, widthCols: 2, heightRows: 2 },
   },
 
@@ -1486,9 +1456,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       },
     ],
     currentPowerWatts: 192,
-    baselinePowerWatts: 580,
     dailyActualKWh: 1.15,
-    dailyBaselineKWh: 3.48,
     decision: {
       timestamp: '10:44:12',
       lightingAction: '50% Lighting load engaged',
@@ -1498,7 +1466,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       energyImpactWatts: 388,
       ruleExplanation: 'Nominal adaptive execution.',
     },
-    qrCodeData: 'https://roomwise.davkgp.internal/rooms/nb-202',
+    qrCodeData: '/classroom/NB-202',
     coordinates: { gridCol: 3, gridRow: 5, widthCols: 2, heightRows: 2 },
   },
 
@@ -1583,9 +1551,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       },
     ],
     currentPowerWatts: 196,
-    baselinePowerWatts: 480,
     dailyActualKWh: 1.18,
-    dailyBaselineKWh: 2.88,
     decision: {
       timestamp: '10:44:02',
       lightingAction: 'Full warm-diffused illumination for safety and play acuity (160W)',
@@ -1595,7 +1561,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       energyImpactWatts: 284,
       ruleExplanation: 'Pre-primary pediatric environmental safety rule.',
     },
-    qrCodeData: 'https://roomwise.davkgp.internal/rooms/pp-01',
+    qrCodeData: '/classroom/PP-01',
     coordinates: { gridCol: 1, gridRow: 1, widthCols: 2, heightRows: 2 },
   },
 
@@ -1668,9 +1634,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       },
     ],
     currentPowerWatts: 196,
-    baselinePowerWatts: 480,
     dailyActualKWh: 1.18,
-    dailyBaselineKWh: 2.88,
     decision: {
       timestamp: '10:43:58',
       lightingAction: 'Full warm-diffused illumination active',
@@ -1680,7 +1644,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       energyImpactWatts: 284,
       ruleExplanation: 'Pre-primary comfort profile.',
     },
-    qrCodeData: 'https://roomwise.davkgp.internal/rooms/pp-02',
+    qrCodeData: '/classroom/PP-02',
     coordinates: { gridCol: 3, gridRow: 1, widthCols: 2, heightRows: 2 },
   },
 
@@ -1753,9 +1717,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       },
     ],
     currentPowerWatts: 196,
-    baselinePowerWatts: 480,
     dailyActualKWh: 1.18,
-    dailyBaselineKWh: 2.88,
     decision: {
       timestamp: '10:44:06',
       lightingAction: 'Warm diffused illumination active',
@@ -1765,7 +1727,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       energyImpactWatts: 284,
       ruleExplanation: 'Pre-primary protocol verified.',
     },
-    qrCodeData: 'https://roomwise.davkgp.internal/rooms/pp-03',
+    qrCodeData: '/classroom/PP-03',
     coordinates: { gridCol: 5, gridRow: 1, widthCols: 2, heightRows: 2 },
   },
 
@@ -1842,9 +1804,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       },
     ],
     currentPowerWatts: 192,
-    baselinePowerWatts: 580,
     dailyActualKWh: 1.15,
-    dailyBaselineKWh: 3.48,
     decision: {
       timestamp: '10:44:15',
       lightingAction: 'Bank 1 ON, Bank 2 OFF',
@@ -1854,7 +1814,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       energyImpactWatts: 388,
       ruleExplanation: 'Nominal adaptive execution.',
     },
-    qrCodeData: 'https://roomwise.davkgp.internal/rooms/ob-g01',
+    qrCodeData: '/classroom/OB-G01',
     coordinates: { gridCol: 1, gridRow: 1, widthCols: 2, heightRows: 2 },
   },
 
@@ -1927,9 +1887,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       },
     ],
     currentPowerWatts: 192,
-    baselinePowerWatts: 580,
     dailyActualKWh: 1.15,
-    dailyBaselineKWh: 3.48,
     decision: {
       timestamp: '10:44:00',
       lightingAction: 'Bank 1 ON, Bank 2 OFF',
@@ -1939,7 +1897,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       energyImpactWatts: 388,
       ruleExplanation: 'Continuous energy conservation.',
     },
-    qrCodeData: 'https://roomwise.davkgp.internal/rooms/ob-g02',
+    qrCodeData: '/classroom/OB-G02',
     coordinates: { gridCol: 3, gridRow: 1, widthCols: 2, heightRows: 2 },
   },
 
@@ -2012,9 +1970,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       },
     ],
     currentPowerWatts: 192,
-    baselinePowerWatts: 580,
     dailyActualKWh: 1.15,
-    dailyBaselineKWh: 3.48,
     decision: {
       timestamp: '10:44:20',
       lightingAction: 'Bank 1 ON, Bank 2 OFF',
@@ -2024,7 +1980,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       energyImpactWatts: 388,
       ruleExplanation: 'Standard conservation cycle.',
     },
-    qrCodeData: 'https://roomwise.davkgp.internal/rooms/ob-101',
+    qrCodeData: '/classroom/OB-101',
     coordinates: { gridCol: 1, gridRow: 3, widthCols: 2, heightRows: 2 },
   },
 
@@ -2097,9 +2053,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       },
     ],
     currentPowerWatts: 192,
-    baselinePowerWatts: 580,
     dailyActualKWh: 1.15,
-    dailyBaselineKWh: 3.48,
     decision: {
       timestamp: '10:44:10',
       lightingAction: 'Bank 1 ON, Bank 2 OFF',
@@ -2109,7 +2063,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       energyImpactWatts: 388,
       ruleExplanation: 'Coherent baseline reduction.',
     },
-    qrCodeData: 'https://roomwise.davkgp.internal/rooms/ob-102',
+    qrCodeData: '/classroom/OB-102',
     coordinates: { gridCol: 3, gridRow: 3, widthCols: 2, heightRows: 2 },
   },
 
@@ -2190,9 +2144,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       },
     ],
     currentPowerWatts: 312,
-    baselinePowerWatts: 920,
     dailyActualKWh: 1.87,
-    dailyBaselineKWh: 5.52,
     decision: {
       timestamp: '10:44:28',
       lightingAction: 'Zoned Illumination: 240W active (vacant archive aisles unlit)',
@@ -2202,7 +2154,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       energyImpactWatts: 608,
       ruleExplanation: 'Library zone-based occupancy harvesting.',
     },
-    qrCodeData: 'https://roomwise.davkgp.internal/rooms/ob-201',
+    qrCodeData: '/classroom/OB-201',
     coordinates: { gridCol: 2, gridRow: 5, widthCols: 4, heightRows: 2 },
   },
 
@@ -2288,9 +2240,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       },
     ],
     currentPowerWatts: 2,
-    baselinePowerWatts: 1380,
     dailyActualKWh: 2.10,
-    dailyBaselineKWh: 8.28,
     decision: {
       timestamp: '09:42:00',
       lightingAction: 'All High-Bay Arrays Cut Off (0W)',
@@ -2301,7 +2251,7 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
       energyImpactWatts: 1378,
       ruleExplanation: 'High-draw assembly hall protected against phantom run hours.',
     },
-    qrCodeData: 'https://roomwise.davkgp.internal/rooms/mph-01',
+    qrCodeData: '/classroom/MPH-01',
     coordinates: { gridCol: 1, gridRow: 1, widthCols: 6, heightRows: 3 },
   },
 ];

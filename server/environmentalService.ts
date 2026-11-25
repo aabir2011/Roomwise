@@ -23,6 +23,11 @@ import type {
   WeatherAwareEnergyOutlook,
 } from '../src/types/environmental.ts';
 import { energyHistoryService } from './energyHistoryService.ts';
+import {
+  computeArtificialDeskLux,
+  computeHeatIndexCelsius,
+  computeIndoorNaturalDaylightLux,
+} from '../src/utils/canonicalEnergy.ts';
 
 const OPEN_METEO_FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
 const OPEN_METEO_ARCHIVE_URL = 'https://archive-api.open-meteo.com/v1/archive';
@@ -1153,13 +1158,13 @@ class EnvironmentalService {
     let avg30dKwh: number | null = null;
     let avg7dKwh: number | null = null;
     try {
-      const hist30 = energyHistoryService.getOverview({ preset: 'last_30_days' });
-      if (hist30.kpis.averageDailyKWh > 0) {
-        avg30dKwh = roundOrNull(hist30.kpis.averageDailyKWh, 2);
+      const avg30 = energyHistoryService.getAverageDailyKWhQuick('last_30_days');
+      if (avg30 > 0) {
+        avg30dKwh = roundOrNull(avg30, 2);
       }
-      const hist7 = energyHistoryService.getOverview({ preset: 'last_7_days' });
-      if (hist7.kpis.averageDailyKWh > 0) {
-        avg7dKwh = roundOrNull(hist7.kpis.averageDailyKWh, 2);
+      const avg7 = energyHistoryService.getAverageDailyKWhQuick('last_7_days');
+      if (avg7 > 0) {
+        avg7dKwh = roundOrNull(avg7, 2);
       }
     } catch {
       // Keep null if history unavailable
@@ -1205,7 +1210,7 @@ class EnvironmentalService {
           : expectedDemandBias === 'lower_than_typical'
           ? 'Favorable weather conditions for lower-than-typical campus load'
           : expectedDemandBias === 'typical'
-          ? 'Expected campus energy demand aligns with recent 30-day baseline'
+          ? 'Expected campus energy demand aligns with recent 30-day moving average'
           : 'Weather outlook unavailable — refer to local ROOMWISE history',
       narrative: `${coolingDemandDriver} ${lightingDemandDriver}`,
       historical30DayAvgDailyKWh: avg30dKwh,
@@ -1293,7 +1298,71 @@ class EnvironmentalService {
             errorMessage: 'Historical reanalysis request failed unexpectedly.',
           };
 
-    const rooms = params.classrooms;
+    const outdoor = forecastBundle?.current ?? null;
+    const rooms = params.classrooms.map((room) => {
+      const isVacant = room.occupancyStatus === 'Unoccupied' || room.currentOccupants === 0;
+      const alpha = room.calibration.learnedParameters.daylightPenetrationAlpha;
+      const floorMult =
+        room.floor === '3rd Floor'
+          ? 1.1
+          : room.floor === '2nd Floor'
+          ? 1.05
+          : room.floor === '1st Floor'
+          ? 1.0
+          : 0.94;
+
+      const naturalDaylightLux =
+        outdoor && outdoor.shortwaveRadiationWm2 !== null
+          ? computeIndoorNaturalDaylightLux({
+              ghiWm2: outdoor.shortwaveRadiationWm2,
+              cloudCoverPercent: outdoor.cloudCoverPercent,
+              daylightPenetrationAlpha: alpha,
+              floorMultiplier: floorMult,
+            })
+          : room.environment.naturalDaylightLux;
+
+      const lightApps = room.appliances.filter((a) => a.type === 'lights');
+      const avgLightPct =
+        lightApps.length > 0
+          ? lightApps.reduce((sum, a) => sum + (a.outputPercent ?? 0), 0) / lightApps.length
+          : 0;
+      const ambientLux = naturalDaylightLux + computeArtificialDeskLux(avgLightPct);
+
+      const acActive = room.appliances.some((a) => a.type === 'ac' && a.currentPowerWatts > 100);
+      let tempC = room.environment.temperature;
+      if (outdoor && outdoor.temperatureC !== null) {
+        const occupancyGain = isVacant ? 0.3 : room.type === 'Computer Lab' ? 1.8 : 1.1;
+        const coolingOffset = acActive ? 4.2 : 0;
+        tempC = Number(
+          Math.max(22.0, Math.min(35.5, outdoor.temperatureC + occupancyGain - coolingOffset)).toFixed(1)
+        );
+      }
+
+      let humidityPct = room.environment.humidity;
+      if (outdoor && outdoor.relativeHumidityPercent !== null) {
+        const occHumidityOffset = isVacant ? 1 : 4;
+        const acDehumidify = acActive ? -8 : 0;
+        humidityPct = Math.max(
+          32,
+          Math.min(96, Math.round(outdoor.relativeHumidityPercent + occHumidityOffset + acDehumidify))
+        );
+      }
+
+      const heatIndex = computeHeatIndexCelsius(tempC, humidityPct);
+
+      return {
+        ...room,
+        environment: {
+          ...room.environment,
+          naturalDaylightLux,
+          ambientLux,
+          temperature: tempC,
+          humidity: humidityPct,
+          heatIndex,
+        },
+      };
+    });
+
     const roomCount = Math.max(1, rooms.length);
     const occupiedRooms = rooms.filter((r) => r.occupancyStatus === 'Occupied').length;
     const avgIndoorTempC = Number(
@@ -1314,7 +1383,7 @@ class EnvironmentalService {
 
     const insights = this.buildClassroomInsights(
       rooms,
-      forecastBundle?.current ?? null,
+      outdoor,
       forecastBundle?.hourlyForecast ?? [],
       forecastBundle?.dailyForecast ?? []
     );

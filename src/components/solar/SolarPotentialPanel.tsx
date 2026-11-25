@@ -27,6 +27,7 @@ import {
   YAxis,
 } from 'recharts';
 import { SectionHeading, TelemetryReadout } from '../common/DesignSystem';
+import { AcronymHint } from '../common/AcronymHint';
 import { MathText } from '../common/MathText';
 import type {
   SolarPlanningScenarioId,
@@ -147,7 +148,7 @@ export const SolarPotentialPanel: React.FC<SolarPotentialPanelProps> = ({
             <span className="text-[11px] font-mono text-neutral-500 whitespace-nowrap">
               {campusSummary.provenanceLabel}
             </span>
-            <span className="text-[11px] font-medium text-neutral-400 whitespace-nowrap">
+            <span className="text-[11px] font-medium text-neutral-600 whitespace-nowrap">
               · Planning estimate
             </span>
           </div>
@@ -299,7 +300,7 @@ export const SolarPotentialPanel: React.FC<SolarPotentialPanelProps> = ({
           footnote={`${displayedRowSpacingM2.toLocaleString()} m² spacing/aisles (${displayedUsablePct}% × ${displayedPackingPct}%) · Actual roof surface: Not available`}
         />
         <TelemetryReadout
-          label="PVGIS 5.3 Parameters"
+          label={<><AcronymHint term="PVGIS" /> 5.3 Parameters</>}
           value={`${workspace.assumptions.systemLossesPercent}%`}
           unit="loss"
           detail={`${workspace.assumptions.pvTechnology} · ${formatMountingLabel(workspace.assumptions.mountingPlace)}`}
@@ -611,13 +612,13 @@ export const SolarPotentialPanel: React.FC<SolarPotentialPanelProps> = ({
               </div>
             </div>
             <div>
-              <div className="text-[10px] font-sans text-neutral-500">Current GHI</div>
+              <div className="text-[10px] font-sans text-neutral-500">Current <AcronymHint term="GHI" /></div>
               <div className="font-semibold text-neutral-900">
                 {shortTermSkyContext.currentGhiWm2 ?? '—'} W/m²
               </div>
             </div>
             <div>
-              <div className="text-[10px] font-sans text-neutral-500">Today Peak GTI</div>
+              <div className="text-[10px] font-sans text-neutral-500">Today Peak <AcronymHint term="GTI" /></div>
               <div className="font-semibold text-neutral-900">
                 {shortTermSkyContext.todayPeakGtiWm2 ?? '—'} W/m²
               </div>

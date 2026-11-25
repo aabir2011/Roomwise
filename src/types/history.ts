@@ -15,7 +15,7 @@ export type HistoryDatePreset =
 export type HistoryGroupingMode = 'total' | 'building' | 'classroom';
 
 export type HistoryAnomalyType =
-  | 'excess_over_baseline'
+  | 'excess_over_comparable'
   | 'post_hours_usage'
   | 'vacant_lighting_active'
   | 'abnormal_fan_pattern'
@@ -44,14 +44,11 @@ export interface HistoryRangeMeta {
 
 export interface HistoryKpiMetrics {
   totalActualKWh: number;
-  totalBaselineKWh: number;
-  totalSavedKWh: number;
-  savingsPercent: number;
+  ratedCapacityKWh: number;
+  ratedUtilizationPercent: number;
   averageDailyKWh: number;
   estimatedCostINR: number;
-  estimatedCostSavedINR: number;
   estimatedCo2Kg: number;
-  estimatedCo2AvoidedKg: number;
   lightingKWh: number;
   fanKWh: number;
   auxKWh: number;
@@ -60,7 +57,7 @@ export interface HistoryKpiMetrics {
     dateIst: string;
     hourIst?: number;
     actualKWh: number;
-    baselineKWh: number;
+    ratedMaxKWh: number;
     occupancyPercent: number;
     note?: string;
   } | null;
@@ -90,8 +87,8 @@ export interface HistoryTrendPoint {
   isSchoolHours?: boolean;
   isPartial?: boolean;
   actualKWh: number;
-  baselineKWh: number;
-  savedKWh: number;
+  ratedMaxKWh: number;
+  comparableAvgKWh?: number | null;
   lightingKWh: number;
   fanKWh: number;
   auxKWh: number;
@@ -106,8 +103,8 @@ export interface HistoryBlockRanking {
   building: string;
   roomCount: number;
   actualKWh: number;
-  baselineKWh: number;
-  savedKWh: number;
+  ratedMaxKWh: number;
+  ratedUtilizationPercent: number;
   sharePercent: number;
   changeVsPrevPercent: number | null;
   lightingKWh: number;
@@ -126,8 +123,8 @@ export interface HistoryClassroomRanking {
   floor: string;
   roomType: string;
   actualKWh: number;
-  baselineKWh: number;
-  savedKWh: number;
+  ratedMaxKWh: number;
+  ratedUtilizationPercent: number;
   sharePercent: number;
   changeVsPrevPercent: number | null;
   lightingKWh: number;
@@ -149,9 +146,7 @@ export interface HistoryOverviewResponse {
   series: HistoryTrendPoint[];
   blocks: HistoryBlockRanking[];
   classrooms: HistoryClassroomRanking[];
-  installedRatedMaxKW?: number;
-  preRetrofitReferenceMaxKW?: number;
-  legacyBaselineMaxKW?: number;
+  installedRatedMaxKW: number;
   dataClassification: string;
 }
 
@@ -178,7 +173,7 @@ export interface RoomHistoryPoint {
   dateIst: string;
   hourIst?: number;
   actualKWh: number;
-  baselineKWh: number;
+  ratedMaxKWh: number;
   lightingKWh: number;
   fanKWh: number;
   auxKWh: number;
@@ -200,14 +195,13 @@ export interface RoomHistoryDetailResponse {
     floor: string;
     type: string;
     capacity: number;
-    ratedPowerWatts?: number;
-    baselinePowerWatts: number;
+    ratedPowerWatts: number;
   };
   range: HistoryRangeMeta;
   totals: {
     actualKWh: number;
-    baselineKWh: number;
-    savedKWh: number;
+    ratedMaxKWh: number;
+    ratedUtilizationPercent: number;
     lightingKWh: number;
     fanKWh: number;
     auxKWh: number;
@@ -229,7 +223,7 @@ export interface TimeOfDayHourBucket {
   band: 'pre_hours' | 'school_hours' | 'post_hours';
   totalKWh: number;
   avgKW: number;
-  baselineAvgKW: number;
+  ratedMaxKW: number;
   lightingAvgKW: number;
   fanAvgKW: number;
   auxAvgKW: number;
@@ -275,7 +269,7 @@ export interface HistoricalAnomaly {
   severity: HistorySeverity;
   confidence: HistoryConfidence;
   observedKWh: number;
-  baselineKWh: number;
+  comparableExpectedKWh: number;
   deviationKWh: number;
   deviationPercent: number;
   title: string;
@@ -301,7 +295,7 @@ export interface HistoricalInvestigationResponse {
     startDate: string;
     endDate: string;
     actualKWh: number;
-    expectedSchoolBaselineKWh: number;
+    ratedMaxKWh: number;
     comparableHistoricalAvgKWh: number | null;
     deltaVsComparableKWh: number | null;
     deltaVsComparablePercent: number | null;
@@ -340,4 +334,21 @@ export interface HistoricalInvestigationResponse {
   events: HistoryEventRecord[];
   narrativeSummary: string;
   uncertaintyNotes: string[];
+  dayContext?: {
+    targetDayTypes: string[];
+    isWeekendOrHolidayOnly: boolean;
+    comparableSampleDays: number;
+    recordedIntervals: number;
+    hasData: boolean;
+    isUnusuallyHigh: boolean;
+    comparisonVerdict:
+      | 'elevated'
+      | 'within_normal_range'
+      | 'below_typical'
+      | 'weekend_or_holiday_low'
+      | 'no_data'
+      | 'insufficient_reference';
+    peakHourLabel: string | null;
+    peakHourKWh: number | null;
+  };
 }

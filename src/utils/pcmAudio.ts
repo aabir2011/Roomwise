@@ -153,8 +153,11 @@ export class PcmLivePlayer {
       const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       this.ctx = new Ctx({ sampleRate: PLAYBACK_SAMPLE_RATE });
       this.ctx.onstatechange = () => {
-        if (this.ctx && this.ctx.state === 'suspended' && this.activeSources.size > 0) {
+        if (!this.ctx) return;
+        if (this.ctx.state === 'suspended' && this.activeSources.size > 0) {
           void this.ctx.resume().catch(() => undefined);
+        } else if (this.ctx.state === 'running' && this.activeSources.size > 0) {
+          this.onSpeakingChange?.(true);
         }
       };
       this.analyser = this.ctx.createAnalyser();
@@ -179,11 +182,17 @@ export class PcmLivePlayer {
     }
   }
 
-  public enqueueBase64Pcm(base64Pcm: string): void {
-    const ctx = this.ensureContext();
-    const int16 = base64ToInt16(base64Pcm);
-    if (int16.length === 0) return;
+  public enqueueBase64Pcm(base64Pcm: string): boolean {
+    if (!base64Pcm) return false;
+    let int16: Int16Array;
+    try {
+      int16 = base64ToInt16(base64Pcm);
+    } catch {
+      return false;
+    }
+    if (int16.length === 0) return false;
 
+    const ctx = this.ensureContext();
     const float32 = new Float32Array(int16.length);
     for (let i = 0; i < int16.length; i++) {
       float32[i] = int16[i] / 0x8000;
@@ -201,10 +210,12 @@ export class PcmLivePlayer {
     }
 
     const now = ctx.currentTime;
-    const startAt = Math.max(now + 0.045, this.nextStartTime);
+    const wasEmpty = this.activeSources.size === 0;
+    const startAt = wasEmpty
+      ? now + 0.02
+      : Math.max(now + 0.015, this.nextStartTime);
     this.nextStartTime = startAt + buffer.duration;
 
-    const wasEmpty = this.activeSources.size === 0;
     this.activeSources.add(source);
     if (wasEmpty && ctx.state === 'running') {
       this.onSpeakingChange?.(true);
@@ -220,6 +231,7 @@ export class PcmLivePlayer {
     };
 
     source.start(startAt);
+    return ctx.state === 'running';
   }
 
   private lastPlaybackEndedAtMs = 0;
@@ -251,24 +263,32 @@ export class PcmLivePlayer {
   public playWakeChime(): void {
     try {
       const ctx = this.ensureContext();
-      if (ctx.state === 'suspended') {
-        void ctx.resume().catch(() => undefined);
-      }
-      if (ctx.state !== 'running') return;
-      const now = ctx.currentTime;
-      const gain = ctx.createGain();
-      gain.gain.setValueAtTime(0.0001, now);
-      gain.gain.exponentialRampToValueAtTime(0.11, now + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.24);
-      gain.connect(ctx.destination);
+      const scheduleTone = () => {
+        if (ctx.state !== 'running') return;
+        const now = ctx.currentTime;
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.exponentialRampToValueAtTime(0.11, now + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.24);
+        gain.connect(ctx.destination);
 
-      const osc1 = ctx.createOscillator();
-      osc1.type = 'sine';
-      osc1.frequency.setValueAtTime(587.33, now);
-      osc1.frequency.exponentialRampToValueAtTime(880, now + 0.11);
-      osc1.connect(gain);
-      osc1.start(now);
-      osc1.stop(now + 0.25);
+        const osc1 = ctx.createOscillator();
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(587.33, now);
+        osc1.frequency.exponentialRampToValueAtTime(880, now + 0.11);
+        osc1.connect(gain);
+        osc1.start(now);
+        osc1.stop(now + 0.25);
+      };
+
+      if (ctx.state === 'running') {
+        scheduleTone();
+      } else if (ctx.state === 'suspended') {
+        void ctx
+          .resume()
+          .then(scheduleTone)
+          .catch(() => undefined);
+      }
     } catch {
       // ignore if autoplay blocked
     }

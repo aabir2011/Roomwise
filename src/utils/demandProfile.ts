@@ -3,11 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { TOTAL_CAMPUS_RATED_POWER_WATTS } from '../data/roomApplianceSpecs.ts';
+
 export interface DemandProfileSlot {
   key: string;
   hour: string;
   actual: number;
-  baseline: number;
+  ratedMaxKW: number;
   isCurrent: boolean;
   isAfterHoursLive?: boolean;
 }
@@ -23,18 +25,19 @@ interface BaseSchoolSlot {
   hour: string;
   startMinutes: number;
   actual: number;
-  baseline: number;
 }
 
+const INSTALLED_RATED_MAX_KW = Number((TOTAL_CAMPUS_RATED_POWER_WATTS / 1000).toFixed(2)); // 13.39 kW across 25 nodes
+
 const SCHOOL_DAY_BASE_SLOTS: ReadonlyArray<BaseSchoolSlot> = [
-  { hour: '07:30', startMinutes: 7 * 60 + 30, actual: 1.6, baseline: 3.4 },
-  { hour: '08:30', startMinutes: 8 * 60 + 30, actual: 3.8, baseline: 11.2 },
-  { hour: '09:30', startMinutes: 9 * 60 + 30, actual: 4.6, baseline: 14.8 },
-  { hour: '10:30', startMinutes: 10 * 60 + 30, actual: 4.7, baseline: 15.2 },
-  { hour: '11:30', startMinutes: 11 * 60 + 30, actual: 4.8, baseline: 15.6 },
-  { hour: '12:30', startMinutes: 12 * 60 + 30, actual: 2.6, baseline: 12.8 },
-  { hour: '13:30', startMinutes: 13 * 60 + 30, actual: 4.4, baseline: 14.2 },
-  { hour: '14:30', startMinutes: 14 * 60 + 30, actual: 0.8, baseline: 4.5 },
+  { hour: '07:30', startMinutes: 7 * 60 + 30, actual: 2.4 },
+  { hour: '08:30', startMinutes: 8 * 60 + 30, actual: 5.8 },
+  { hour: '09:30', startMinutes: 9 * 60 + 30, actual: 7.4 },
+  { hour: '10:30', startMinutes: 10 * 60 + 30, actual: 7.5 },
+  { hour: '11:30', startMinutes: 11 * 60 + 30, actual: 7.7 },
+  { hour: '12:30', startMinutes: 12 * 60 + 30, actual: 4.3 },
+  { hour: '13:30', startMinutes: 13 * 60 + 30, actual: 6.9 },
+  { hour: '14:30', startMinutes: 14 * 60 + 30, actual: 1.5 },
 ];
 
 const SCHOOL_WINDOW_START_MINUTES = 7 * 60 + 30; // 07:30 IST
@@ -68,10 +71,14 @@ export function getIstClockParts(date: Date = new Date()): {
 
 export function buildSchoolDayDemandProfile(params: {
   liveActualKW: number;
-  liveBaseKW: number;
+  installedRatedMaxKW?: number;
   now?: Date;
 }): SchoolDayDemandProfile {
-  const { liveActualKW, liveBaseKW, now = new Date() } = params;
+  const {
+    liveActualKW,
+    installedRatedMaxKW = INSTALLED_RATED_MAX_KW,
+    now = new Date(),
+  } = params;
   const ist = getIstClockParts(now);
 
   const isWithinSchoolHours =
@@ -90,7 +97,7 @@ export function buildSchoolDayDemandProfile(params: {
         key: slot.hour,
         hour: slot.hour,
         actual: isCurrent ? liveActualKW : slot.actual,
-        baseline: isCurrent ? liveBaseKW : slot.baseline,
+        ratedMaxKW: installedRatedMaxKW,
         isCurrent,
       };
     });
@@ -109,14 +116,14 @@ export function buildSchoolDayDemandProfile(params: {
       key: slot.hour,
       hour: slot.hour,
       actual: slot.actual,
-      baseline: slot.baseline,
+      ratedMaxKW: installedRatedMaxKW,
       isCurrent: false,
     })),
     {
       key: 'live-now',
       hour: ist.formattedHHMM,
       actual: liveActualKW,
-      baseline: liveBaseKW,
+      ratedMaxKW: installedRatedMaxKW,
       isCurrent: true,
       isAfterHoursLive: true,
     },

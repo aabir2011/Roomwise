@@ -42,6 +42,7 @@ import type {
 import { AnimatedNumber } from '../common/MotionPrimitives';
 import { PageHeader, SegmentedControl } from '../common/DesignSystem';
 import { MathText } from '../common/MathText';
+import { AnimatedList, AnimatedTableRow, FadeContent, Stepper } from '../reactbits';
 import { ROOMWISE_EASE } from '../../utils/motion';
 
 type InnerTab = 'recommendations' | 'sections' | 'rooms-timetable' | 'history';
@@ -576,6 +577,32 @@ export const SpaceIntelligenceView: React.FC = () => {
     totalProjectedCo2AvoidedKg: 0,
   };
 
+  const allocationWorkflowSteps = [
+    {
+      id: 'attendance',
+      label: 'Attendance Register',
+      description: 'Select date or import CSV / Excel attendance register',
+    },
+    {
+      id: 'solve',
+      label: 'Try Allocation',
+      description: 'Run capacity, timetable, policy, and kWh energy solver',
+    },
+    {
+      id: 'review',
+      label: 'Review & Decide',
+      description: 'Inspect proposed room moves and approve or reject',
+    },
+  ] as const;
+
+  const allocationWorkflowStep = isAnalyzing
+    ? 1
+    : parseResult
+    ? 0
+    : activeRun
+    ? 2
+    : 0;
+
   return (
     <div className="p-4 sm:p-6 md:p-8 space-y-6 max-w-7xl mx-auto">
       {/* Editorial Header */}
@@ -618,7 +645,33 @@ export const SpaceIntelligenceView: React.FC = () => {
       />
 
       {/* Unified Attendance Control & Upload Bar */}
+      <FadeContent duration={0.2}>
       <div className="rw-surface rounded-2xl divide-y divide-neutral-200/75 overflow-hidden">
+        {/* Allocation Workflow Stepper */}
+        <div className="px-4 py-2.5 bg-[#fafbfb] flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div className="flex-1 min-w-0 max-w-xl">
+            <Stepper
+              steps={allocationWorkflowSteps}
+              currentStep={allocationWorkflowStep}
+              allowStepBack
+              ariaLabel="Try Allocation workflow progress"
+              onStepClick={(stepIdx) => {
+                if (stepIdx === 0) {
+                  document.getElementById('space-date-select')?.focus();
+                } else if (stepIdx === 1) {
+                  void handleTryAllocation();
+                } else if (stepIdx === 2) {
+                  setInnerTab('recommendations');
+                }
+              }}
+            />
+          </div>
+          {activeRun && (
+            <div className="text-[11px] font-mono text-[#4a5851] tabular-nums shrink-0">
+              {summary.recommendedMovesCount} move{summary.recommendedMovesCount === 1 ? '' : 's'} evaluated
+            </div>
+          )}
+        </div>
         {/* Date & Horizon Row */}
         <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-3 text-xs">
           <div className="flex flex-wrap items-center gap-3 min-w-0 max-w-full">
@@ -938,15 +991,16 @@ export const SpaceIntelligenceView: React.FC = () => {
           )}
         </AnimatePresence>
       </div>
+      </FadeContent>
 
-      {/* Compact Analysis Progress Bar */}
+      {/* Compact Analysis Progress Stepper */}
       <AnimatePresence>
         {isAnalyzing && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="px-4 py-3.5 rounded-2xl rw-forest-hero text-white text-xs space-y-2 overflow-hidden"
+            className="px-4 py-3.5 rounded-2xl rw-forest-hero text-white text-xs space-y-2.5 overflow-hidden"
           >
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 font-medium">
@@ -959,14 +1013,14 @@ export const SpaceIntelligenceView: React.FC = () => {
                 {Math.max(1, analysisStageIndex + 1)} / {ANALYSIS_STAGES.length}
               </span>
             </div>
-            <div className="h-1 w-full rounded-full bg-white/15 overflow-hidden">
-              <div
-                className="h-full bg-emerald-400 transition-all duration-150"
-                style={{
-                  width: `${Math.round(((Math.max(0, analysisStageIndex) + 1) / ANALYSIS_STAGES.length) * 100)}%`,
-                }}
-              />
-            </div>
+            <Stepper
+              steps={ANALYSIS_STAGES.map((label, idx) => ({ id: `stage-${idx}`, label }))}
+              currentStep={Math.max(0, analysisStageIndex)}
+              tone="dark"
+              compact
+              allowStepBack={false}
+              ariaLabel="Allocation solver stages"
+            />
           </motion.div>
         )}
       </AnimatePresence>
@@ -1057,15 +1111,17 @@ export const SpaceIntelligenceView: React.FC = () => {
               </p>
             </div>
           ) : (
-            <div className="space-y-3">
-              {proposals.map((prop) => {
+            <AnimatedList
+              items={proposals}
+              getKey={(prop) => prop.proposalId}
+              className="space-y-3"
+              renderItem={(prop) => {
                 const isExpanded = Boolean(expandedProposalIds[prop.proposalId]);
                 const isReviewing = reviewingProposalId === prop.proposalId;
                 const moveType = classifyMoveType(prop);
 
                 return (
                   <div
-                    key={prop.proposalId}
                     className={`rounded-2xl transition-colors ${
                       prop.status === 'approved'
                         ? 'rw-surface-sage border-emerald-300/90'
@@ -1293,8 +1349,8 @@ export const SpaceIntelligenceView: React.FC = () => {
                     </AnimatePresence>
                   </div>
                 );
-              })}
-            </div>
+              }}
+            />
           )}
 
           {/* Progressive Disclosure for Unchanged Sections */}
@@ -1737,9 +1793,13 @@ export const SpaceIntelligenceView: React.FC = () => {
                     <th className="py-2.5 px-4 whitespace-nowrap">Reviewed By</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-neutral-100">
-                  {historyEntries.map((h) => (
-                    <tr key={h.historyId} className="hover:bg-neutral-50/70">
+                <AnimatedList
+                  as="tbody"
+                  items={historyEntries}
+                  getKey={(h) => h.historyId}
+                  className="divide-y divide-neutral-100"
+                  renderItem={(h) => (
+                    <AnimatedTableRow className="hover:bg-neutral-50/70">
                       <td className="py-2.5 px-4 font-mono tabular-nums text-neutral-600">
                         {h.attendanceDate}
                       </td>
@@ -1764,13 +1824,13 @@ export const SpaceIntelligenceView: React.FC = () => {
                       </td>
                       <td className="py-2.5 px-4 text-neutral-600">
                         <div>{h.actorName}</div>
-                        <div className="text-[10px] text-neutral-400 tabular-nums">
+                        <div className="text-[11px] text-neutral-600 tabular-nums">
                           {new Date(h.decidedAt).toLocaleString('en-IN')}
                         </div>
                       </td>
-                    </tr>
-                  ))}
-                </tbody>
+                    </AnimatedTableRow>
+                  )}
+                />
               </table>
             </div>
           )}

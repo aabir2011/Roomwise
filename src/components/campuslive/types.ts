@@ -24,8 +24,8 @@ export interface CampusRoomVisualState {
   powerWatts: number;
   /** Installed rated maximum from canonical ROOM_APPLIANCE_SPECS */
   ratedPowerWatts: number;
-  /** Estimated pre-retrofit reference capacity */
-  baselinePowerWatts: number;
+  /** Available headroom vs installed rated max (0-ratedPowerWatts) */
+  availableHeadroomWatts: number;
   /** Relative utilisation percentage vs installed rated maximum (0-100) */
   ratedUtilizationPercent: number;
   /** Average lighting dimming % (0-100) for live mode, or derived lighting load share proxy for historical */
@@ -174,7 +174,7 @@ export interface HistoricalSnapshotFrame {
   isPartial?: boolean;
   granularity: 'hourly' | 'daily';
   totalActualKWh: number;
-  totalBaselineKWh: number;
+  totalRatedMaxKWh: number;
   lightingKWh: number;
   fanKWh: number;
   auxKWh: number;

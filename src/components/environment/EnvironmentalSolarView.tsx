@@ -15,6 +15,7 @@ import {
   Sun,
 } from 'lucide-react';
 import { PageHeader, SegmentedControl } from '../common/DesignSystem';
+import { FadeContent } from '../reactbits';
 import { EnvironmentalIntelligenceView } from './EnvironmentalIntelligenceView';
 import { BuildingRoofMappingPanel } from '../solar/BuildingRoofMappingPanel';
 import { SolarPotentialPanel } from '../solar/SolarPotentialPanel';
@@ -379,6 +380,7 @@ export const EnvironmentalSolarView: React.FC<EnvironmentalSolarViewProps> = ({
         />
       </div>
 
+      <FadeContent key={activeTab} duration={0.2} yOffset={4}>
       {activeTab === 'environmental' ? (
         <EnvironmentalIntelligenceView
           embedded
@@ -448,6 +450,7 @@ export const EnvironmentalSolarView: React.FC<EnvironmentalSolarViewProps> = ({
           )}
         </>
       ) : null}
+      </FadeContent>
     </div>
   );
 };

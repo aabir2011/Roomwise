@@ -35,7 +35,6 @@ export type InterventionCircuitType =
 export type CounterfactualBaselineMethod =
   | 'previous_state_power'
   | 'configured_appliance_rating'
-  | 'roomwise_pre_retrofit_reference'
   | 'unavailable';
 
 export type OverlapAttributionStatus =

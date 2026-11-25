@@ -23,15 +23,37 @@ import {
 } from '../src/data/roomApplianceSpecs.ts';
 import { formatCapacityKW, getRoomActivityState } from '../src/utils/applianceUtils.ts';
 import {
+  formatIstFullLabel,
+  getIstDateString,
+  getIstHourAndMinute,
+  shiftIstDate,
+} from '../src/utils/historyDates.ts';
+import {
   buildSpokenRoomIdentity,
   formatRoomNameForSpeech,
   normalizeClassroomQuery,
 } from '../src/utils/voicePronunciation.ts';
+import {
+  CANONICAL_INSTITUTION_NAME,
+  normalizeRawUtterance,
+} from '../src/utils/voiceTerminology.ts';
 import { environmentalService } from './environmentalService.ts';
 import { solarService } from './solarService.ts';
 import { interventionLedgerService } from './interventionLedgerService.ts';
 import { energyHistoryService, resolveNaturalDateQuery } from './energyHistoryService.ts';
 import { spaceIntelligenceService } from './spaceIntelligenceService.ts';
+import {
+  ROOMWISE_MATHEMATICAL_MODELS,
+  formatProgressiveKnowledgeReply,
+  getCampusArchitectureAndFootprintsSummary,
+  type ExplanationDepth,
+  type RoomwiseModelTopic,
+} from './voiceKnowledgeBase.ts';
+import {
+  interpretAndExecuteSemanticVoiceCommand,
+  runHydrogenDeepReasoning,
+  type GeminiOrchestrationOptions,
+} from './voiceSemanticNlu.ts';
 import type { VoiceAdminIdentity } from './voiceLiveBridge.ts';
 
 export type VoiceCapabilitySectionId =
@@ -56,9 +78,21 @@ export interface VoiceSessionMemory {
   selectedRoomId: string | null;
   lastMentionedRoomId: string | null;
   lastMentionedRoomCode: string | null;
+  lastMentionedBuilding: string | null;
   lastMentionedInterventionId: string | null;
+  lastAnalyticalSubject: string | null;
+  lastTopic: string | null;
+  lastMetric: string | null;
   lastPeriod: string;
+  previousPeriod: string | null;
+  lastResolvedStartDate: string | null;
+  lastResolvedEndDate: string | null;
+  lastRetrievedActualKWh: number | null;
+  lastRetrievedComparableKWh: number | null;
   lastToolName: string | null;
+  lastIntentType: string | null;
+  lastAssistantReply: string | null;
+  recentTurns: Array<{ role: 'user' | 'assistant'; text: string; timestamp: number }>;
   navigationHistory: string[];
   pendingConfirmation: {
     id: string;
@@ -80,9 +114,21 @@ export function createInitialVoiceSessionMemory(
     selectedRoomId,
     lastMentionedRoomId: selectedRoomId,
     lastMentionedRoomCode: null,
+    lastMentionedBuilding: null,
     lastMentionedInterventionId: null,
+    lastAnalyticalSubject: null,
+    lastTopic: null,
+    lastMetric: null,
     lastPeriod: 'last_7_days',
+    previousPeriod: null,
+    lastResolvedStartDate: null,
+    lastResolvedEndDate: null,
+    lastRetrievedActualKWh: null,
+    lastRetrievedComparableKWh: null,
     lastToolName: null,
+    lastIntentType: null,
+    lastAssistantReply: null,
+    recentTurns: [],
     navigationHistory: [initialTab],
     pendingConfirmation: null,
   };
@@ -99,6 +145,8 @@ export interface VoiceCapabilityExecutionContext {
     toolName: string,
     args: Record<string, unknown>
   ) => Promise<Record<string, unknown>>;
+  abortSignal?: AbortSignal;
+  deepReasoningOverride?: GeminiOrchestrationOptions['generateContentOverride'];
 }
 
 export interface VoiceCapabilityDefinition {
@@ -109,7 +157,7 @@ export interface VoiceCapabilityDefinition {
   supportedIntents: string[];
   requiredContext?: string[];
   permissionLevel: VoicePermissionLevel;
-  requiresConfirmation?: boolean;
+  requiresConfirmation?: boolean | ((args: Record<string, unknown>) => boolean);
   dataSources: string[];
   available: boolean;
   declaration: FunctionDeclaration;
@@ -255,7 +303,7 @@ export function resolveClassroomRobust(
     return {};
   }
 
-  const qNorm = normalizeClassroomQuery(trimmed);
+  const qNorm = normalizeClassroomQuery(normalizeRawUtterance(trimmed));
   const qCompact = qNorm.replace(/\s+/g, '');
 
   // 1. Exact ID / roomCode / normalized name match
@@ -278,7 +326,19 @@ export function resolveClassroomRobust(
     }
   }
 
-  // 2. Exact class grade + section token match (e.g. "10 b" inside "open class 10 b please")
+  // 2. Exact room code embedded inside natural language (e.g. "how is g3 g02 doing?")
+  for (const room of rooms) {
+    const codeNorm = normalizeClassroomQuery(room.roomCode);
+    const codeCompact = codeNorm.replace(/\s+/g, '');
+    if (
+      codeNorm.length >= 4 &&
+      (qNorm.includes(codeNorm) || qCompact.includes(codeCompact))
+    ) {
+      return { match: room };
+    }
+  }
+
+  // 2b. Exact class grade + section token match (e.g. "10 b" inside "catch me up on X-B's energy consumption")
   const gradeSecMatch = qNorm.match(/\b(1[0-2]|[1-9])\s+([a-f])\b/);
   if (gradeSecMatch) {
     const targetToken = `${gradeSecMatch[1]} ${gradeSecMatch[2]}`;
@@ -290,27 +350,103 @@ export function resolveClassroomRobust(
     if (exactClassMatches.length > 1) return { ambiguous: exactClassMatches };
   }
 
-  // 3. Token/substring fuzzy match
+  // 2c. Named special room embedded in a full sentence (e.g. "tell me about the ICT Lab" / "Physics Lab")
+  const embeddedNamedMatches = rooms.filter((r) => {
+    const nameNorm = normalizeClassroomQuery(r.name);
+    return nameNorm.length >= 5 && !/^class\s+\d/.test(nameNorm) && qNorm.includes(nameNorm);
+  });
+  if (embeddedNamedMatches.length === 1) return { match: embeddedNamedMatches[0] };
+  if (embeddedNamedMatches.length > 1) {
+    // Prefer longest most-specific room name (e.g., "senior computer lab" over "computer lab")
+    const sorted = [...embeddedNamedMatches].sort((a, b) => b.name.length - a.name.length);
+    if (sorted[0].name.length > sorted[1].name.length) return { match: sorted[0] };
+    return { ambiguous: sorted.slice(0, 5) };
+  }
+
+  // 2d. Grade without section (e.g. "Class X" / "Class 10") -> return ambiguous matches so assistant clarifies cleanly!
+  const gradeOnlyMatch = qNorm.match(/\b(?:class|room|grade|standard)\s+(1[0-2]|[1-9])\b(?!\s+[a-f]\b)/);
+  if (gradeOnlyMatch) {
+    const gradeNum = gradeOnlyMatch[1];
+    const gradeMatches = rooms.filter((r) =>
+      new RegExp(`\\bclass\\s+${gradeNum}\\s+[a-f]\\b`).test(normalizeClassroomQuery(r.name))
+    );
+    if (gradeMatches.length === 1) return { match: gradeMatches[0] };
+    if (gradeMatches.length > 1) return { ambiguous: gradeMatches };
+  }
+
+  // 3. Token/substring fuzzy match (word-boundary guarded so short greetings like "hi", "ok", "thanks" NEVER match substrings like "suns-hi-ne"!)
+  const CONVERSATIONAL_NON_ROOMS = new Set([
+    'hi',
+    'hey',
+    'hello',
+    'ok',
+    'okay',
+    'yes',
+    'no',
+    'why',
+    'thanks',
+    'thank you',
+    'bye',
+    'goodbye',
+    'help',
+    'cool',
+    'great',
+    'nice',
+    'sure',
+    'good morning',
+    'good afternoon',
+    'good evening',
+  ]);
+  if (CONVERSATIONAL_NON_ROOMS.has(qNorm) || qNorm.length < 3) {
+    return {};
+  }
+
+  const escapedQ = qNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const wordBoundaryRe = new RegExp(`(?:^|\\s)${escapedQ}(?:$|\\s)`);
   const partialMatches = rooms.filter((r) => {
     const hay = `${normalizeClassroomQuery(r.roomCode)} ${normalizeClassroomQuery(r.name)} ${normalizeClassroomQuery(r.building)}`;
-    return hay.includes(qNorm) || hay.replace(/\s+/g, '').includes(qCompact);
+    return wordBoundaryRe.test(hay);
   });
 
   if (partialMatches.length === 1) return { match: partialMatches[0] };
   if (partialMatches.length > 1) {
     // Prefer exact name containment over building containment
     const nameOnly = partialMatches.filter((r) =>
-      normalizeClassroomQuery(r.name).includes(qNorm)
+      wordBoundaryRe.test(normalizeClassroomQuery(r.name))
     );
     if (nameOnly.length === 1) return { match: nameOnly[0] };
     return { ambiguous: partialMatches.slice(0, 5) };
   }
 
-  // 4. Multi-token score matching
+  // 4. Multi-token score matching (only when every meaningful token matches a distinct room token)
   const qTokens = qNorm
     .split(' ')
-    .filter((t) => t.length > 0 && !['room', 'classroom', 'the', 'in', 'of', 'for', 'open', 'show'].includes(t));
-  if (qTokens.length > 0) {
+    .filter(
+      (t) =>
+        t.length >= 2 &&
+        ![
+          'room',
+          'classroom',
+          'the',
+          'in',
+          'of',
+          'for',
+          'open',
+          'show',
+          'what',
+          'how',
+          'is',
+          'are',
+          'was',
+          'were',
+          'did',
+          'does',
+          'about',
+          'tell',
+          'me',
+        ].includes(t)
+    );
+  if (qTokens.length >= 2 && qTokens.length <= 4) {
     const scored = rooms
       .map((r) => {
         const hayTokens = new Set(
@@ -356,13 +492,45 @@ function enrichResultWithSpokenNames(obj: unknown): unknown {
 
 export class VoiceCapabilityRegistry {
   private capabilities = new Map<string, VoiceCapabilityDefinition>();
+  private cachedDeclarations: FunctionDeclaration[] | null = null;
+  private cachedReadOnlyDeclarations: FunctionDeclaration[] | null = null;
+  private cachedCatalogSummary: string | null = null;
 
   public register(definition: VoiceCapabilityDefinition): void {
     this.capabilities.set(definition.id, definition);
+    this.cachedDeclarations = null;
+    this.cachedReadOnlyDeclarations = null;
+    this.cachedCatalogSummary = null;
   }
 
   public unregister(id: string): boolean {
-    return this.capabilities.delete(id);
+    const removed = this.capabilities.delete(id);
+    if (removed) {
+      this.cachedDeclarations = null;
+      this.cachedReadOnlyDeclarations = null;
+      this.cachedCatalogSummary = null;
+    }
+    return removed;
+  }
+
+  /**
+   * Returns true when a capability is read-only / UI-directive public and has no
+   * confirmation or side-effecting serialization requirements, allowing safe
+   * Promise.all parallel execution when Gemini requests multiple tools in one turn.
+   */
+  public isParallelSafe(id: string): boolean {
+    const def = this.capabilities.get(id);
+    if (!def || !def.available) return false;
+    if (def.permissionLevel !== 'public') return false;
+    if (def.requiresConfirmation) return false;
+    if (
+      id === 'confirm_pending_action' ||
+      id === 'cancel_pending_action' ||
+      id === 'consult_deep_reasoning'
+    ) {
+      return false;
+    }
+    return true;
   }
 
   public get(id: string): VoiceCapabilityDefinition | undefined {
@@ -394,13 +562,60 @@ export class VoiceCapabilityRegistry {
     return items;
   }
 
+  private normalizeDeclarationSchema(decl: FunctionDeclaration): FunctionDeclaration {
+    // Gemini rejects empty Type.OBJECT parameters (`properties: {}`) with a 400 error.
+    // Omit `parameters` cleanly for zero-argument tools.
+    const params = decl.parameters as
+      | { type?: unknown; properties?: Record<string, unknown> }
+      | undefined;
+    if (
+      params &&
+      params.type === Type.OBJECT &&
+      (!params.properties || Object.keys(params.properties).length === 0)
+    ) {
+      const { parameters: _omitted, ...withoutEmptyParams } = decl;
+      return withoutEmptyParams;
+    }
+    return decl;
+  }
+
   public getFunctionDeclarations(): FunctionDeclaration[] {
+    if (this.cachedDeclarations) {
+      return this.cachedDeclarations;
+    }
     const declarations: FunctionDeclaration[] = [];
     for (const def of this.capabilities.values()) {
-      if (def.available) {
-        declarations.push(def.declaration);
-      }
+      if (!def.available) continue;
+      declarations.push(this.normalizeDeclarationSchema(def.declaration));
     }
+    this.cachedDeclarations = declarations;
+    return declarations;
+  }
+
+  /**
+   * Returns strictly read-only, non-mutating analytical declarations suitable for
+   * deep analytical synthesis without side effects, navigation triggers, or recursion.
+   */
+  public getReadOnlyAnalyticalDeclarations(): FunctionDeclaration[] {
+    if (this.cachedReadOnlyDeclarations) {
+      return this.cachedReadOnlyDeclarations;
+    }
+    const EXCLUDED_READ_ONLY_IDS = new Set([
+      'navigate_roomwise',
+      'execute_app_action',
+      'confirm_pending_action',
+      'cancel_pending_action',
+      'consult_deep_reasoning',
+    ]);
+    const declarations: FunctionDeclaration[] = [];
+    for (const def of this.capabilities.values()) {
+      if (!def.available) continue;
+      if (def.permissionLevel !== 'public') continue;
+      if (def.requiresConfirmation) continue;
+      if (EXCLUDED_READ_ONLY_IDS.has(def.id)) continue;
+      declarations.push(this.normalizeDeclarationSchema(def.declaration));
+    }
+    this.cachedReadOnlyDeclarations = declarations;
     return declarations;
   }
 
@@ -413,6 +628,9 @@ export class VoiceCapabilityRegistry {
   }
 
   public buildCapabilityCatalogSummary(): string {
+    if (this.cachedCatalogSummary !== null) {
+      return this.cachedCatalogSummary;
+    }
     const bySection = new Map<string, VoiceCapabilityDefinition[]>();
     for (const def of this.capabilities.values()) {
       if (!def.available) continue;
@@ -433,7 +651,8 @@ export class VoiceCapabilityRegistry {
         .join(', ');
       lines.push(`- ${sectionLabel}: ${toolList}`);
     }
-    return lines.join('\n');
+    this.cachedCatalogSummary = lines.join('\n');
+    return this.cachedCatalogSummary;
   }
 
   public async execute(
@@ -474,7 +693,11 @@ export class VoiceCapabilityRegistry {
     }
 
     // 2. Explicit confirmation gate for consequential actions
-    const needsConfirm = Boolean(def.requiresConfirmation) && rawArgs.confirmed !== true;
+    const requiresConfirm =
+      typeof def.requiresConfirmation === 'function'
+        ? def.requiresConfirmation(rawArgs)
+        : Boolean(def.requiresConfirmation);
+    const needsConfirm = requiresConfirm && rawArgs.confirmed !== true;
     if (needsConfirm) {
       const summary = buildConfirmationSummary(id, rawArgs);
       const pending: VoicePendingConfirmation = {
@@ -501,11 +724,10 @@ export class VoiceCapabilityRegistry {
       };
     }
 
-    ctx.memory.lastToolName = id;
-
     try {
       const result = await def.handler(rawArgs, ctx);
-      // Track mentioned room in session memory when present
+      ctx.memory.lastToolName = id;
+      // Track mentioned room & building in session memory when present
       if (typeof result.roomCode === 'string') {
         const matched = ctx.rooms.find(
           (r) => r.roomCode.toLowerCase() === String(result.roomCode).toLowerCase()
@@ -513,6 +735,7 @@ export class VoiceCapabilityRegistry {
         if (matched) {
           ctx.memory.lastMentionedRoomId = matched.id;
           ctx.memory.lastMentionedRoomCode = matched.roomCode;
+          ctx.memory.lastMentionedBuilding = matched.building;
         }
       }
       if (typeof result.roomId === 'string') {
@@ -520,10 +743,15 @@ export class VoiceCapabilityRegistry {
         if (matched) {
           ctx.memory.lastMentionedRoomId = matched.id;
           ctx.memory.lastMentionedRoomCode = matched.roomCode;
+          ctx.memory.lastMentionedBuilding = matched.building;
         }
+      }
+      if (typeof result.building === 'string' && result.building.trim()) {
+        ctx.memory.lastMentionedBuilding = result.building.trim();
       }
       return enrichResultWithSpokenNames(result) as Record<string, unknown>;
     } catch (err) {
+      ctx.memory.lastToolName = id;
       const msg = err instanceof Error ? err.message : 'Capability execution failed.';
       ctx.emitClientMessage({
         type: 'tool_status',
@@ -577,7 +805,7 @@ export function createRoomwiseCapabilityRegistry(
     sectionLabel: string;
     supportedIntents: string[];
     permissionLevel: VoicePermissionLevel;
-    requiresConfirmation?: boolean;
+    requiresConfirmation?: boolean | ((args: Record<string, unknown>) => boolean);
     dataSources: string[];
   }) => {
     const declaration = declByName.get(config.id);
@@ -716,6 +944,187 @@ export function createRoomwiseCapabilityRegistry(
     supportedIntents: ['change target lux', 'change max fan speed', 'eco mode'],
     permissionLevel: 'admin',
     dataSources: ['calibration_engine'],
+  });
+
+  registry.register({
+    id: 'get_classroom_comprehensive_brief',
+    section: 'classrooms',
+    sectionLabel: 'Classrooms & Digital Twin',
+    description:
+      'Retrieve a complete analytical briefing for a single classroom in one call: live power draw, rated utilization, PIR motion activity, live environmental telemetry (temperature, humidity, CO2, daylight lux, learned alpha/beta), historical energy consumption vs comparable baseline, anomalies, and recent interventions. Does NOT navigate.',
+    supportedIntents: [
+      'catch me up on classroom energy consumption',
+      'how is class performing',
+      'classroom energy update',
+      'explain classroom usage',
+    ],
+    permissionLevel: 'public',
+    dataSources: ['live_room_snapshot', 'energy_history_service', 'intervention_ledger_service'],
+    available: true,
+    declaration: {
+      name: 'get_classroom_comprehensive_brief',
+      description:
+        'Fetch an analytical multi-source briefing for a classroom (live power draw, sensors, historical kWh vs comparable baseline, recent interventions, and anomalies) WITHOUT navigating. Use this when the user asks to be caught up on or explained a classroom’s energy consumption or performance.',
+      parameters: {
+        type: Type.OBJECT,
+        properties: {
+          roomQuery: {
+            type: Type.STRING,
+            description: 'Classroom name or code (e.g. "Class X-B", "G3-G02", "ICT Lab"), or omit to use context room.',
+          },
+          period: {
+            type: Type.STRING,
+            description: 'Optional historical comparison window: "today", "yesterday", "last_7_days", "last_30_days", "this_month", "previous_month". Defaults to "last_7_days".',
+          },
+        },
+      },
+    },
+    handler: async (args, ctx) => {
+      const rq = typeof args.roomQuery === 'string' ? args.roomQuery : '';
+      const resolved = resolveClassroomRobust(ctx.rooms, rq, ctx.memory);
+      if (!resolved.match) {
+        return {
+          ok: false,
+          ambiguous: Boolean(resolved.ambiguous),
+          matches: resolved.ambiguous?.map((r) => ({
+            roomCode: r.roomCode,
+            name: r.name,
+            spokenName: buildSpokenRoomIdentity(r),
+          })),
+          error: resolved.ambiguous
+            ? `Multiple classrooms matched "${rq}". Ask the user to clarify which room.`
+            : `No classroom found for "${rq}".`,
+        };
+      }
+
+      const room = resolved.match;
+      const period =
+        typeof args.period === 'string' && args.period.trim()
+          ? args.period.trim()
+          : 'last_7_days';
+      const range = resolveNaturalDateQuery(period);
+      const historyDetail = energyHistoryService.getRoomHistory({
+        roomId: room.id,
+        startDate: range.startDate,
+        endDate: range.endDate,
+        settings: ctx.settings,
+      });
+      const ledger = interventionLedgerService.listInterventions({
+        roomId: room.id,
+        startDate: range.startDate,
+        endDate: range.endDate,
+      });
+
+      const ratedPowerWatts =
+        room.ratedPowerWatts ?? computeAppliancesRatedPowerWatts(room.appliances);
+      const availableHeadroomWatts = Math.max(0, ratedPowerWatts - room.currentPowerWatts);
+      const ratedUtilizationPercent =
+        ratedPowerWatts > 0 ? Number(((room.currentPowerWatts / ratedPowerWatts) * 100).toFixed(1)) : 0;
+      const totals = historyDetail?.totals;
+      const actualKWh =
+        typeof totals?.actualKWh === 'number' && Number.isFinite(totals.actualKWh)
+          ? Number(totals.actualKWh.toFixed(2))
+          : null;
+      const ratedMaxKWh =
+        typeof totals?.ratedMaxKWh === 'number' && Number.isFinite(totals.ratedMaxKWh)
+          ? Number(totals.ratedMaxKWh.toFixed(2))
+          : null;
+
+      return {
+        ok: true,
+        roomId: room.id,
+        roomCode: room.roomCode,
+        roomName: room.name,
+        spokenRoomName: buildSpokenRoomIdentity(room),
+        building: room.building,
+        floor: room.floor,
+        roomType: room.type,
+        liveStatus: {
+          currentPowerWatts: room.currentPowerWatts,
+          ratedPowerWatts,
+          availableHeadroomWatts,
+          ratedUtilizationPercent,
+          roomActivity: getRoomActivityState(room),
+          appliancesActiveCount: room.appliances.filter((a) => a.currentPowerWatts > 0).length,
+          totalAppliancesCount: room.appliances.length,
+        },
+        environment: {
+          temperature: room.environment.temperature,
+          humidity: room.environment.humidity,
+          co2Ppm: room.environment.co2Ppm,
+          naturalDaylightLux: room.environment.naturalDaylightLux,
+          ambientLux: room.environment.ambientLux,
+          daylightAlpha: room.calibration.learnedParameters.daylightPenetrationAlpha,
+          thermalBeta: room.calibration.learnedParameters.thermalDissipationBeta,
+        },
+        historicalEnergy: {
+          periodLabel: period,
+          startDate: range.startDate,
+          endDate: range.endDate,
+          actualKWh,
+          ratedMaxKWh,
+          ratedUtilizationPercent: totals?.ratedUtilizationPercent ?? null,
+        },
+        recentInterventions: {
+          count: ledger.summary.totalInterventions,
+          meterVerifiedAvoidedKWh: ledger.summary.meterVerifiedAvoidedKwh,
+          estimatedAvoidedKWh: ledger.summary.estimatedAvoidedKwh,
+        },
+        anomalies: (historyDetail as unknown as { anomalies?: unknown[] }).anomalies?.slice(0, 3) ?? [],
+        dataProvenance:
+          'Live power, sensors, and historical kWh come from ROOMWISE’s 25 calibrated simulated IoT nodes in SQLite (Asia/Kolkata). PIR detects movement only — never student headcount.',
+      };
+    },
+  });
+
+  // --- 2B. DIGITAL TWIN & CAMPUS FOOTPRINTS ---
+  registry.register({
+    id: 'get_campus_architecture_and_footprints',
+    section: 'digital-twin',
+    sectionLabel: 'Digital Twin',
+    description:
+      'Explain the Digital Twin architecture and authoritative Google Maps building footprint areas (2,366.80 m² across 5 academic blocks) for D A V Model School, IIT Kharagpur, including outdoor sports ground exclusions. Does NOT navigate.',
+    supportedIntents: [
+      'explain digital twin',
+      'building footprints',
+      'campus roof areas',
+      'about D A V Model School campus',
+    ],
+    permissionLevel: 'public',
+    dataSources: ['campus_building_measurements', 'live_room_snapshot'],
+    available: true,
+    declaration: {
+      name: 'get_campus_architecture_and_footprints',
+      description:
+        'Retrieve authoritative campus building footprint measurements (2,366.80 m² across 5 academic blocks, excluding Football Ground 5,300.83 m² and Basketball Court 737.14 m²) and explain Digital Twin / CAMPUS LIVE architecture WITHOUT navigating.',
+      parameters: {
+        type: Type.OBJECT,
+        properties: {
+          building: {
+            type: Type.STRING,
+            description: 'Optional specific building name (G+3 Block, New Building, Old Building, Pre-Primary Block, Multipurpose Hall).',
+          },
+        },
+      },
+    },
+    handler: async (args) => {
+      const summary = getCampusArchitectureAndFootprintsSummary();
+      const bq = typeof args.building === 'string' ? args.building.toLowerCase().trim() : '';
+      const focusedBuilding = bq
+        ? summary.academicBuildings.find(
+            (b) =>
+              b.name.toLowerCase().includes(bq) ||
+              b.shortCode.toLowerCase().includes(bq) ||
+              (bq.includes('old') && b.id === 'ob-nb-complex') ||
+              (bq.includes('new') && b.id === 'ob-nb-complex')
+          ) || null
+        : null;
+      return {
+        ok: true,
+        ...summary,
+        focusedBuilding,
+      };
+    },
   });
 
   // --- 3. CAMPUS LIVE (3D REPLICA) ---
@@ -1205,6 +1614,74 @@ export function createRoomwiseCapabilityRegistry(
     },
   });
 
+  registry.register({
+    id: 'get_roomwise_mathematical_models',
+    section: 'history',
+    sectionLabel: 'Energy History & Mathematical Models',
+    description:
+      'Retrieve authoritative explanations, exact equations, variables, units, sign conventions, and empirical status for ROOMWISE mathematical models: RCEM (ROOMWISE Counterfactual Energy Model), Bayesian α/β calibration, 70-classroom reference scenario (540 W, 10,080 kWh/yr, ₹70,560/yr, 1.29 yr payback), Intervention Ledger overlap subtraction, adaptive control, PVGIS solar sizing, and Space Intelligence scoring.',
+    supportedIntents: [
+      'explain RCEM',
+      'RCEM formula',
+      'how does Bayesian calibration work',
+      '70 classroom reference scenario',
+      'ROOMWISE mathematical models',
+    ],
+    permissionLevel: 'public',
+    dataSources: ['roomwise_mathematical_models'],
+    available: true,
+    declaration: {
+      name: 'get_roomwise_mathematical_models',
+      description:
+        'Explain any ROOMWISE concept or mathematical model with progressive disclosure (conceptual by default; mechanism, mathematical formulas, or validation status when asked): RCEM, PVGIS, CAMPUS LIVE, Digital Twin, PIR sensors, kW vs kWh, Bayesian α/β calibration, 70-classroom scenario, Intervention Ledger counterfactual math, or ROOMWISE overview. Does NOT navigate.',
+      parameters: {
+        type: Type.OBJECT,
+        properties: {
+          topic: {
+            type: Type.STRING,
+            description:
+              'One of: "rcem", "pvgis_solar_sizing", "campus_live", "digital_twin", "pir_sensor", "kw_vs_kwh", "roomwise_overview", "bayesian_calibration", "school_wide_70_classroom_scenario", "intervention_counterfactual", "adaptive_control", "space_intelligence_scoring", or "all".',
+          },
+          depth: {
+            type: Type.STRING,
+            description:
+              'Requested explanation depth: "conceptual" (default plain-English overview without raw equations), "mechanism" (how it operates), "mathematical" (exact equations, variables, units), or "validation" (empirical proof status and limits).',
+          },
+        },
+      },
+    },
+    handler: async (args, ctx) => {
+      const rawTopic = typeof args.topic === 'string' ? args.topic.trim().toLowerCase() : 'all';
+      const rawDepth = typeof args.depth === 'string' ? args.depth.trim().toLowerCase() : 'conceptual';
+      const depth: ExplanationDepth =
+        rawDepth === 'mechanism' || rawDepth === 'mathematical' || rawDepth === 'validation'
+          ? rawDepth
+          : 'conceptual';
+      const topic = (
+        rawTopic in ROOMWISE_MATHEMATICAL_MODELS ? rawTopic : 'all'
+      ) as RoomwiseModelTopic;
+
+      if (topic !== 'all') {
+        const spec = ROOMWISE_MATHEMATICAL_MODELS[topic];
+        ctx.memory.lastTopic = topic;
+        return {
+          ok: true,
+          topic,
+          depth,
+          recommendedReply: formatProgressiveKnowledgeReply(spec, depth),
+          model: spec,
+        };
+      }
+
+      return {
+        ok: true,
+        topic: 'all',
+        depth,
+        models: Object.values(ROOMWISE_MATHEMATICAL_MODELS),
+      };
+    },
+  });
+
   // --- 7. SPACE INTELLIGENCE ---
   registerLegacy({
     id: 'get_space_intelligence_summary',
@@ -1427,7 +1904,7 @@ export function createRoomwiseCapabilityRegistry(
     declaration: {
       name: 'navigate_roomwise',
       description:
-        'Navigate ROOMWISE to any of its 11 sections, open a classroom modal, switch sub-tabs (e.g. Energy Intervention Ledger inside Energy History, or Solar Potential / Mapping / Environmental inside Environmental & Solar Intelligence), apply filters, or go back.',
+        'Navigate the ROOMWISE UI to any of its 11 sections, open a specific classroom telemetry & control modal (use target="classroom" with roomQuery whenever the user asks in ANY language — e.g. English "Open X-B telemetry", Bengali "X-B এর telemetry খোলো", Romanised Bengali "xb er telemetry ta khul", or follow-up "Open its telemetry" — to open or view a classroom), switch sub-tabs (e.g. Energy Intervention Ledger inside Energy History, or Solar Potential / Mapping / Environmental inside Environmental & Solar Intelligence), apply filters, or go back.',
       parameters: {
         type: Type.OBJECT,
         properties: {
@@ -1438,7 +1915,7 @@ export function createRoomwiseCapabilityRegistry(
           },
           roomQuery: {
             type: Type.STRING,
-            description: 'Classroom name or code when target="classroom" (e.g. "Class X-B", "Class 10-B", "G3-301", "ICT Lab").',
+            description: 'Classroom name or code when target="classroom" (e.g. "Class X-B", "G3-G02", "Class IX-A", "ICT Lab").',
           },
           subTab: {
             type: Type.STRING,
@@ -1629,7 +2106,14 @@ export function createRoomwiseCapabilityRegistry(
     sectionLabel: 'Navigation & Workspace',
     supportedIntents: ['export CSV', 'print audit report', 'pause simulation', 'close modals', 'logout admin'],
     permissionLevel: 'public',
-    requiresConfirmation: true,
+    requiresConfirmation: (args) => {
+      const action = typeof args.action === 'string' ? args.action.trim() : '';
+      return (
+        action === 'export_analytics_csv' ||
+        action === 'print_audit_report' ||
+        action === 'logout_admin'
+      );
+    },
     dataSources: ['ui_controller'],
   });
 
@@ -1689,6 +2173,101 @@ export function createRoomwiseCapabilityRegistry(
   });
 
   registry.register({
+    id: 'consult_deep_reasoning',
+    section: 'analytics',
+    sectionLabel: 'Energy Analytics',
+    description:
+      'Escalate genuinely complex multi-step analytical synthesis, cross-source trade-offs (e.g., combining solar generation, space allocation, tariff economics, and multi-period energy data), counterfactual what-if scenarios, or deep multi-factor anomaly correlation while preserving full conversation context.',
+    supportedIntents: [
+      'multi-factor cross-source analysis',
+      'counterfactual what-if scenario',
+      'complex trade-off synthesis',
+      'deep root-cause correlation',
+    ],
+    permissionLevel: 'public',
+    dataSources: ['energy_history_service', 'solar_service', 'space_intelligence_service', 'intervention_ledger_service'],
+    available: true,
+    declaration: {
+      name: 'consult_deep_reasoning',
+      description:
+        'Delegate genuinely complex multi-step computational analysis, cross-source synthesis (combining solar + space allocation + history + tariff trade-offs), counterfactual what-if projections, or multi-factor root-cause investigation. Do NOT call for greetings, simple direct lookups, single-room queries, navigation, or direct device controls.',
+      parameters: {
+        type: Type.OBJECT,
+        properties: {
+          question: {
+            type: Type.STRING,
+            description: 'The complete analytical question and conversational intent to solve.',
+          },
+          focusScope: {
+            type: Type.STRING,
+            description: 'Optional campus, building, classroom, or date scope relevant to the analysis.',
+          },
+          preferredLanguageNote: {
+            type: Type.STRING,
+            description: 'Target language and native script that the final synthesis should use to match the user.',
+          },
+        },
+        required: ['question'],
+      },
+    },
+    handler: async (args, ctx) => {
+      const question = typeof args.question === 'string' ? args.question.trim() : '';
+      if (!question) {
+        return { ok: false, error: 'An analytical question is required for deep synthesis.' };
+      }
+      ctx.emitClientMessage({
+        type: 'tool_status',
+        toolName: 'consult_deep_reasoning',
+        status: 'running',
+        message: 'Running deep analytical synthesis',
+      });
+      const result = await runHydrogenDeepReasoning({
+        question,
+        focusScope: typeof args.focusScope === 'string' ? args.focusScope.trim() : undefined,
+        preferredLanguageNote:
+          typeof args.preferredLanguageNote === 'string'
+            ? args.preferredLanguageNote.trim()
+            : undefined,
+        context: ctx,
+        registry,
+        abortSignal: ctx.abortSignal,
+        generateContentOverride: ctx.deepReasoningOverride,
+      });
+
+      if (result.aborted) {
+        return {
+          ok: false,
+          aborted: true,
+          error: result.error || 'Analysis cancelled.',
+        };
+      }
+
+      ctx.emitClientMessage({
+        type: 'tool_status',
+        toolName: 'consult_deep_reasoning',
+        status: result.ok ? 'completed' : 'error',
+        message: result.ok ? 'Deep analysis complete' : result.error || 'Deep analysis unavailable',
+      });
+
+      if (!result.ok || !result.synthesizedAnalysis) {
+        return {
+          ok: false,
+          toolsConsulted: result.toolsConsulted,
+          error: result.error || 'Unable to complete multi-step synthesis right now.',
+        };
+      }
+
+      return {
+        ok: true,
+        synthesizedAnalysis: result.synthesizedAnalysis,
+        toolsConsulted: result.toolsConsulted,
+        presentationRule:
+          'Deliver these verified findings seamlessly in the user’s language and native script without mentioning internal tools or routing.',
+      };
+    },
+  });
+
+  registry.register({
     id: 'cancel_pending_action',
     section: 'navigation',
     sectionLabel: 'Navigation & Workspace',
@@ -1733,59 +2312,144 @@ export function buildModernVoiceSystemInstruction(params: {
     totalCurrentPowerKW: number;
     totalRatedPowerWatts: number;
     totalRatedPowerKW: number;
+    availableHeadroomWatts: number;
+    availableHeadroomKW: number;
     ratedUtilizationPercent: number;
-    totalBaselinePowerWatts: number;
-    totalBaselinePowerKW: number;
-    savingsPercent: number;
+    headroomPercent: number;
     occupiedCount: number;
   };
 }): string {
   const { snapshot, adminIdentity, registry, memory, summary } = params;
   const authBanner = adminIdentity
-    ? `AUTHORIZATION: AUTHENTICATED ADMINISTRATOR (${adminIdentity.adminName}, ${adminIdentity.role}). Admin tools are permitted when appropriate.`
-    : `AUTHORIZATION: STUDENT / READ-ONLY MODE. Never execute appliance overrides, campus optimization, calibration, or settings updates; politely explain that Administrator sign-in is required.`;
+    ? `AUTHORIZATION: AUTHENTICATED ADMINISTRATOR (${adminIdentity.adminName}, ${adminIdentity.role}). All administrator controls and settings updates are permitted.`
+    : `AUTHORIZATION: STUDENT / READ-ONLY MODE at session start. Read-only queries, analytics, solar/weather inspection, and navigation are permitted; appliance controls, campus optimization, calibration, and settings updates require Administrator sign-in.`;
+
+  const now = new Date();
+  const todayIst = getIstDateString(now);
+  const { hour: istHour, minute: istMinute } = getIstHourAndMinute(now);
+  const currentTimeIst = `${String(istHour).padStart(2, '0')}:${String(istMinute).padStart(2, '0')} IST`;
+  const yesterdayIst = shiftIstDate(todayIst, -1);
 
   const currentRoom = snapshot.selectedRoomId
     ? snapshot.classrooms.find((r) => r.id === snapshot.selectedRoomId)
     : null;
+  const lastRoom = memory.lastMentionedRoomId
+    ? snapshot.classrooms.find((r) => r.id === memory.lastMentionedRoomId)
+    : null;
 
-  return `You are ROOMWISE Voice — the intelligent, context-aware voice interface for DAV Model School, IIT Kharagpur (25 classrooms across 5 blocks: G+3 Block, New Building, Old Building, Pre-Primary Block, Multipurpose Hall).
+  return `You are ROOMWISE Voice — the intelligent, context-aware natural-language assistant for ${CANONICAL_INSTITUTION_NAME}, IIT Kharagpur (25 monitored classrooms across 5 academic blocks: G+3 Block, New Building, Old Building, Pre-Primary Block, Multipurpose Hall).
 
 ${authBanner}
 
-CRITICAL PRONUNCIATION & SPEECH OUTPUT RULE (MANDATORY):
-- Classroom codes visually retain Indian school Roman numerals (e.g. "Class X-B", "Class IX-A", "Class XII-A", "Class VI-A").
-- When SPEAKING aloud, you MUST ALWAYS pronounce Roman numeral class grades as natural numbers:
-  * "Class X-B" -> speak as "Class ten B" (NEVER say "Exbee", "Ex B", or "X-B"!)
-  * "Class X-A" -> speak as "Class ten A"
-  * "Class IX-A" -> speak as "Class nine A" (NEVER say "Eye-Ex"!)
-  * "Class XI-A" -> speak as "Class eleven A"
-  * "Class XII-A" -> speak as "Class twelve A"
-  * "Class VI-A" / "VII-A" / "VIII-A" -> speak as "Class six A", "Class seven A", "Class eight A"
+PROPER NOUNS, INSTITUTION NAME & TECHNICAL NOTATION (CRITICAL):
+- The institution's EXACT canonical name is "${CANONICAL_INSTITUTION_NAME}" (at IIT Kharagpur).
+  * If speech recognition sounds like "Davos Model School", "Dave Model School", or "Davy Model School", recognise it as "${CANONICAL_INSTITUTION_NAME}".
+  * When SPEAKING aloud, pronounce it clearly letter by letter as "D-A-V Model School" (NEVER say "Davos" or "Dave"!).
+  * In ALL written transcripts and text outputs, write "${CANONICAL_INSTITUTION_NAME}".
+- Preserve standard technical notation in written text: write "3D" (never "three-D"), "G+3" (never "G plus three"), "Class X-B", "RCEM", "PVGIS", "CAMPUS LIVE", "Digital Twin", "BEE", "ECBC", "PIR", "LDR", "DHT11", "540 W", "10,080 kWh", "₹70,560", "1.29 years". Never confuse W with Wh or kW with kWh.
+- When SPEAKING classroom Roman numerals aloud, ALWAYS pronounce them as natural numbers:
+  * "Class X-B" -> speak as "Class ten B" (NEVER "Exbee" or "Ex B")
+  * "Class IX-A" -> "Class nine A", "Class XI-A" -> "Class eleven A", "Class XII-A" -> "Class twelve A", "Class VI-A" -> "Class six A".
 - Always prefer the "spokenName" / "spokenRoomName" fields returned by tools when speaking.
-- Respond in concise, natural, clear English (typically 1–3 sentences unless the user asks for a breakdown). Do not read raw JSON, markdown symbols, or long tables aloud.
+
+UNIVERSAL MULTILINGUAL CONVERSATION & MANDATORY NATIVE-SCRIPT TRANSCRIPTS (CRITICAL):
+- Support natural conversation seamlessly across ALL Indian languages and regional vernaculars (Bengali, Hindi, Malayalam, Tamil, Telugu, Kannada, Marathi, Gujarati, Odia, Assamese, Punjabi, Urdu, Sanskrit, Maithili, Konkani, Manipuri, Nepali, etc.), English, and any other language — including code-switching, mixed-language phrasing, colloquial expressions, regional accents, and Romanised input — with ZERO language allowlists or restrictions.
+- Automatically recognize whichever language the user speaks or types and respond in that SAME language unless the user explicitly asks to switch (when the user speaks or writes in English, respond in English — never switch to Bengali or Hindi solely because the campus is in IIT Kharagpur). Handle mid-conversation language switches naturally when the user switches, while preserving full conversational context (referenced classroom, building, dates, comparisons).
+- **MANDATORY NATIVE SCRIPT FOR WRITTEN OUTPUT / TRANSCRIPTS**: Whenever you reply in a non-English or Romanised-vernacular language, your spoken output and written transcript MUST be rendered cleanly in that language's proper native script:
+  * Bengali / Banglish -> বাংলা script
+  * Hindi / Hinglish / Marathi / Sanskrit / Nepali / Maithili -> देवनागरी script
+  * Malayalam / Manglish -> മലയാളം script
+  * Tamil / Tanglish -> தமிழ் script
+  * Telugu / Tenglish -> తెలుగు script
+  * Kannada -> ಕನ್ನಡ script
+  * Gujarati -> ગુજરાતી script
+  * Odia -> ଓଡ଼ିଆ script
+  * Assamese -> অসমীয়া script
+  * Punjabi -> ਪੰਜਾਬੀ script
+  * Urdu -> اردو script
+  * NEVER respond in Romanised vernacular by default. Keep standard English technical identifiers ("Class X-B", "G3-G02", "G+3", "3D", "RCEM", "PVGIS", "CAMPUS LIVE", "kW", "kWh", "W", "₹", "${CANONICAL_INSTITUTION_NAME}") intact inline.
+- Maintain Charon's calm, natural, conversational voice quality and consistent intonation matching the language being spoken without unnatural accent shifting.
+
+ORDINARY CONVERSATION & GREETING DISCIPLINE (CRITICAL):
+- Handle greetings ("Hi", "Hello", "Hey", "Namaste", "Nomoshkar", "How are you?", "Thanks", etc.) and casual conversation warmly and concisely in the user's language.
+- NEVER invoke telemetry tools, NEVER dump unsolicited power numbers, NEVER append a robotic list of capabilities, and NEVER say a greeting is an unsupported command!
+
+PROGRESSIVE DISCLOSURE FOR TECHNICAL EXPLANATIONS (CRITICAL):
+- Match your depth to what the user actually asked:
+  * Conceptual question ("Explain RCEM", "What is PVGIS?", "How does CAMPUS LIVE work?", "What does the Digital Twin represent?", "How does the PIR sensor work?", "What is the difference between kW and kWh?"): give a clear, accessible plain-language explanation first—NO raw mathematical equations! Mention key conceptual rules (e.g., RCEM compares baseline vs ROOMWISE without clamping negatives and empirical meter readings are pending; PIR detects movement only and never counts students).
+  * Mathematical / formula question ("Show me the mathematical formulation of RCEM", "Derive RCEM"): call get_roomwise_mathematical_models(topic="rcem", depth="mathematical") and provide the exact discrete & continuous equations, variable definitions, units, unclamped sign convention, and honest empirical-pending status.
+  * Proof / validation question ("Has RCEM proven ROOMWISE's savings?"): answer directly and honestly that empirical physical meter readings are still pending, so RCEM has not yet empirically demonstrated real-world savings.
+
+CONTEXTUAL PERIOD COMPARISONS & PARTIAL-DAY INTEGRITY (CRITICAL):
+- Always resolve contextual references across turns ("compare it with today", "what about yesterday?", "that room", "open its telemetry", "why?"):
+  * When the user previously asked about a date/period (e.g. "yesterday") and follows up with "compare it with today" (in any language, campus, building, or classroom scope), call \`compare_energy_periods\` passing the prior queried period (e.g. "yesterday" or \`${memory.lastResolvedStartDate || memory.lastPeriod}\`) as \`periodA\` and \`today\` as \`periodB\`, including \`roomQuery\` or \`building\` if a specific room or building was in context.
+  * Whenever \`compare_energy_periods\` returns \`hasPartialDay: true\` and \`equivalentWindowComparison\`, base the apples-to-apples comparison on the **equivalent elapsed IST window** (\`equivalentWindowComparison.windowLabelIst\`, i.e., \`00:00–${currentTimeIst}\`) rather than comparing partial today raw totals directly against full 24-hour yesterday totals, and clearly state both that today is an in-progress partial day up to \`${currentTimeIst}\` and what completed full-day total was recorded.
+  * If \`dataAvailable: false\` for either period, state honestly what is missing; NEVER invent figures.
+
+HYBRID INTELLIGENCE — FAST DIRECT LIVE vs DEEP ANALYTICAL ESCALATION:
+- Handle greetings, direct follow-ups, quick telemetry/history lookups, period comparisons, UI navigation, and verified backend controls directly right here in the live conversation.
+- Escalate via \`consult_deep_reasoning\` ONLY when the user asks a genuinely complex multi-step computational question, cross-source trade-off synthesis (e.g., combining solar generation + space allocation + tariff/historical trends), counterfactual what-if analysis, or intricate multi-factor diagnostics beyond direct single-tool answers.
+- Present deep-analysis findings seamlessly in the user's language & native script—NEVER expose internal routing, sub-models, or escalation mechanics to the user.
+
+ANALYTICAL REASONING FOR "WHY" & "WAS THAT UNUSUALLY HIGH?" QUESTIONS:
+- Never answer a "why" or "what caused" question with a bare consumption summary!
+- Call investigate_energy_reason (with the exact date/period and room or building in context) and reason step-by-step:
+  1. State the exact date (IST) and recorded modelled kWh.
+  2. Compare against the comparable operating-day historical average—explicitly state whether it WAS or WAS NOT unusually high (and note weekends/Sundays vs school days).
+  3. Identify top contributing blocks, classrooms, lighting/fan/aux split, peak hours, post-hours draw, or logged anomalies.
+  4. Separate likely observed drivers from unproven root causes, and state evidence limitations honestly.
+
+ZERO-PLACEHOLDER & FAILURE INTEGRITY:
+- NEVER output placeholders such as "calculated kWh", "undefined", "NaN", "[value]", raw JSON, or LaTeX escapes. If data is missing or a date is invalid, say so clearly and honestly.
+
+INFORMATION REQUESTS vs NAVIGATION REQUESTS (MANDATORY DISTINCTION — ALL LANGUAGES):
+- Understand the user's real intent in ANY language:
+  * Navigation requests (asking to OPEN, SWITCH TO, GO TO, or LAUNCH a view or classroom modal) -> ALWAYS call navigate_roomwise (for a room's telemetry modal, use target="classroom" and roomQuery="Class X-B").
+  * Information / explanation / analytical requests -> call the relevant data/knowledge/investigation tool and answer naturally WITHOUT calling navigate_roomwise!
+  * Compound requests -> retrieve & explain first, and also call navigate_roomwise.
+
+DYNAMIC AUTHORIZATION RULE (CRITICAL):
+- The user may sign in or sign out as an Administrator at any moment.
+- Whenever the user asks to modify settings (tariff, lux targets, etc.), control appliances, optimize the campus, or recalibrate rooms, ALWAYS invoke the matching tool directly so live server RBAC runs:
+  * If signed in as Administrator, the tool runs (or asks for explicit confirmation if consequential).
+  * If the tool returns PERMISSION_DENIED, concisely explain that Administrator sign-in is required and offer to open Admin Login (navigate_roomwise target="admin-login").
 
 CURRENT WORKSPACE CONTEXT:
+- Current Date & Time (IST): ${formatIstFullLabel(todayIst)} (${todayIst}) at ${currentTimeIst} | Yesterday (IST): ${yesterdayIst}
 - Active Section: ${memory.activeTab || snapshot.activeTab}${memory.activeSubTab ? ` (Sub-tab: ${memory.activeSubTab})` : ''}
 - Selected Room: ${currentRoom ? `${buildSpokenRoomIdentity(currentRoom)} [visual: ${currentRoom.name}, code ${currentRoom.roomCode}]` : 'None'}
+- Last Discussed Room: ${lastRoom ? `${buildSpokenRoomIdentity(lastRoom)} [visual: ${lastRoom.name}, code ${lastRoom.roomCode}, ${lastRoom.building}]` : 'None'}
+- Last Discussed Building: ${memory.lastMentionedBuilding || 'None'} | Last Historical Window: ${memory.lastResolvedStartDate ? `${memory.lastResolvedStartDate} to ${memory.lastResolvedEndDate || memory.lastResolvedStartDate}` : 'None'} (tag: ${memory.lastPeriod})
+- Monitored 25-Room Roster: ${snapshot.classrooms.map((r) => `${r.name} [${r.roomCode}, ${r.building}]`).join('; ')}
 - Live Campus Load: ${summary.totalCurrentPowerKW} kW (${summary.totalCurrentPowerWatts} W, ${summary.ratedUtilizationPercent}% of ${summary.totalRatedPowerKW} kW installed rated max)
 - Active Motion Nodes: ${summary.occupiedCount} of ${snapshot.classrooms.length} rooms
-- School Calendar Basis: ${SCHOOL_DAYS_PER_MONTH} school days/month, ${SCHOOL_DAYS_PER_YEAR} school days/year (Indian day school — NOT a 24x7 boarding school)
+- School Calendar Basis: ${SCHOOL_DAYS_PER_MONTH} school days/month, ${SCHOOL_DAYS_PER_YEAR} school days/year (Indian day school)
 - Selective AC Inventory: Only ICT Lab, Senior Computer Lab, Physics Lab, Staff Room, and Multipurpose Hall have AC; standard classrooms use LED lights and BLDC ceiling fans only.
+- Verified Academic Building Footprints: 2,366.80 m² total across 5 academic buildings (G+3: 601.55 m², MPH: 168.51 m², PP: 387.53 m², OB+NB connected complex: 1,209.21 m² combined). Outdoor sports grounds (Football Ground 5,300.83 m², Basketball Court 737.14 m²) are strictly excluded from building and rooftop solar totals.
 
-STRICT ENGINEERING HONESTY RULES:
-1. NEVER invent numbers. Always call the appropriate registered capability tool before stating telemetry, solar generation, weather, ledger totals, or audit findings.
-2. PIR sensors detect motion presence ONLY — never claim PIR counts exact student headcount. Attendance data comes from manual/CSV records in Space Intelligence.
-3. Energy Intervention Ledger strictly separates Meter-Verified avoided kWh from Simulated/Estimated avoided kWh — never present simulated estimates as meter-verified savings.
-4. Rooftop solar numbers come from PVGIS 5.3 over reconstructed aerial footprints — always frame them as planning estimates, not certified engineering drawings.
-5. Sensor Telemetry Ingestion Architecture is documented future architecture — NEVER claim live physical ESP32/MQTT sensors are currently connected.
-6. ROOMWISE aligns with ECBC/BEE guidance — NEVER claim official BEE certification.
-7. If a tool returns confirmationRequired=true, briefly summarize the planned action and ask the user to confirm before calling confirm_pending_action.
+MATHEMATICAL MODELS & STRICT ENGINEERING HONESTY:
+1. NEVER invent numbers, causes, or comparisons. Always call registered capability tools before stating telemetry, solar generation, weather, ledger totals, audit findings, or model formulas.
+2. RCEM (ROOMWISE Counterfactual Energy Model): Discrete E_RCEM = (1/1000) Σ (P_{B,i} - P_{RW,i}) Δt_i and continuous E_RCEM = (1/1000) ∫ [P_B(t) - P_RW(t)] dt (power in W, time in h, result in kWh; unclamped sign convention; empirical meter inputs currently pending). Always call get_roomwise_mathematical_models for exact model explanations.
+3. PIR sensors detect physical movement ONLY — never claim PIR counts exact student headcount. Attendance data comes from the register in Space Intelligence.
+4. Energy Intervention Ledger strictly separates Meter-Verified avoided kWh from Simulated/Estimated avoided kWh — never present simulated estimates as meter-verified savings.
+5. Rooftop solar numbers come from PVGIS 5.3 over the 2,366.80 m² horizontal academic footprints — always frame PVGIS outputs as planning estimates, not certified engineering designs.
+6. Sensor Telemetry Ingestion Architecture (ESP32/MQTT/TLS) is documented future architecture — NEVER claim live physical sensors are currently connected.
+7. ROOMWISE aligns with ECBC/BEE guidance — NEVER claim official BEE certification.
+8. If a tool returns confirmationRequired=true, briefly summarize the planned action and ask the user to confirm before calling confirm_pending_action.
 
-REGISTERED ROOMWISE CAPABILITIES (ALL 11 SECTIONS):
+REGISTERED ROOMWISE CAPABILITIES (ALL SECTIONS):
 ${registry.buildCapabilityCatalogSummary()}
 
-Use navigate_roomwise for any navigation request across all 11 sections (Overview, Digital Twin, Campus Live, Classrooms, Environmental & Solar Intelligence, Energy Analytics, Energy History + Energy Intervention Ledger, Space Intelligence, Energy Audit, Reports & BEE, Settings) or "go back".`;
+Use navigate_roomwise ONLY when navigation is explicitly requested across any of the 11 sections or "go back".`;
+}
+
+export interface VoiceTurnTimings {
+  prepMs: number;
+  firstTokenMs: number | null;
+  llmMs: number;
+  toolExecMs: number;
+  totalMs: number;
+  warmLiveReused?: boolean;
 }
 
 export interface InterpretedVoiceCommandResult {
@@ -1798,524 +2462,30 @@ export interface InterpretedVoiceCommandResult {
   emittedMessages: VoiceServerMessage[];
   confirmationRequired?: boolean;
   permissionDenied?: boolean;
+  /** True when the Gemini reasoning model was invoked for this turn. */
+  llmInvoked?: boolean;
+  /** Exact Gemini model identifier used for this turn (or null if unavailable). */
+  modelUsed?: string | null;
+  /** Ordered list of tool names requested by Gemini during this turn. */
+  toolCallsRequested?: string[];
+  /** Ordered list of tool names executed during this turn. */
+  toolCallsExecuted?: string[];
+  /** Machine-readable error code when ok=false (e.g., MISSING_API_KEY, GEMINI_UNAVAILABLE). */
+  errorCode?: string;
+  /** Stage-level execution timing breakdown (ms). */
+  timings?: VoiceTurnTimings;
 }
 
 /**
- * Deterministic multi-turn command router & executor over the central VoiceCapabilityRegistry.
- * Used for:
- *  - Reliable fallback text/voice command execution via POST /api/voice/command
- *  - Automated end-to-end verification across all 11 sections, context follow-ups,
- *    Roman numeral pronunciation, permissions, and confirmation policies.
+ * Gemini-centred multi-turn command & conversation interpreter over the central VoiceCapabilityRegistry.
+ * Routes every user message directly to Gemini with full conversation history and function calling,
+ * with honest failure handling when Gemini is unavailable (zero local chatbot interception or fallback).
  */
 export async function interpretAndExecuteVoiceCommand(
   utterance: string,
   registry: VoiceCapabilityRegistry,
-  ctx: VoiceCapabilityExecutionContext
+  ctx: VoiceCapabilityExecutionContext,
+  options?: GeminiOrchestrationOptions
 ): Promise<InterpretedVoiceCommandResult> {
-  const emitted: VoiceServerMessage[] = [];
-  const wrappedCtx: VoiceCapabilityExecutionContext = {
-    ...ctx,
-    emitClientMessage: (msg) => {
-      emitted.push(msg);
-      ctx.emitClientMessage(msg);
-    },
-  };
-
-  const raw = utterance.trim();
-  if (!raw) {
-    return {
-      ok: false,
-      intent: 'empty',
-      toolName: null,
-      spokenReply: 'I did not catch a command. Please tell me what you would like to open or check in ROOMWISE.',
-      visualReply: 'No command received.',
-      data: null,
-      emittedMessages: emitted,
-    };
-  }
-
-  const lower = raw.toLowerCase();
-
-  // 0. Pending confirmation resolution ("yes", "confirm", "cancel", "no")
-  if (wrappedCtx.memory.pendingConfirmation) {
-    if (/^(yes|yeah|yep|confirm|go ahead|proceed|do it|ok|okay|approve)\b/.test(lower)) {
-      const data = await registry.execute('confirm_pending_action', {}, wrappedCtx);
-      const ok = data.ok !== false;
-      const reply = ok
-        ? `Confirmed and completed: ${String(data.summary || 'Action executed successfully.')}`
-        : String(data.error || 'Could not complete the confirmed action.');
-      return {
-        ok,
-        intent: 'confirm_pending_action',
-        toolName: 'confirm_pending_action',
-        spokenReply: formatRoomNameForSpeech(reply),
-        visualReply: reply,
-        data,
-        emittedMessages: emitted,
-      };
-    }
-    if (/^(no|nope|cancel|stop|abort|never\s*mind)\b/.test(lower)) {
-      const data = await registry.execute('cancel_pending_action', {}, wrappedCtx);
-      const reply = String(data.message || 'Cancelled.');
-      return {
-        ok: true,
-        intent: 'cancel_pending_action',
-        toolName: 'cancel_pending_action',
-        spokenReply: reply,
-        visualReply: reply,
-        data,
-        emittedMessages: emitted,
-      };
-    }
-  }
-
-  // Helper to run tool and produce structured response
-  const run = async (
-    toolName: string,
-    args: Record<string, unknown>,
-    formatReply: (res: Record<string, unknown>) => string
-  ): Promise<InterpretedVoiceCommandResult> => {
-    const data = await registry.execute(toolName, args, wrappedCtx);
-    const confirmationRequired = Boolean(data.confirmationRequired);
-    const permissionDenied = data.authorized === false;
-    let visual: string;
-    if (permissionDenied) {
-      visual = String(data.error || 'Administrator sign-in is required for this action.');
-    } else if (confirmationRequired) {
-      visual = String(
-        data.message || `Please confirm: ${String(data.summary || toolName)}`
-      );
-    } else if (data.ok === false && data.error) {
-      visual = String(data.error);
-    } else {
-      visual = formatReply(data);
-    }
-    return {
-      ok: data.ok !== false,
-      intent: toolName,
-      toolName,
-      spokenReply: formatRoomNameForSpeech(visual),
-      visualReply: visual,
-      data,
-      emittedMessages: emitted,
-      confirmationRequired,
-      permissionDenied,
-    };
-  };
-
-  // 1. Go back
-  if (/\b(go back|previous page|previous section|back to previous)\b/.test(lower)) {
-    return run('navigate_roomwise', { target: 'go-back' }, (d) =>
-      `Returned to ${String(d.navigatedTo || 'previous view')}.`
-    );
-  }
-
-  // 2. Capabilities / Help
-  if (/\b(what can you do|list capabilities|help me|what sections)\b/.test(lower)) {
-    return run('list_assistant_capabilities', {}, (d) =>
-      `ROOMWISE Voice covers all ${String(d.sectionsCount || 11)} sections including Overview, Digital Twin, Campus Live, Classrooms, Environmental & Solar Intelligence, Energy Analytics, Energy History and Intervention Ledger, Space Intelligence, Energy Audit, Reports & BEE, and Settings.`
-    );
-  }
-
-  // 3. Planned Sensor Telemetry Architecture (honesty check)
-  if (
-    /\b(sensor telemetry|telemetry architecture|telemetry ingestion|real sensors|esp32|mqtt|hardware connected)\b/.test(
-      lower
-    )
-  ) {
-    return run('get_planned_telemetry_architecture', {}, (d) => String(d.summary));
-  }
-
-  // 4. Energy Intervention Ledger — query, filter, or navigate
-  if (/\b(intervention|ledger)\b/.test(lower)) {
-    const verificationStatus = /\b(meter[\s-]*verified|verified only)\b/.test(lower)
-      ? 'meter_verified'
-      : /\b(simulated|estimated)\b/.test(lower)
-      ? 'estimated'
-      : 'all';
-    const period = /\b(today)\b/.test(lower)
-      ? 'today'
-      : /\b(yesterday)\b/.test(lower)
-      ? 'yesterday'
-      : /\b(this week|last 7 days|past week)\b/.test(lower)
-      ? 'last_7_days'
-      : /\b(this month)\b/.test(lower)
-      ? 'this_month'
-      : /\b(last 30 days)\b/.test(lower)
-      ? 'last_30_days'
-      : 'all';
-
-    if (/\b(detail|explain|formula|assumption|how was|calculation|overlap)\b/.test(lower)) {
-      return run('get_intervention_detail', {}, (d) => {
-        const iv = d.intervention as Record<string, unknown> | undefined;
-        if (!iv) return 'No intervention details available.';
-        return `Intervention in ${String(iv.roomName)} avoided an estimated ${String(
-          iv.effectiveAvoidedKWh
-        )} kWh (${String(iv.verificationStatus)}). Overlap adjusted: ${
-          iv.overlapAdjusted ? 'yes' : 'no'
-        }.`;
-      });
-    }
-
-    if (/\b(open|go to|navigate|switch to|filter|show only)\b/.test(lower)) {
-      await registry.execute(
-        'navigate_roomwise',
-        {
-          target: 'history',
-          subTab: 'interventions',
-          preset: period !== 'all' ? period : undefined,
-          verificationStatus,
-        },
-        wrappedCtx
-      );
-    }
-
-    return run(
-      'get_intervention_ledger',
-      { period, verificationStatus },
-      (d) => {
-        const sum = (d.summary || {}) as Record<string, unknown>;
-        return `Energy Intervention Ledger (${String(d.totalMatchingInterventions || 0)} entries): Meter-verified avoided energy is ${String(
-          sum.meterVerifiedAvoidedKWh ?? 0
-        )} kWh, and simulated estimated avoided energy is ${String(
-          sum.simulatedEstimatedAvoidedKWh ?? 0
-        )} kWh.`;
-      }
-    );
-  }
-
-  // Contextual follow-up filter while inside Energy History / Interventions
-  if (
-    wrappedCtx.memory.activeTab === 'history' &&
-    /\b(only from this week|this week only|meter[\s-]*verified only|only verified|only estimated|only simulated)\b/.test(
-      lower
-    )
-  ) {
-    const verificationStatus = /\b(verified)\b/.test(lower)
-      ? 'meter_verified'
-      : /\b(estimated|simulated)\b/.test(lower)
-      ? 'estimated'
-      : 'all';
-    const period = /\b(this week|7 days)\b/.test(lower) ? 'last_7_days' : 'all';
-    await registry.execute(
-      'navigate_roomwise',
-      {
-        target: 'history',
-        subTab: wrappedCtx.memory.activeSubTab || 'interventions',
-        preset: period !== 'all' ? period : undefined,
-        verificationStatus,
-      },
-      wrappedCtx
-    );
-    return run('get_intervention_ledger', { period, verificationStatus }, (d) => {
-      const sum = (d.summary || {}) as Record<string, unknown>;
-      return `Filtered Energy Intervention Ledger: ${String(
-        d.totalMatchingInterventions || 0
-      )} entries found (${String(sum.meterVerifiedAvoidedKWh ?? 0)} kWh meter-verified, ${String(
-        sum.simulatedEstimatedAvoidedKWh ?? 0
-      )} kWh simulated estimated).`;
-    });
-  }
-
-  // 5. Environmental & Solar Intelligence
-  if (
-    /\b(solar|pvgis|rooftop|photovoltaic|panel|generation estimate|solar potential|solar scenario)\b/.test(
-      lower
-    )
-  ) {
-    if (/\b(open|go to|navigate|switch to|show me)\b/.test(lower) && !/\b(estimate|how much|what is|generation|yield|capacity|summary|assessment)\b/.test(lower)) {
-      const subTab: VoiceEnvironmentalSolarSubTab = /\b(map|footprint)\b/.test(lower)
-        ? 'mapping'
-        : /\b(compar|demand)\b/.test(lower)
-        ? 'comparison'
-        : /\b(assumption|method)\b/.test(lower)
-        ? 'assumptions'
-        : 'solar-potential';
-      return run(
-        'navigate_roomwise',
-        { target: 'environmental-solar', subTab },
-        () => `Opened Environmental & Solar Intelligence (${subTab}).`
-      );
-    }
-    const scenario = /\b(conservative)\b/.test(lower)
-      ? 'conservative'
-      : /\b(high)\b/.test(lower)
-      ? 'high_theoretical'
-      : 'moderate';
-    return run('get_solar_assessment', { scenario }, (d) => {
-      const sum = (d.campusSolarSummary || {}) as Record<string, unknown>;
-      return `PVGIS planning estimate for DAV Model School rooftops: ${String(
-        sum.combinedCapacityKwp ?? 0
-      )} kWp across ${String(sum.selectedBuildingsCount ?? 5)} buildings, generating approximately ${String(
-        sum.annualGenerationKWh ?? 'unavailable'
-      )} kWh per year (planning estimate).`;
-    });
-  }
-
-  if (/\b(weather|aqi|air quality|outdoor temp|irradiance|environmental)\b/.test(lower)) {
-    if (/\b(open|go to|navigate|switch to)\b/.test(lower) && !/\b(what|how|current|aqi|temp|weather)\b/.test(lower)) {
-      return run(
-        'navigate_roomwise',
-        { target: 'environmental-solar', subTab: 'environmental' },
-        () => 'Opened Environmental & Solar Intelligence.'
-      );
-    }
-    return run('get_environmental_intelligence', { focus: 'all' }, (d) => {
-      const cur = (d.currentWeather || {}) as Record<string, unknown>;
-      const aqi = (d.airQuality || {}) as Record<string, unknown>;
-      return `Outdoor conditions at IIT Kharagpur: ${String(
-        cur.temperatureC ?? 'N/A'
-      )}°C, humidity ${String(cur.relativeHumidityPercent ?? 'N/A')}%, PM2.5 ${String(
-        aqi.pm25UgM3 ?? 'N/A'
-      )} µg/m³.`;
-    });
-  }
-
-  // 6. Campus Live (3D)
-  if (/\b(campus live|3d campus|live campus|3d replica)\b/.test(lower)) {
-    if (/\b(open|go to|navigate|switch to|show)\b/.test(lower) && !/\b(what|describe|blocks|layout|weather)\b/.test(lower)) {
-      return run('navigate_roomwise', { target: 'campus-live' }, () => 'Opened 3D Campus Live.');
-    }
-    return run('get_campus_live_info', {}, (d) => {
-      const sky = (d.weatherSync || {}) as Record<string, unknown>;
-      return `Campus Live renders the 3D replica of DAV Model School with G+3 Block, New Building, Old Building (with connecting path), Pre-Primary Block, and Multipurpose Hall, synced to ${String(
-        sky.condition || 'live weather'
-      )}.`;
-    });
-  }
-
-  // 7. Space Intelligence
-  if (/\b(space intelligence|space allocation|room allocation|reallocation|attendance)\b/.test(lower)) {
-    if (/\b(open|go to|navigate|switch to)\b/.test(lower) && !/\b(summary|recommend|proposal|history|status|how)\b/.test(lower)) {
-      return run(
-        'navigate_roomwise',
-        { target: 'space-intelligence' },
-        () => 'Opened Space Intelligence.'
-      );
-    }
-    if (/\b(recommend|proposal|suggestion)\b/.test(lower)) {
-      return run('get_space_allocation_recommendations', {}, (d) =>
-        `Space Intelligence has ${String(
-          (Array.isArray(d.proposals) ? d.proposals.length : d.count) ?? 0
-        )} room allocation recommendations available.`
-      );
-    }
-    if (/\b(history|past|approved)\b/.test(lower)) {
-      return run('get_space_allocation_history', {}, () => 'Retrieved Space Intelligence allocation history.');
-    }
-    return run('get_space_intelligence_summary', {}, (d) =>
-      `Space Intelligence summary retrieved across ${String(
-        d.totalRooms ?? ctx.rooms.length
-      )} campus classrooms.`
-    );
-  }
-
-  // 8. Admin Appliance Control / Batch Control / Campus Optimization / Settings Update
-  if (/\b(optimize campus|remediate all|fix all audit)\b/.test(lower)) {
-    return run('optimize_campus_energy', { scope: 'all' }, (d) =>
-      String(d.summary || 'Campus energy optimization completed.')
-    );
-  }
-
-  if (/\b(turn off|switch off|dim|set)\b/.test(lower) && /\b(all lights|all fans|building|campus|vacant)\b/.test(lower)) {
-    const scope = /\bvacant\b/.test(lower)
-      ? 'vacant_only'
-      : /\b(g\+3|new building|old building|pre-primary|multipurpose)\b/.test(lower)
-      ? 'building'
-      : 'campus';
-    const targetType = /\bfan/.test(lower) ? 'fan' : /\ball appliances\b/.test(lower) ? 'all' : 'lights';
-    const pctMatch = lower.match(/(\d+)\s*%/);
-    const outputPercent = /\boff\b/.test(lower) ? 0 : pctMatch ? Number(pctMatch[1]) : 50;
-    return run(
-      'control_building_or_campus_appliances',
-      { scope, targetType, mode: 'set', outputPercent },
-      (d) => String(d.summary || 'Batch appliance command executed.')
-    );
-  }
-
-  if (/\b(turn off|switch off|turn on|dim|set|restore auto)\b/.test(lower) && /\b(lights?|fans?|ac|air\s*condition(?:er|ing)?|projectors?|auto)\b/.test(lower)) {
-    const roomRes = resolveClassroomRobust(ctx.rooms, raw, wrappedCtx.memory);
-    const targetType = /\brestore auto\b|\bauto mode\b/.test(lower)
-      ? 'room_auto'
-      : /\bfan/.test(lower)
-      ? 'fans_group'
-      : /\bac\b/.test(lower)
-      ? 'ac_group'
-      : 'lights_group';
-    const mode = /\brestore auto\b|\bauto mode\b/.test(lower) ? 'restore_auto' : 'set';
-    const pctMatch = lower.match(/(\d+)\s*%/);
-    const outputPercent = /\boff\b/.test(lower) ? 0 : /\bon\b/.test(lower) ? 100 : pctMatch ? Number(pctMatch[1]) : 50;
-    return run(
-      'control_classroom_appliance',
-      {
-        roomQuery: roomRes.match?.roomCode || raw,
-        targetType,
-        mode,
-        outputPercent,
-      },
-      (d) => String(d.summary || 'Classroom appliance updated.')
-    );
-  }
-
-  // 9. Export CSV / Print Audit Report (confirmation-gated)
-  if (/\b(export csv|download csv|export analytics)\b/.test(lower)) {
-    return run('execute_app_action', { action: 'export_analytics_csv' }, (d) =>
-      String(d.summary || 'Exported CSV.')
-    );
-  }
-  if (/\b(print audit|print report)\b/.test(lower)) {
-    return run('execute_app_action', { action: 'print_audit_report' }, (d) =>
-      String(d.summary || 'Opened print audit report.')
-    );
-  }
-
-  // 10. Reports & BEE / Settings / Energy Audit / Energy History / Analytics / Digital Twin / Overview
-  if (/\b(report|bee|ecbc)\b/.test(lower)) {
-    if (/\b(open|go to|navigate|switch to)\b/.test(lower)) {
-      return run('navigate_roomwise', { target: 'reports' }, () => 'Opened Reports & BEE.');
-    }
-    return run('get_reports_and_bee_info', {}, (d) => String(d.certificationDisclosure));
-  }
-
-  if (/\b(setting|tariff|carbon factor|school hours|pir grace)\b/.test(lower)) {
-    if (/\b(change|update|set)\b/.test(lower) && /\btariff\b/.test(lower)) {
-      const m = lower.match(/(\d+(?:\.\d+)?)/);
-      return run(
-        'update_campus_settings',
-        { tariffPerKWhINR: m ? Number(m[1]) : 8.5 },
-        (d) => String(d.summary || 'Updated settings.')
-      );
-    }
-    if (/\b(open|go to|navigate|switch to)\b/.test(lower)) {
-      return run('navigate_roomwise', { target: 'settings' }, () => 'Opened Settings.');
-    }
-    return run('get_campus_settings', {}, (d) =>
-      `Campus tariff is ₹${String(d.tariffPerKWhINR)}/kWh, classroom target is ${String(
-        d.standardClassroomTargetLux
-      )} lux, and learning mode is ${String(d.learningMode)}.`
-    );
-  }
-
-  if (/\b(energy audit|audit finding|audit summary|waste alert|vacant room)\b/.test(lower)) {
-    if (/\b(open|go to|navigate|switch to)\b/.test(lower) && !/\b(summary|check|what|list|how many)\b/.test(lower)) {
-      return run('navigate_roomwise', { target: 'audit' }, () => 'Opened Energy Audit.');
-    }
-    if (/\bvacant\b/.test(lower)) {
-      return run('identify_vacant_classroom_consumption', {}, (d) =>
-        `${String(d.noMotionRoomsDrawingPowerCount ?? 0)} rooms with no recent PIR motion are currently drawing power.`
-      );
-    }
-    return run('generate_energy_audit_summary', {}, (d) =>
-      `Energy Audit reports ${String(d.openFindingsCount ?? 0)} open findings totaling ${String(
-        d.openWasteWatts ?? 0
-      )} watts of potential waste.`
-    );
-  }
-
-  if (/\b(energy history|historical|yesterday|last 7 days|this month|time of day|peak hour)\b/.test(lower)) {
-    if (/\b(open|go to|navigate|switch to)\b/.test(lower) && !/\b(how much|what|compare|peak|why)\b/.test(lower)) {
-      return run('navigate_roomwise', { target: 'history', subTab: 'consumption' }, () =>
-        'Opened Energy History.'
-      );
-    }
-    const period = /\byesterday\b/.test(lower)
-      ? 'yesterday'
-      : /\bthis month\b/.test(lower)
-      ? 'this_month'
-      : 'last_7_days';
-    return run('get_energy_consumption_history', { period }, (d) =>
-      `Historical consumption for ${period}: ${String(
-        (d.totals as Record<string, unknown> | undefined)?.actualKWh ?? d.totalActualKWh ?? 'calculated'
-      )} kWh.`
-    );
-  }
-
-  if (/\b(analytics|compare buildings|building comparison|savings estimate|highest consumer|top consumer)\b/.test(lower)) {
-    if (/\b(open|go to|navigate|switch to)\b/.test(lower) && !/\b(compare|top|highest|savings)\b/.test(lower)) {
-      return run('navigate_roomwise', { target: 'analytics' }, () => 'Opened Energy Analytics.');
-    }
-    if (/\b(compare building|building comparison)\b/.test(lower)) {
-      return run('compare_buildings', {}, () => 'Compared building energy consumption across all 5 campus blocks.');
-    }
-    if (/\b(top|highest)\b/.test(lower)) {
-      return run('rank_and_filter_classrooms', { sortBy: 'power_desc', limit: 3 }, () =>
-        'Ranked the highest power-consuming classrooms across the campus.'
-      );
-    }
-    return run('get_energy_savings_estimate', {}, (d) =>
-      `Estimated campus energy savings: ${String(d.savingsPercent ?? 0)}% relative to pre-retrofit reference.`
-    );
-  }
-
-  if (/\b(digital twin|floor map)\b/.test(lower)) {
-    return run('navigate_roomwise', { target: 'digital-twin' }, () => 'Opened Digital Twin.');
-  }
-
-  if (/\b(overview|dashboard|home)\b/.test(lower) && /\b(open|go to|navigate|switch to|show)\b/.test(lower)) {
-    return run('navigate_roomwise', { target: 'dashboard' }, () => 'Opened Overview dashboard.');
-  }
-
-  if (/\b(all classrooms|classrooms list|open classrooms|go to classrooms)\b/.test(lower)) {
-    return run('navigate_roomwise', { target: 'classrooms' }, () => 'Opened Classrooms.');
-  }
-
-  // 11. Classroom-specific navigation or telemetry/status (supports Roman numerals + spoken + pronouns!)
-  const hasPronounRoom = /\b(its|that room|this room|current room)\b/.test(lower);
-  const resolvedRoom = resolveClassroomRobust(ctx.rooms, hasPronounRoom ? 'that room' : raw, wrappedCtx.memory);
-  if (resolvedRoom.match) {
-    const room = resolvedRoom.match;
-    if (/\b(open|go to|show|navigate|inspect)\b/.test(lower) && !/\b(temp|temperature|humidity|co2|lux|power|watt|status|history)\b/.test(lower)) {
-      return run(
-        'navigate_roomwise',
-        { target: 'classroom', roomQuery: room.roomCode },
-        () => `Opened ${room.name} (${room.roomCode}).`
-      );
-    }
-    if (/\b(history|past|week|month|yesterday)\b/.test(lower)) {
-      return run(
-        'get_classroom_energy_history',
-        { roomQuery: room.roomCode, period: 'last_7_days' },
-        () => `Retrieved 7-day energy history for ${room.name} (${room.roomCode}).`
-      );
-    }
-    if (/\b(temp|temperature|humidity|co2|lux|daylight|sensor|telemetry)\b/.test(lower)) {
-      return run('get_classroom_telemetry', { roomQuery: room.roomCode }, (d) => {
-        const env = (d.environment || {}) as Record<string, unknown>;
-        return `${room.name} (${room.roomCode}) telemetry: ${String(
-          env.temperature ?? room.environment.temperature
-        )}°C, ${String(env.humidity ?? room.environment.humidity)}% humidity, ${String(
-          env.co2Ppm ?? room.environment.co2Ppm
-        )} ppm CO2, daylight ${String(
-          env.naturalDaylightLux ?? room.environment.naturalDaylightLux
-        )} lux.`;
-      });
-    }
-    return run('get_classroom_status', { roomQuery: room.roomCode }, (d) => {
-      const activity = getRoomActivityState(room);
-      return `${room.name} (${room.roomCode}) is drawing ${String(
-        d.currentPowerWatts ?? room.currentPowerWatts
-      )} watts (${activity}).`;
-    });
-  }
-
-  // 12. General campus overview fallback
-  if (/\b(campus|load|power|energy|summary|status|how much)\b/.test(lower)) {
-    return run('get_campus_overview', {}, (d) =>
-      `Campus load is ${String(d.totalCurrentPowerKW ?? formatCapacityKW(0))} kW across ${String(
-        d.totalClassrooms ?? ctx.rooms.length
-      )} classrooms, with ${String(d.occupiedClassrooms ?? 0)} active motion nodes.`
-    );
-  }
-
-  return {
-    ok: false,
-    intent: 'unmatched',
-    toolName: null,
-    spokenReply:
-      'I can navigate any ROOMWISE section, check classroom telemetry, review Environmental and Solar Intelligence, inspect the Energy Intervention Ledger, or run energy audits. What would you like to check?',
-    visualReply:
-      'Unrecognized command. Try asking about a classroom (e.g. Class X-B), Environmental & Solar Intelligence, Space Intelligence, Campus Live, or the Energy Intervention Ledger.',
-    data: null,
-    emittedMessages: emitted,
-  };
+  return interpretAndExecuteSemanticVoiceCommand(utterance, registry, ctx, options);
 }

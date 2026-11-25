@@ -41,8 +41,8 @@ import type {
   TimeOfDayProfileResponse,
 } from '../../types/history';
 import { getIstDateString, shiftIstDate } from '../../utils/historyDates';
-import { formatCapacityKW } from '../../utils/applianceUtils';
 import { AnimatedNumber } from '../common/MotionPrimitives';
+import { AcronymHint } from '../common/AcronymHint';
 import {
   ErrorBanner,
   LoadingState,
@@ -262,17 +262,12 @@ export const EnergyHistoryView: React.FC = () => {
 
   const maxTrendValue = useMemo(() => {
     if (!overview || overview.series.length === 0) return 1;
-    return Math.max(
-      0.5,
-      ...overview.series.map((p) =>
-        groupingMode === 'total' ? Math.max(p.actualKWh, p.baselineKWh) : p.actualKWh
-      )
-    );
-  }, [overview, groupingMode]);
+    return Math.max(0.5, ...overview.series.map((p) => p.actualKWh));
+  }, [overview]);
 
   const maxHourKW = useMemo(() => {
     if (!timeOfDay || timeOfDay.hours.length === 0) return 1;
-    return Math.max(0.5, ...timeOfDay.hours.map((h) => Math.max(h.avgKW, h.baselineAvgKW)));
+    return Math.max(0.5, ...timeOfDay.hours.map((h) => h.avgKW));
   }, [timeOfDay]);
 
   const handleExportHistoryCsv = () => {
@@ -284,8 +279,8 @@ export const EnergyHistoryView: React.FC = () => {
       'Room_Name',
       'Building',
       'Actual_kWh',
-      'Baseline_kWh',
-      'Saved_kWh',
+      'Rated_Max_kWh',
+      'Rated_Utilisation_Pct',
       'Lighting_kWh',
       'Fan_kWh',
       'Aux_kWh',
@@ -302,8 +297,8 @@ export const EnergyHistoryView: React.FC = () => {
       `"${c.name.replace(/"/g, '""')}"`,
       `"${c.building}"`,
       c.actualKWh,
-      c.baselineKWh,
-      c.savedKWh,
+      c.ratedMaxKWh,
+      c.ratedUtilizationPercent,
       c.lightingKWh,
       c.fanKWh,
       c.auxKWh,
@@ -417,7 +412,7 @@ export const EnergyHistoryView: React.FC = () => {
             className="inline-flex items-center gap-1 font-semibold text-emerald-800 hover:text-emerald-950 transition-colors whitespace-nowrap"
           >
             <Sigma className="w-3 h-3 shrink-0" aria-hidden="true" />
-            <span>RCEM Mathematical Model</span>
+            <span><AcronymHint term="RCEM" /> Mathematical Model</span>
           </button>
         </div>
       </div>
@@ -569,8 +564,8 @@ export const EnergyHistoryView: React.FC = () => {
                 </span>
                 <span className="text-xs font-bold text-neutral-500">kWh</span>
               </div>
-              <div className="mt-1.5 text-[11px] text-neutral-500 font-mono tabular-nums">
-                Est. bill ₹{overview.kpis.estimatedCostINR.toLocaleString('en-IN')} · {overview.kpis.savingsPercent}% below pre-retrofit ref
+              <div className="mt-1.5 text-[11px] text-neutral-600 font-mono tabular-nums">
+                Est. bill ₹{overview.kpis.estimatedCostINR.toLocaleString('en-IN')} · {overview.kpis.ratedUtilizationPercent}% of rated cap.
               </div>
             </div>
 
@@ -760,10 +755,10 @@ export const EnergyHistoryView: React.FC = () => {
                 <h2 className="text-sm sm:text-base font-bold text-neutral-900">
                   Consumption Trend ({overview.range.granularity === 'hourly' ? 'Hourly Profile (IST)' : 'Daily Consumption'})
                 </h2>
-                <p className="text-xs text-neutral-500 mt-0.5">
+                <p className="text-xs text-neutral-600 mt-0.5">
                   Actual integrated consumption (
-                  <MathText tex="\mathrm{kW}\cdot\mathrm{h}" ariaLabel="kilowatt-hours" />) vs
-                  Estimated Pre-Retrofit Reference ({formatCapacityKW((overview.preRetrofitReferenceMaxKW ?? overview.legacyBaselineMaxKW ?? 18.635) * 1000)} kW ref · {(overview.installedRatedMaxKW ?? 13.39).toFixed(2)} kW Installed Rated Max).
+                  <MathText tex="\mathrm{kW}\cdot\mathrm{h}" ariaLabel="kilowatt-hours" />) across monitored campus nodes (Installed Rated Max:{' '}
+                  {(overview.installedRatedMaxKW ?? 13.39).toFixed(2)} kW).
                 </p>
               </div>
 
@@ -808,26 +803,20 @@ export const EnergyHistoryView: React.FC = () => {
                     <span className="font-bold text-emerald-800">
                       Actual: {hoveredPoint.actualKWh} kWh
                     </span>
-                    <span className="text-neutral-500">Baseline: {hoveredPoint.baselineKWh} kWh</span>
+                    <span className="text-neutral-600">Rated Ceiling: {hoveredPoint.ratedMaxKWh} kWh</span>
                     <span className="text-neutral-700">Occ: {hoveredPoint.avgOccupancyPercent}%</span>
                     <span className="text-neutral-700">{hoveredPoint.avgTempC}°C</span>
                   </div>
                 </>
               ) : (
-                <div className="flex flex-wrap items-center justify-between w-full gap-2 text-[11px] text-neutral-500">
-                  <span>Hover or tap any bar to inspect exact kWh, baseline, occupancy, and temperature.</span>
+                <div className="flex flex-wrap items-center justify-between w-full gap-2 text-[11px] text-neutral-600">
+                  <span>Hover or tap any bar to inspect exact kWh, rated ceiling, occupancy, and temperature.</span>
                   <div className="flex flex-wrap items-center gap-3">
                     {groupingMode === 'total' && (
-                      <>
-                        <span className="inline-flex items-center gap-1.5">
-                          <span className="w-2.5 h-2.5 rounded-xs bg-emerald-600" />
-                          <span>Actual kWh</span>
-                        </span>
-                        <span className="inline-flex items-center gap-1.5">
-                          <span className="w-2.5 h-2.5 rounded-xs bg-neutral-200 border border-neutral-300" />
-                          <span>Baseline kWh</span>
-                        </span>
-                      </>
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-xs bg-emerald-600" />
+                        <span>Actual Consumption (kWh)</span>
+                      </span>
                     )}
                     {groupingMode === 'building' &&
                       Object.entries(BLOCK_COLORS).map(([blk, col]) => (
@@ -863,7 +852,6 @@ export const EnergyHistoryView: React.FC = () => {
                 >
                   {overview.series.map((pt, idx) => {
                     const actualH = Math.max(2, (pt.actualKWh / maxTrendValue) * 100);
-                    const baseH = Math.max(2, (pt.baselineKWh / maxTrendValue) * 100);
                     const isHovered = hoveredSeriesIdx === idx;
                     const showLabel =
                       overview.series.length <= 14 ||
@@ -881,22 +869,16 @@ export const EnergyHistoryView: React.FC = () => {
                       >
                         <div className="w-full h-full flex items-end justify-center gap-0.5 px-0.5">
                           {groupingMode === 'total' && (
-                            <>
-                              <div
-                                className="w-2 sm:w-2.5 max-w-[14px] bg-neutral-200/90 rounded-t transition-opacity"
-                                style={{ height: `${baseH}%` }}
-                              />
-                              <div
-                                className={`w-2.5 sm:w-3.5 max-w-[18px] rounded-t transition-all ${
-                                  pt.isPartial
-                                    ? 'bg-emerald-400 border border-dashed border-emerald-700'
-                                    : isHovered
-                                    ? 'bg-emerald-700'
-                                    : 'bg-emerald-600/90'
-                                }`}
-                                style={{ height: `${actualH}%` }}
-                              />
-                            </>
+                            <div
+                              className={`w-3 sm:w-4 max-w-[22px] rounded-t transition-all ${
+                                pt.isPartial
+                                  ? 'bg-emerald-400 border border-dashed border-emerald-700'
+                                  : isHovered
+                                  ? 'bg-emerald-700'
+                                  : 'bg-emerald-600/90'
+                              }`}
+                              style={{ height: `${actualH}%` }}
+                            />
                           )}
 
                           {groupingMode === 'building' && (
@@ -1151,10 +1133,10 @@ export const EnergyHistoryView: React.FC = () => {
                       {roomDetail ? `${roomDetail.room.roomCode} · ${roomDetail.room.name}` : 'Select a room'}
                     </h3>
                     {roomDetail && (
-                      <div className="text-[11px] text-neutral-500 tabular-nums">
+                      <div className="text-[11px] text-neutral-600 tabular-nums">
                         {roomDetail.room.building} · {roomDetail.room.floor} · Cap {roomDetail.room.capacity}
                         {typeof roomDetail.room.ratedPowerWatts === 'number'
-                          ? ` · Installed Max ${roomDetail.room.ratedPowerWatts}W · Pre-Retrofit Ref ${roomDetail.room.baselinePowerWatts}W`
+                          ? ` · Installed Rated Max ${roomDetail.room.ratedPowerWatts}W`
                           : ''}
                       </div>
                     )}
@@ -1344,7 +1326,7 @@ export const EnergyHistoryView: React.FC = () => {
                         : 'Post-Hours Window'}
                     </span>
                     <span className="font-mono tabular-nums">
-                      Avg: <strong>{hoveredHour.avgKW} kW</strong> (Base {hoveredHour.baselineAvgKW} kW) · Occ:{' '}
+                      Avg: <strong>{hoveredHour.avgKW} kW</strong> (Rated Max {hoveredHour.ratedMaxKW} kW) · Occ:{' '}
                       <strong>{hoveredHour.avgOccupancyPercent}%</strong>
                       {hoveredHour.flagReason ? ` · ${hoveredHour.flagReason}` : ''}
                     </span>

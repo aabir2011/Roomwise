@@ -217,6 +217,20 @@
   }
 }
 
+@keyframes rw-star-border-spin {
+  0% {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  100% {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+.rw-star-border-orbit {
+  animation: rw-star-border-spin 8.5s linear infinite;
+  will-change: transform;
+}
+
 .rw-flow-stream {
   stroke-dasharray: 6 12;
   animation: energy-flow-dash 2.2s linear infinite;
@@ -318,6 +332,7 @@
   .rw-ambient-orb-primary,
   .rw-ambient-orb-secondary,
   .rw-ambient-orb-tertiary,
+  .rw-star-border-orbit,
   .rw-flow-stream,
   .rw-voice-aura,
   .rw-forest-hero::before,
@@ -613,6 +628,11 @@
 }
 .gradient-rim-teal {
   background: linear-gradient(90deg, #0f766e 0%, #059669 100%);
+}
+
+.gradient-rim-static::before {
+  content: none !important;
+  animation: none !important;
 }
 
 .gradient-rim-emerald::before,

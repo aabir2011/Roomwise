@@ -34,6 +34,7 @@ import { useToast } from '../../context/ToastContext';
 import { getRoomActivityState, summarizeApplianceGroup } from '../../utils/applianceUtils';
 import { ApplianceControlDrawer } from './ApplianceControlDrawer';
 import { AnimatedNumber, ToggleSwitch } from '../common/MotionPrimitives';
+import { AcronymHint } from '../common/AcronymHint';
 import {
   backdropVariants,
   modalVariants,
@@ -327,20 +328,20 @@ export const RoomDetailModal: React.FC<Props> = ({ room: initialRoom, onClose })
             <div className="text-base sm:text-lg font-bold text-neutral-900 mt-0.5 font-mono">
               <AnimatedNumber value={room.environment.temperature} decimals={1} suffix="°C" />
             </div>
-            <div className="text-[10px] sm:text-[11px] text-neutral-500 mt-0.5 tabular-nums">
-              HI {room.environment.heatIndex}°C · RH {room.environment.humidity}%
+            <div className="text-[11px] text-neutral-600 mt-0.5 tabular-nums">
+              <AcronymHint term="HI" /> {room.environment.heatIndex}°C · RH {room.environment.humidity}%
             </div>
           </div>
 
           <div className="p-2.5 sm:p-3 rounded-xl bg-neutral-50/85 border border-neutral-200/75">
             <div className="flex items-center gap-1.5 text-[11px] font-medium text-neutral-500">
               <Users className="w-3.5 h-3.5 text-blue-500" />
-              <span>Room Activity (PIR)</span>
+              <span>Room Activity (<AcronymHint term="PIR" />)</span>
             </div>
             <div className="text-sm sm:text-base font-bold text-neutral-900 mt-0.5 leading-snug">
               {getRoomActivityState(room)}
             </div>
-            <div className="text-[10px] sm:text-[11px] text-neutral-500 mt-0.5 truncate tabular-nums">
+            <div className="text-[11px] text-neutral-600 mt-0.5 truncate tabular-nums">
               Max occupancy: {room.capacity} seats · Last motion {room.pir.lastMotionMinutesAgo}m ago
             </div>
           </div>
@@ -358,15 +359,16 @@ export const RoomDetailModal: React.FC<Props> = ({ room: initialRoom, onClose })
               const ratedW =
                 room.ratedPowerWatts ??
                 room.appliances.reduce((acc, a) => acc + a.powerRatingWatts, 0);
-              const curtailedW = Math.max(0, ratedW - room.currentPowerWatts);
+              const headroomW = Math.max(0, ratedW - room.currentPowerWatts);
+              const ratedPct = ratedW > 0 ? Math.round((room.currentPowerWatts / ratedW) * 100) : 0;
               return (
                 <div
-                  className="text-[10px] sm:text-[11px] text-emerald-700 mt-0.5 font-medium tabular-nums"
-                  title={`Estimated Pre-Retrofit Reference: ${room.baselinePowerWatts}W`}
+                  className="text-[11px] text-emerald-800 mt-0.5 font-medium tabular-nums"
+                  title={`Installed Rated Max: ${ratedW}W · Available Headroom: ${headroomW}W`}
                 >
-                  {curtailedW === 0
+                  {headroomW === 0
                     ? `100% of ${ratedW}W max`
-                    : `Saving ${curtailedW}W vs ${ratedW}W max`}
+                    : `${headroomW}W headroom · ${ratedPct}% of ${ratedW}W max`}
                 </div>
               );
             })()}
@@ -685,7 +687,9 @@ export const RoomDetailModal: React.FC<Props> = ({ room: initialRoom, onClose })
               </motion.div>
             )}
 
-            {activeTab === 'reasoning' && (
+            {activeTab === 'reasoning' && (() => {
+              const graceMinutes = room.calibration.learnedParameters.occupancyDecayMinutes;
+              return (
               <motion.div
                 key="reasoning"
                 variants={tabContentVariants}
@@ -698,7 +702,7 @@ export const RoomDetailModal: React.FC<Props> = ({ room: initialRoom, onClose })
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-xs font-bold text-neutral-900 uppercase tracking-wider flex items-center gap-1.5">
                       <Cpu className="w-4 h-4 text-emerald-600" />
-                      <span>Real-time Autonomous Decision Trace</span>
+                      <span>Deterministic Control &amp; Sensor Trace</span>
                     </h3>
                     <span className="text-[11px] text-neutral-500 font-mono tabular-nums">
                       Evaluation: {room.decision.timestamp}
@@ -709,7 +713,7 @@ export const RoomDetailModal: React.FC<Props> = ({ room: initialRoom, onClose })
                     <div className="p-3.5 rounded-xl bg-neutral-50 border border-neutral-200/75">
                       <div className="flex items-center gap-2 text-xs font-bold text-neutral-900">
                         <Lightbulb className="w-4 h-4 text-amber-500" />
-                        <span>Daylight Harvesting & Lighting Modulation</span>
+                        <span>Daylight Harvesting &amp; Lighting Modulation</span>
                       </div>
                       <div className="text-xs text-neutral-700 mt-1.5 pl-6 space-y-1">
                         <p>
@@ -727,7 +731,7 @@ export const RoomDetailModal: React.FC<Props> = ({ room: initialRoom, onClose })
                     <div className="p-3.5 rounded-xl bg-neutral-50 border border-neutral-200/75">
                       <div className="flex items-center gap-2 text-xs font-bold text-neutral-900">
                         <Thermometer className="w-4 h-4 text-blue-500" />
-                        <span>Adaptive Thermal Index & Fan Regulation</span>
+                        <span>Adaptive Thermal Index &amp; Fan Regulation</span>
                       </div>
                       <div className="text-xs text-neutral-700 mt-1.5 pl-6 space-y-1">
                         <p>
@@ -745,7 +749,7 @@ export const RoomDetailModal: React.FC<Props> = ({ room: initialRoom, onClose })
                     <div className="p-3.5 rounded-xl bg-neutral-50 border border-neutral-200/75">
                       <div className="flex items-center gap-2 text-xs font-bold text-neutral-900">
                         <Users className="w-4 h-4 text-emerald-600" />
-                        <span>PIR Presence & Stillness Decay Filter</span>
+                        <span>PIR Presence &amp; Stillness Decay Filter</span>
                       </div>
                       <div className="text-xs text-neutral-700 mt-1.5 pl-6 space-y-1">
                         <p>
@@ -753,15 +757,20 @@ export const RoomDetailModal: React.FC<Props> = ({ room: initialRoom, onClose })
                         </p>
                         <p className="text-neutral-600">
                           Inactivity window: {room.pir.lastMotionMinutesAgo}m (Grace period:{' '}
-                          {room.calibration.learnedParameters.occupancyDecayMinutes}m). Power remains
-                          sustained to protect examination periods.
+                          {graceMinutes}m).{' '}
+                          {isVacant
+                            ? hasManualOverride
+                              ? `Manual override holds ${room.currentPowerWatts}W active despite vacancy.`
+                              : 'Eco-shedding applied beyond grace window (0W).'
+                            : 'Power remains sustained to protect examination periods.'}
                         </p>
                       </div>
                     </div>
                   </div>
                 </div>
               </motion.div>
-            )}
+              );
+            })()}
 
             {activeTab === 'calibration' && (
               <motion.div
@@ -916,14 +925,14 @@ export const RoomDetailModal: React.FC<Props> = ({ room: initialRoom, onClose })
                           onChange={(e) => setMaxOccupancyInput(Number(e.target.value))}
                           className="mt-1 w-full px-3 py-1.5 glass-input rounded-lg font-mono text-xs tabular-nums focus:outline-none"
                         />
-                        <p className="text-[10px] text-neutral-400 mt-0.5">
+                        <p className="text-[11px] text-neutral-600 mt-0.5">
                           Used by Space Intelligence as the hard seating limit.
                         </p>
                       </div>
 
                       <div>
                         <label className="block font-medium text-neutral-700">
-                          Target Desk Lux (NBC 2016)
+                          Target Desk Lux (<AcronymHint term="NBC 2016" />)
                         </label>
                         <input
                           type="number"
@@ -1028,9 +1037,10 @@ export const RoomDetailModal: React.FC<Props> = ({ room: initialRoom, onClose })
             const ratedW =
               room.ratedPowerWatts ??
               room.appliances.reduce((acc, a) => acc + a.powerRatingWatts, 0);
+            const headroomW = Math.max(0, ratedW - room.currentPowerWatts);
             return (
-              <div className="text-[11px] truncate tabular-nums">
-                Tariff: ₹{settings.tariffPerKWhINR}/kWh (WBSEDCL) · Installed Max: {ratedW}W · Pre-Retrofit Ref: {room.baselinePowerWatts}W
+              <div className="text-[11px] text-neutral-600 truncate tabular-nums">
+                Tariff: ₹{settings.tariffPerKWhINR}/kWh (<AcronymHint term="WBSEDCL" />) · Installed Max: {ratedW}W · Available Headroom: {headroomW}W
               </div>
             );
           })()}

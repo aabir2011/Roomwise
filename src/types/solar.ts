@@ -438,7 +438,6 @@ export interface RoomwiseDemandBenchmark {
   annualizedEstimatedDemandKwh: number;
   annualizedEstimateDisclosure: string;
   installedRatedMaxKw: number;
-  preRetrofitReferenceKw: number;
   currentTariffINR: number;
   gridCarbonFactorKgPerKwh: number;
   monthlyObservedKwh: Record<number, number>;

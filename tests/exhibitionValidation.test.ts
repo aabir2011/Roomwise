@@ -27,6 +27,13 @@ import { evaluateLiveAuditFindings } from '../src/utils/auditEngine.ts';
 import { CAMPUS_BUILDINGS_SCHEMA, CAMPUS_LANDMARK_LABELS } from '../src/components/campuslive/campusLayoutSchema.ts';
 import { buildSchoolDayDemandProfile } from '../src/utils/demandProfile.ts';
 import {
+  computeCampusCanonicalSummary,
+  computeClassroomCanonicalMetrics,
+  computeHeatIndexCelsius,
+  computeIndoorNaturalDaylightLux,
+  computeOutdoorIlluminanceLux,
+} from '../src/utils/canonicalEnergy.ts';
+import {
   AUTHORITATIVE_CAMPUS_FEATURES,
   getCampusMeasurementById,
   m2ToFt2,
@@ -105,15 +112,15 @@ test('URL routing resolves all canonical workspace sections, aliases, QR routes,
   assert.equal(normalizePathname('//analytics///'), '/analytics');
 });
 
-test('25-node classroom dataset & appliance specifications maintain exact dimensional consistency', () => {
+test('25-node classroom dataset & canonical energy math maintain exact dimensional consistency', () => {
   assert.equal(INITIAL_CLASSROOMS.length, 25, 'Campus must contain exactly 25 monitored rooms');
   assert.equal(ROOM_APPLIANCE_SPECS.length, 25, 'Specs must exist for all 25 rooms');
 
   let sumRated = 0;
   let sumCurrent = 0;
-  let sumBaseline = 0;
   let sumDailyActualKWh = 0;
-  let sumDailyBaselineKWh = 0;
+  let sumDailyRatedCeilingKWh = 0;
+  const expandedRooms = [];
 
   for (const room of INITIAL_CLASSROOMS) {
     const spec = getRoomApplianceSpec(room.id);
@@ -125,35 +132,64 @@ test('25-node classroom dataset & appliance specifications maintain exact dimens
     const currentW = appliances.reduce((acc, a) => acc + a.currentPowerWatts, 0);
     assert.ok(currentW >= 0 && currentW <= ratedW, `${room.roomCode}: current power ${currentW}W must be within 0..${ratedW}W`);
 
+    const expandedRoom = { ...room, appliances, currentPowerWatts: currentW, ratedPowerWatts: ratedW };
+    expandedRooms.push(expandedRoom);
+
     const profile = getRoomOperatingProfile(room.type);
+    const metrics = computeClassroomCanonicalMetrics(expandedRoom, INITIAL_SCHOOL_SETTINGS);
+    assert.equal(metrics.ratedPowerWatts, ratedW);
     const dailyActual = Number(((currentW * profile.activeHoursPerSchoolDay) / 1000).toFixed(2));
-    const dailyBaseline = Number(
-      ((room.baselinePowerWatts * profile.activeHoursPerSchoolDay * profile.baselineDutyFactor) / 1000).toFixed(2)
-    );
+    assert.equal(metrics.dailyActualKWh, dailyActual);
+    assert.equal(metrics.availableHeadroomWatts, Math.max(0, ratedW - currentW));
 
     sumRated += ratedW;
     sumCurrent += currentW;
-    sumBaseline += room.baselinePowerWatts;
-    sumDailyActualKWh += dailyActual;
-    sumDailyBaselineKWh += dailyBaseline;
+    sumDailyActualKWh += metrics.dailyActualKWh;
+    sumDailyRatedCeilingKWh += metrics.dailyRatedCeilingKWh;
   }
 
   assert.equal(sumRated, TOTAL_CAMPUS_RATED_POWER_WATTS);
-  assert.ok(sumRated > 10000 && sumRated < 20000, `Installed rated capacity (${sumRated}W) should be physically realistic for 25 school rooms`);
-  assert.ok(sumBaseline >= sumRated, 'Pre-retrofit reference capacity should not be lower than post-retrofit LED/BLDC rated capacity');
+  assert.equal(sumRated, 13390, 'Total 25-node installed rated ceiling must equal 13,390 W (13.39 kW)');
   assert.ok(sumCurrent > 0 && sumCurrent < sumRated, 'Active draw should be strictly between 0W and rated max');
 
-  // Verify Dashboard, Analytics, DigitalTwin, and Reports share identical daily/monthly math
-  const dailySavedKWh = Math.max(0, sumDailyBaselineKWh - sumDailyActualKWh);
-  const dailyCostINR = Number((dailySavedKWh * INITIAL_SCHOOL_SETTINGS.tariffPerKWhINR).toFixed(2));
-  const dailyCO2Kg = Number((dailySavedKWh * INITIAL_SCHOOL_SETTINGS.gridCarbonFactorKgCO2PerKWh).toFixed(2));
-  const monthlySavedKWh = dailySavedKWh * SCHOOL_DAYS_PER_MONTH;
-
-  assert.ok(dailySavedKWh > 0);
-  assert.ok(Math.abs(dailyCostINR - dailySavedKWh * INITIAL_SCHOOL_SETTINGS.tariffPerKWhINR) <= 0.01);
-  assert.ok(Math.abs(dailyCO2Kg - dailySavedKWh * INITIAL_SCHOOL_SETTINGS.gridCarbonFactorKgCO2PerKWh) <= 0.01);
+  const summary = computeCampusCanonicalSummary(expandedRooms, INITIAL_SCHOOL_SETTINGS);
+  assert.equal(summary.totalRatedPowerWatts, sumRated);
+  assert.equal(summary.totalCurrentPowerWatts, sumCurrent);
+  assert.equal(summary.availableHeadroomWatts, sumRated - sumCurrent);
+  assert.equal(summary.dailyActualKWh, Number(sumDailyActualKWh.toFixed(2)));
+  assert.equal(summary.dailyRatedCeilingKWh, Number(sumDailyRatedCeilingKWh.toFixed(2)));
   assert.equal(SCHOOL_DAYS_PER_MONTH, 22);
-  assert.ok(monthlySavedKWh > dailySavedKWh * 20);
+  assert.equal(
+    summary.monthlyActualKWh,
+    Number((summary.dailyActualKWh * SCHOOL_DAYS_PER_MONTH).toFixed(1))
+  );
+  assert.ok(
+    Math.abs(summary.dailyCostINR - summary.dailyActualKWh * INITIAL_SCHOOL_SETTINGS.tariffPerKWhINR) <= 0.01
+  );
+  assert.ok(
+    Math.abs(summary.dailyEmissionsKgCO2 - summary.dailyActualKWh * INITIAL_SCHOOL_SETTINGS.gridCarbonFactorKgCO2PerKWh) <= 0.01
+  );
+});
+
+test('Physical daylight & heat-index coupling enforces 0 lx natural daylight at night and positive indoor illuminance by day', () => {
+  assert.equal(computeOutdoorIlluminanceLux(0, 20), 0);
+  assert.equal(computeOutdoorIlluminanceLux(2, 0), 0);
+  assert.equal(
+    computeIndoorNaturalDaylightLux({ ghiWm2: 0, cloudCoverPercent: 10, daylightPenetrationAlpha: 0.72 }),
+    0
+  );
+  assert.equal(
+    computeIndoorNaturalDaylightLux({ ghiWm2: 1.5, cloudCoverPercent: 0, daylightPenetrationAlpha: 0.85, floorMultiplier: 1.1 }),
+    0
+  );
+  const daytimeLux = computeIndoorNaturalDaylightLux({
+    ghiWm2: 650,
+    cloudCoverPercent: 20,
+    daylightPenetrationAlpha: 0.7,
+    floorMultiplier: 1,
+  });
+  assert.ok(daytimeLux >= 250 && daytimeLux <= 520, `Expected realistic daytime indoor lux, got ${daytimeLux}`);
+  assert.ok(computeHeatIndexCelsius(32, 72) >= 32);
 });
 
 test('Audit engine detects anomalies accurately on live appliance states without false positives on vacant 0W rooms', () => {
@@ -238,7 +274,7 @@ test('Overview demand profile tracks live IST school-day hour dynamically and ap
   // 08:45 IST (03:15 UTC) -> 08:30 slot active (not hardcoded 10:30)
   const morning = buildSchoolDayDemandProfile({
     liveActualKW: 5.12,
-    liveBaseKW: 16.4,
+    installedRatedMaxKW: 13.39,
     now: new Date('2026-11-23T03:15:00Z'),
   });
   assert.equal(morning.isWithinSchoolHours, true);
@@ -246,12 +282,13 @@ test('Overview demand profile tracks live IST school-day hour dynamically and ap
   assert.equal(morning.slots.length, 8);
   assert.equal(morning.slots.find((s) => s.hour === '08:30')?.isCurrent, true);
   assert.equal(morning.slots.find((s) => s.hour === '08:30')?.actual, 5.12);
+  assert.equal(morning.slots.find((s) => s.hour === '08:30')?.ratedMaxKW, 13.39);
   assert.equal(morning.slots.find((s) => s.hour === '10:30')?.isCurrent, false);
 
   // 13:50 IST (08:20 UTC) -> 13:30 slot active
   const afternoon = buildSchoolDayDemandProfile({
     liveActualKW: 4.95,
-    liveBaseKW: 16.4,
+    installedRatedMaxKW: 13.39,
     now: new Date('2026-11-23T08:20:00Z'),
   });
   assert.equal(afternoon.isWithinSchoolHours, true);
@@ -262,7 +299,7 @@ test('Overview demand profile tracks live IST school-day hour dynamically and ap
   // 19:37 IST (14:07 UTC) -> outside school hours, appends dedicated live bar at 19:37
   const evening = buildSchoolDayDemandProfile({
     liveActualKW: 4.5,
-    liveBaseKW: 16.4,
+    installedRatedMaxKW: 13.39,
     now: new Date('2026-11-23T14:07:00Z'),
   });
   assert.equal(evening.isWithinSchoolHours, false);
@@ -274,6 +311,7 @@ test('Overview demand profile tracks live IST school-day hour dynamically and ap
   assert.equal(liveBar.isAfterHoursLive, true);
   assert.equal(liveBar.hour, '19:37');
   assert.equal(liveBar.actual, 4.5);
+  assert.equal(liveBar.ratedMaxKW, 13.39);
 });
 
 function polygonArea2D(pts: Array<[number, number]>): number {

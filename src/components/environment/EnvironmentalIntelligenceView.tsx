@@ -38,6 +38,7 @@ import { useEnergy } from '../../context/EnergyContext';
 import { useAuth, authFetch } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { PageHeader, SectionHeading, SegmentedControl } from '../common/DesignSystem';
+import { AcronymHint } from '../common/AcronymHint';
 import { MathText } from '../common/MathText';
 import type { EnvironmentalOverviewResponse } from '../../types/environmental';
 
@@ -349,7 +350,7 @@ export const EnvironmentalIntelligenceView: React.FC<EnvironmentalIntelligenceVi
                     {fmtNum(data.current?.cloudCoverPercent, 0, '%')}
                   </div>
                   <div className="mt-1 text-xs text-neutral-600 tabular-nums">
-                    Cloud · GHI {fmtNum(data.current?.shortwaveRadiationWm2, 0, ' W/m²')}
+                    Cloud · <AcronymHint term="GHI" /> {fmtNum(data.current?.shortwaveRadiationWm2, 0, ' W/m²')}
                   </div>
                   <div className="mt-1.5 text-[10px] font-mono text-neutral-500">
                     Peak 24h GHI {fmtNum(data.solarRadiation?.todayPeakGhiWm2, 0, ' W/m²')}
@@ -366,7 +367,7 @@ export const EnvironmentalIntelligenceView: React.FC<EnvironmentalIntelligenceVi
                   </div>
                   <div className="mt-1 text-xs text-emerald-900 tabular-nums">
                     {data.indoorCampusSnapshot.avgIndoorHumidityPercent}% RH ·{' '}
-                    {data.indoorCampusSnapshot.avgNaturalDaylightLux} lx LDR
+                    {data.indoorCampusSnapshot.avgNaturalDaylightLux} lx <AcronymHint term="LDR" />
                   </div>
                   <div className="mt-1.5 text-[10px] font-mono text-neutral-500">
                     25 local room nodes · modelled telemetry
@@ -848,7 +849,7 @@ export const EnvironmentalIntelligenceView: React.FC<EnvironmentalIntelligenceVi
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div className="rounded-xl bg-neutral-50 border border-neutral-200/80 p-3.5">
                         <div className="text-[11px] font-semibold text-neutral-500">
-                          Peak 24h GHI (Horizontal)
+                          Peak 24h <AcronymHint term="GHI" /> (Horizontal)
                         </div>
                         <div className="text-xl font-bold font-mono text-neutral-900 mt-1 tabular-nums">
                           {fmtNum(data.solarRadiation.todayPeakGhiWm2, 0, ' W/m²')}
@@ -856,7 +857,7 @@ export const EnvironmentalIntelligenceView: React.FC<EnvironmentalIntelligenceVi
                       </div>
                       <div className="rounded-xl bg-emerald-50/50 border border-emerald-200/70 p-3.5">
                         <div className="text-[11px] font-semibold text-emerald-900">
-                          Peak 24h GTI ({data.solarRadiation.configuredTiltDeg}° / {data.solarRadiation.configuredAzimuthDeg}°)
+                          Peak 24h <AcronymHint term="GTI" /> ({data.solarRadiation.configuredTiltDeg}° / {data.solarRadiation.configuredAzimuthDeg}°)
                         </div>
                         <div className="text-xl font-bold font-mono text-emerald-950 mt-1 tabular-nums">
                           {fmtNum(data.solarRadiation.todayPeakGtiWm2, 0, ' W/m²')}
@@ -864,7 +865,7 @@ export const EnvironmentalIntelligenceView: React.FC<EnvironmentalIntelligenceVi
                       </div>
                       <div className="rounded-xl bg-neutral-50 border border-neutral-200/80 p-3.5">
                         <div className="text-[11px] font-semibold text-neutral-500">
-                          Peak 24h Direct Normal (DNI)
+                          Peak 24h Direct Normal (<AcronymHint term="DNI" />)
                         </div>
                         <div className="text-xl font-bold font-mono text-neutral-900 mt-1 tabular-nums">
                           {fmtNum(data.solarRadiation.todayPeakDniWm2, 0, ' W/m²')}
@@ -1033,16 +1034,16 @@ export const EnvironmentalIntelligenceView: React.FC<EnvironmentalIntelligenceVi
                   </strong>
                   Open-Meteo current conditions and forecasts come from numerical weather prediction
                   models interpolated to campus coordinates — not an on-campus weather station.
-                  Local ROOMWISE PIR, LDR, and DHT11 nodes remain solely authoritative for classroom
+                  Local ROOMWISE <AcronymHint term="PIR" />, <AcronymHint term="LDR" />, and <AcronymHint term="DHT11" /> nodes remain solely authoritative for classroom
                   appliances.
                 </div>
                 <div>
                   <strong className="text-neutral-900 block mb-0.5">
                     Air Quality &amp; Archive Reanalysis Scope
                   </strong>
-                  Air quality values originate from Copernicus CAMS global atmospheric modelling
+                  Air quality values originate from Copernicus <AcronymHint term="CAMS" /> global atmospheric modelling
                   (~40 km grid) and are displayed in μg/m³ without converting to an invented Indian
-                  CPCB AQI. Historical weather uses gridded ERA5 reanalysis (~5-day lag).
+                  CPCB AQI. Historical weather uses gridded <AcronymHint term="ERA5" /> reanalysis (~5-day lag).
                 </div>
               </div>
             </details>

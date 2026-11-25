@@ -42,6 +42,7 @@ import type {
 } from '../../types/interventionLedger';
 import { getIstDateString, shiftIstDate } from '../../utils/historyDates';
 import { EmptyState, ErrorBanner, LoadingState } from '../common/DesignSystem';
+import { AnimatedList, AnimatedTableRow } from '../reactbits';
 import { backdropVariants, drawerRightVariants } from '../../utils/motion';
 
 const PRESET_OPTIONS: Array<{ id: HistoryDatePreset; label: string }> = [
@@ -681,15 +682,18 @@ export const InterventionLedgerView: React.FC = () => {
                   <th className="py-2.5 px-3 w-8"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-200/60 text-xs">
-                {data.records.map((rec: InterventionRecord) => {
+              <AnimatedList
+                as="tbody"
+                items={data.records}
+                getKey={(rec: InterventionRecord) => rec.id}
+                className="divide-y divide-neutral-200/60 text-xs"
+                renderItem={(rec: InterventionRecord) => {
                   const isExcluded = rec.overlap.status === 'excluded_overlap_duplicate';
                   const isTrimmed = rec.overlap.status === 'counted_partial_overlap_trimmed';
                   const notCalc = !rec.energyCalculation.calculable;
 
                   return (
-                    <tr
-                      key={rec.id}
+                    <AnimatedTableRow
                       onClick={() => setSelectedEventId(rec.id)}
                       className="hover:bg-emerald-50/40 transition-colors cursor-pointer align-top"
                     >
@@ -806,10 +810,10 @@ export const InterventionLedgerView: React.FC = () => {
                       <td className="py-3 px-3 text-neutral-400">
                         <ChevronRight className="w-4 h-4" />
                       </td>
-                    </tr>
+                    </AnimatedTableRow>
                   );
-                })}
-              </tbody>
+                }}
+              />
             </table>
           </div>
         )}

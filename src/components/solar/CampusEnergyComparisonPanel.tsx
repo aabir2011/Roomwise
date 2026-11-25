@@ -17,6 +17,7 @@ import {
   YAxis,
 } from 'recharts';
 import { SectionHeading, TelemetryReadout } from '../common/DesignSystem';
+import { AcronymHint } from '../common/AcronymHint';
 import type { SolarWorkspaceResponse } from '../../types/solar';
 
 interface CampusEnergyComparisonPanelProps {
@@ -54,9 +55,9 @@ export const CampusEnergyComparisonPanel: React.FC<CampusEnergyComparisonPanelPr
             </div>
           </div>
           <div className="px-2.5 sm:px-3 py-2 rounded-xl bg-[#f6f8f7] border border-neutral-200/80 min-w-0">
-            <div className="text-[10px] text-neutral-500 whitespace-nowrap truncate">Pre-Retrofit</div>
-            <div className="font-mono font-bold text-neutral-700 whitespace-nowrap">
-              {roomwiseDemand.preRetrofitReferenceKw.toFixed(2)} kW
+            <div className="text-[10px] text-neutral-600 whitespace-nowrap truncate">Avg Daily</div>
+            <div className="font-mono font-bold text-neutral-800 whitespace-nowrap">
+              {roomwiseDemand.observedAvgDailyKwh.toFixed(1)} kWh/d
             </div>
           </div>
           <div className="px-2.5 sm:px-3 py-2 rounded-xl bg-emerald-50/60 border border-emerald-200/80 min-w-0">
@@ -99,7 +100,11 @@ export const CampusEnergyComparisonPanel: React.FC<CampusEnergyComparisonPanelPr
           value={Math.round(demandComparison.remainingAnnualDemandKwh).toLocaleString()}
           unit="kWh/yr import"
           detail={`${Math.round(demandComparison.surplusAnnualGenerationKwh).toLocaleString()} kWh/yr potential surplus`}
-          footnote="Surplus export requires WBSEDCL/WBERC approval"
+          footnote={
+            <>
+              Surplus export requires <AcronymHint term="WBSEDCL" />/<AcronymHint term="WBERC" /> approval
+            </>
+          }
         />
       </div>
 
@@ -107,7 +112,11 @@ export const CampusEnergyComparisonPanel: React.FC<CampusEnergyComparisonPanelPr
       <div className="rw-surface rounded-2xl p-4 sm:p-5 space-y-4">
         <SectionHeading
           title="Monthly Solar Potential vs 25-Node Demand"
-          subtitle="Compares PVGIS climatological monthly solar output across mapped roofs against 25-node modelled room demand."
+          subtitle={
+            <>
+              Compares <AcronymHint term="PVGIS" /> climatological monthly solar output across mapped roofs against 25-node modelled room demand.
+            </>
+          }
         />
 
         <div className="h-[290px] w-full">

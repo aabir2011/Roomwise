@@ -55,7 +55,7 @@ import {
 
 const DB_PATH = path.resolve(process.cwd(), '.roomwise-history.db');
 const RETENTION_DAYS = 92;
-const SEED_VERSION = 'v2-boundary-peak';
+const SEED_VERSION = 'v3-canonical-operational';
 
 interface IntervalRow {
   bucket_key: string;
@@ -81,12 +81,12 @@ interface IntervalRow {
   fan_watts: number;
   aux_watts: number;
   total_watts: number;
-  baseline_watts: number;
+  rated_watts: number;
   lights_kwh: number;
   fan_kwh: number;
   aux_kwh: number;
   actual_kwh: number;
-  baseline_kwh: number;
+  rated_kwh: number;
   interval_hours: number;
   source: 'seeded' | 'snapshot' | 'event';
 }
@@ -409,6 +409,10 @@ class EnergyHistoryService {
   private db: DatabaseSync;
   private isInitialized = false;
   private lastIntegrationMs = 0;
+  private cachedSelectIntervalStmt: ReturnType<DatabaseSync['prepare']> | null = null;
+  private cachedUpsertIntervalStmt: ReturnType<DatabaseSync['prepare']> | null = null;
+  private cachedInsertControlEventStmt: ReturnType<DatabaseSync['prepare']> | null = null;
+  private cachedStmtDb: DatabaseSync | null = null;
 
   constructor() {
     this.db = openResilientDatabase(DB_PATH, 'energy-history');
@@ -426,7 +430,20 @@ class EnergyHistoryService {
   }
 
   private createSchema(): void {
+    // Migrate legacy schema if baseline_watts exists without rated_watts
+    const existingCols = this.db
+      .prepare("PRAGMA table_info('history_intervals')")
+      .all() as Array<{ name: string }>;
+    if (existingCols.length > 0 && !existingCols.some((c) => c.name === 'rated_watts')) {
+      this.db.exec('DROP TABLE IF EXISTS history_intervals;');
+    }
+
     this.db.exec(`
+      PRAGMA journal_mode = WAL;
+      PRAGMA synchronous = NORMAL;
+      PRAGMA cache_size = -16000;
+      PRAGMA temp_store = MEMORY;
+
       CREATE TABLE IF NOT EXISTS history_intervals (
         bucket_key TEXT PRIMARY KEY,
         ts_ms INTEGER NOT NULL,
@@ -451,12 +468,12 @@ class EnergyHistoryService {
         fan_watts REAL NOT NULL,
         aux_watts REAL NOT NULL,
         total_watts REAL NOT NULL,
-        baseline_watts REAL NOT NULL,
+        rated_watts REAL NOT NULL,
         lights_kwh REAL NOT NULL,
         fan_kwh REAL NOT NULL,
         aux_kwh REAL NOT NULL,
         actual_kwh REAL NOT NULL,
-        baseline_kwh REAL NOT NULL,
+        rated_kwh REAL NOT NULL,
         interval_hours REAL NOT NULL,
         source TEXT NOT NULL
       );
@@ -467,6 +484,8 @@ class EnergyHistoryService {
         ON history_intervals (building, date_ist);
       CREATE INDEX IF NOT EXISTS idx_hist_room_ts
         ON history_intervals (room_id, ts_ms);
+      CREATE INDEX IF NOT EXISTS idx_hist_date_ts
+        ON history_intervals (date_ist, ts_ms, room_code);
 
       CREATE TABLE IF NOT EXISTS history_events (
         id TEXT PRIMARY KEY,
@@ -584,8 +603,8 @@ class EnergyHistoryService {
         room_id, room_code, building, floor, room_type,
         occupied_fraction, avg_occupants, temperature_c, humidity_pct,
         natural_lux, ambient_lux, lights_avg_pct, fan_avg_pct, manual_share,
-        lights_watts, fan_watts, aux_watts, total_watts, baseline_watts,
-        lights_kwh, fan_kwh, aux_kwh, actual_kwh, baseline_kwh,
+        lights_watts, fan_watts, aux_watts, total_watts, rated_watts,
+        lights_kwh, fan_kwh, aux_kwh, actual_kwh, rated_kwh,
         interval_hours, source
       ) VALUES (
         ?, ?, ?, ?, ?,
@@ -728,12 +747,15 @@ class EnergyHistoryService {
             );
 
             const roomAlpha = room.calibration.learnedParameters.daylightPenetrationAlpha;
-            const natLux = Math.round(
-              Math.max(
-                18,
-                Math.min(475, outdoorDaylight * (0.45 + roomAlpha * 1.45))
-              )
-            );
+            const natLux =
+              outdoorDaylight <= 0
+                ? 0
+                : Math.round(
+                    Math.max(
+                      5,
+                      Math.min(475, outdoorDaylight * (0.45 + roomAlpha * 1.45))
+                    )
+                  );
 
             let lightsPct = 0;
             let fanPct = 0;
@@ -803,23 +825,15 @@ class EnergyHistoryService {
             const auxWatts = Math.round(computeAuxWattsFromSpec(room.id, auxPct) * dutyFactor);
             const totalWatts = lightsWatts + fanWatts + auxWatts;
 
-            // Estimated pre-retrofit reference schedule model: conventional school runs fixtures on full schedule without daylight/vacancy shedding
-            const baselineFactor =
-              dayType === 'school' && scheduledSchoolFraction > 0
-                ? room.type === 'Auditorium'
-                  ? (occRatio > 0 ? 0.85 : 0.25) * scheduledSchoolFraction
-                  : 0.86 * scheduledSchoolFraction
-                : dayType === 'saturday' && scheduledSchoolFraction > 0
-                ? 0.52 * scheduledSchoolFraction
-                : 0.025; // minor unmonitored standby when closed
-            const baselineWatts = Math.round(room.baselinePowerWatts * baselineFactor);
+            // Canonical installed rated ceiling for this room & interval
+            const ratedWatts = computeRoomRatedPowerWatts(room.id);
 
             // Physics-strict Energy (kWh) = Power (kW) × Time (hours)
             const lightsKWh = round4((lightsWatts / 1000) * intervalHours);
             const fanKWh = round4((fanWatts / 1000) * intervalHours);
             const auxKWh = round4((auxWatts / 1000) * intervalHours);
             const actualKWh = round4(lightsKWh + fanKWh + auxKWh);
-            const baselineKWh = round4((baselineWatts / 1000) * intervalHours);
+            const ratedKWh = round4((ratedWatts / 1000) * intervalHours);
 
             const avgOccupants = round1(occRatio * room.capacity);
             const artificialLux = Math.round((lightsPct / 100) * 240);
@@ -851,12 +865,12 @@ class EnergyHistoryService {
               fanWatts,
               auxWatts,
               totalWatts,
-              baselineWatts,
+              ratedWatts,
               lightsKWh,
               fanKWh,
               auxKWh,
               actualKWh,
-              baselineKWh,
+              ratedKWh,
               intervalHours,
               'seeded'
             );
@@ -952,8 +966,8 @@ class EnergyHistoryService {
         room_id, room_code, building, floor, room_type,
         occupied_fraction, avg_occupants, temperature_c, humidity_pct,
         natural_lux, ambient_lux, lights_avg_pct, fan_avg_pct, manual_share,
-        lights_watts, fan_watts, aux_watts, total_watts, baseline_watts,
-        lights_kwh, fan_kwh, aux_kwh, actual_kwh, baseline_kwh,
+        lights_watts, fan_watts, aux_watts, total_watts, rated_watts,
+        lights_kwh, fan_kwh, aux_kwh, actual_kwh, rated_kwh,
         interval_hours, source
       ) VALUES (
         ?, ?, ?, ?, ?,
@@ -976,7 +990,7 @@ class EnergyHistoryService {
         fan_kwh = excluded.fan_kwh,
         aux_kwh = excluded.aux_kwh,
         actual_kwh = excluded.actual_kwh,
-        baseline_kwh = excluded.baseline_kwh,
+        rated_kwh = excluded.rated_kwh,
         interval_hours = excluded.interval_hours,
         source = excluded.source
     `);
@@ -1022,15 +1036,7 @@ class EnergyHistoryService {
         const bucketKey = `${dateIst}:${String(hourIst).padStart(2, '0')}:${base.id}`;
         const prev = selectExisting.get(bucketKey) as IntervalRow | undefined;
 
-        const isSchoolHour =
-          dayType === 'school'
-            ? hourIst >= 7 && hourIst <= 14
-            : dayType === 'saturday'
-            ? hourIst >= 8 && hourIst <= 12
-            : false;
-        const baselineW = isSchoolHour
-          ? Math.round(base.baselinePowerWatts * 0.86)
-          : Math.round(base.baselinePowerWatts * 0.025);
+        const ratedW = computeRoomRatedPowerWatts(base.id);
 
         if (prev) {
           const prevHrs = Math.max(0.01, prev.interval_hours);
@@ -1038,13 +1044,13 @@ class EnergyHistoryService {
           const addLightsKWh = round4((lightsW / 1000) * dtHours);
           const addFanKWh = round4((fanW / 1000) * dtHours);
           const addAuxKWh = round4((auxW / 1000) * dtHours);
-          const addBaseKWh = round4((baselineW / 1000) * dtHours);
+          const addRatedKWh = round4((ratedW / 1000) * dtHours);
 
           const nextLightsKWh = round4(prev.lights_kwh + addLightsKWh);
           const nextFanKWh = round4(prev.fan_kwh + addFanKWh);
           const nextAuxKWh = round4(prev.aux_kwh + addAuxKWh);
           const nextActualKWh = round4(nextLightsKWh + nextFanKWh + nextAuxKWh);
-          const nextBaselineKWh = round4(prev.baseline_kwh + addBaseKWh);
+          const nextRatedKWh = round4(prev.rated_kwh + addRatedKWh);
 
           upsertStmt.run(
             bucketKey,
@@ -1070,12 +1076,12 @@ class EnergyHistoryService {
             round1((nextFanKWh * 1000) / nextHrs),
             round1((nextAuxKWh * 1000) / nextHrs),
             round1((nextActualKWh * 1000) / nextHrs),
-            round1((nextBaselineKWh * 1000) / nextHrs),
+            ratedW,
             nextLightsKWh,
             nextFanKWh,
             nextAuxKWh,
             nextActualKWh,
-            nextBaselineKWh,
+            nextRatedKWh,
             nextHrs,
             source === 'event' ? 'event' : prev.source === 'event' ? 'event' : 'snapshot'
           );
@@ -1084,7 +1090,7 @@ class EnergyHistoryService {
           const fanKWh = round4((fanW / 1000) * dtHours);
           const auxKWh = round4((auxW / 1000) * dtHours);
           const actualKWh = round4(lightsKWh + fanKWh + auxKWh);
-          const baselineKWh = round4((baselineW / 1000) * dtHours);
+          const ratedKWh = round4((ratedW / 1000) * dtHours);
           const occFrac = r.isVacantDefault ? 0 : round3(base.currentOccupants / Math.max(1, base.capacity));
 
           upsertStmt.run(
@@ -1111,12 +1117,12 @@ class EnergyHistoryService {
             fanW,
             auxW,
             totalW,
-            baselineW,
+            ratedW,
             lightsKWh,
             fanKWh,
             auxKWh,
             actualKWh,
-            baselineKWh,
+            ratedKWh,
             round4(dtHours),
             source
           );
@@ -1130,6 +1136,206 @@ class EnergyHistoryService {
     } catch (err) {
       this.db.exec('ROLLBACK;');
       console.error('[history] recordLiveSnapshot error:', err);
+    }
+  }
+
+  private ensureControlStatements() {
+    if (this.cachedStmtDb !== this.db) {
+      this.cachedStmtDb = this.db;
+      this.cachedSelectIntervalStmt = this.db.prepare(
+        'SELECT * FROM history_intervals WHERE bucket_key = ?'
+      );
+      this.cachedUpsertIntervalStmt = this.db.prepare(`
+        INSERT INTO history_intervals (
+          bucket_key, ts_ms, date_ist, hour_ist, day_type,
+          room_id, room_code, building, floor, room_type,
+          occupied_fraction, avg_occupants, temperature_c, humidity_pct,
+          natural_lux, ambient_lux, lights_avg_pct, fan_avg_pct, manual_share,
+          lights_watts, fan_watts, aux_watts, total_watts, rated_watts,
+          lights_kwh, fan_kwh, aux_kwh, actual_kwh, rated_kwh,
+          interval_hours, source
+        ) VALUES (
+          ?, ?, ?, ?, ?,
+          ?, ?, ?, ?, ?,
+          ?, ?, ?, ?,
+          ?, ?, ?, ?, ?,
+          ?, ?, ?, ?, ?,
+          ?, ?, ?, ?, ?,
+          ?, ?
+        )
+        ON CONFLICT(bucket_key) DO UPDATE SET
+          lights_watts = excluded.lights_watts,
+          fan_watts = excluded.fan_watts,
+          aux_watts = excluded.aux_watts,
+          total_watts = excluded.total_watts,
+          lights_avg_pct = excluded.lights_avg_pct,
+          fan_avg_pct = excluded.fan_avg_pct,
+          manual_share = excluded.manual_share,
+          lights_kwh = excluded.lights_kwh,
+          fan_kwh = excluded.fan_kwh,
+          aux_kwh = excluded.aux_kwh,
+          actual_kwh = excluded.actual_kwh,
+          rated_kwh = excluded.rated_kwh,
+          interval_hours = excluded.interval_hours,
+          source = excluded.source
+      `);
+      this.cachedInsertControlEventStmt = this.db.prepare(`
+        INSERT INTO history_events (
+          id, ts_ms, date_ist, hour_ist, room_id, room_code, building,
+          event_type, summary, actor, before_watts, after_watts, delta_watts
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+    }
+    return {
+      selectExisting: this.cachedSelectIntervalStmt!,
+      upsertStmt: this.cachedUpsertIntervalStmt!,
+      insertControlEvent: this.cachedInsertControlEventStmt!,
+    };
+  }
+
+  /**
+   * Fast targeted single-room snapshot update for individual classroom control actions.
+   * Updates only the affected room's current hourly bucket (1 SELECT + 1 UPSERT instead of 25)
+   * without advancing the global 25-room elapsed energy integration clock.
+   */
+  public recordRoomControlSnapshot(
+    room: {
+      id?: string;
+      roomId?: string;
+      roomCode: string;
+      appliances: Appliance[];
+      isVacantDefault?: boolean;
+    },
+    nowMs: number = Date.now()
+  ): void {
+    if (!this.isInitialized) return;
+    const rid = room.id || room.roomId || '';
+    const base = roomById.get(rid);
+    if (!base) return;
+
+    const nowDate = new Date(nowMs);
+    const dateIst = getIstDateString(nowDate);
+    const { hour: hourIst } = getIstHourAndMinute(nowDate);
+    const hourStartMs = parseIstDateToUtcMs(dateIst) + hourIst * 3_600_000;
+    const dayType = classifyIstDay(dateIst, dateIst);
+
+    let lightsW = 0;
+    let fanW = 0;
+    let auxW = 0;
+    let lSum = 0;
+    let lCnt = 0;
+    let fSum = 0;
+    let fCnt = 0;
+    let manCnt = 0;
+
+    for (const a of room.appliances) {
+      if (a.type === 'lights') {
+        lightsW += a.currentPowerWatts;
+        lSum += a.outputPercent ?? 0;
+        lCnt++;
+      } else if (a.type === 'fan') {
+        fanW += a.currentPowerWatts;
+        fSum += a.outputPercent ?? 0;
+        fCnt++;
+      } else {
+        auxW += a.currentPowerWatts;
+      }
+      if (a.operatingMode === 'MANUAL' || a.isManualOverride) {
+        manCnt++;
+      }
+    }
+
+    const totalW = lightsW + fanW + auxW;
+    const lAvgPct = lCnt > 0 ? Math.round(lSum / lCnt) : 0;
+    const fAvgPct = fCnt > 0 ? Math.round(fSum / fCnt) : 0;
+    const manShare = room.appliances.length > 0 ? round3(manCnt / room.appliances.length) : 0;
+    const bucketKey = `${dateIst}:${String(hourIst).padStart(2, '0')}:${base.id}`;
+
+    const ratedW = computeRoomRatedPowerWatts(base.id);
+
+    try {
+      const { selectExisting, upsertStmt } = this.ensureControlStatements();
+      const prev = selectExisting.get(bucketKey) as IntervalRow | undefined;
+
+      if (prev) {
+        upsertStmt.run(
+          bucketKey,
+          prev.ts_ms,
+          dateIst,
+          hourIst,
+          dayType,
+          base.id,
+          base.roomCode,
+          base.building,
+          base.floor,
+          base.type,
+          prev.occupied_fraction,
+          prev.avg_occupants,
+          prev.temperature_c,
+          prev.humidity_pct,
+          prev.natural_lux,
+          prev.ambient_lux,
+          lAvgPct,
+          fAvgPct,
+          manShare,
+          lightsW,
+          fanW,
+          auxW,
+          totalW,
+          ratedW,
+          prev.lights_kwh,
+          prev.fan_kwh,
+          prev.aux_kwh,
+          prev.actual_kwh,
+          prev.rated_kwh,
+          prev.interval_hours,
+          'event'
+        );
+      } else {
+        const dtHours = 0.0002;
+        const lightsKWh = round4((lightsW / 1000) * dtHours);
+        const fanKWh = round4((fanW / 1000) * dtHours);
+        const auxKWh = round4((auxW / 1000) * dtHours);
+        const actualKWh = round4(lightsKWh + fanKWh + auxKWh);
+        const ratedKWh = round4((ratedW / 1000) * dtHours);
+        const occFrac = room.isVacantDefault ? 0 : round3(base.currentOccupants / Math.max(1, base.capacity));
+
+        upsertStmt.run(
+          bucketKey,
+          hourStartMs,
+          dateIst,
+          hourIst,
+          dayType,
+          base.id,
+          base.roomCode,
+          base.building,
+          base.floor,
+          base.type,
+          occFrac,
+          room.isVacantDefault ? 0 : base.currentOccupants,
+          base.environment.temperature,
+          base.environment.humidity,
+          base.environment.naturalDaylightLux,
+          base.environment.ambientLux,
+          lAvgPct,
+          fAvgPct,
+          manShare,
+          lightsW,
+          fanW,
+          auxW,
+          totalW,
+          ratedW,
+          lightsKWh,
+          fanKWh,
+          auxKWh,
+          actualKWh,
+          ratedKWh,
+          round4(dtHours),
+          'event'
+        );
+      }
+    } catch (err) {
+      console.error('[history] recordRoomControlSnapshot error:', err);
     }
   }
 
@@ -1153,28 +1359,22 @@ class EnergyHistoryService {
     const id = `ev-${tsMs}-${Math.random().toString(36).slice(2, 8)}`;
 
     try {
-      this.db
-        .prepare(`
-          INSERT INTO history_events (
-            id, ts_ms, date_ist, hour_ist, room_id, room_code, building,
-            event_type, summary, actor, before_watts, after_watts, delta_watts
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `)
-        .run(
-          id,
-          tsMs,
-          dateIst,
-          hour,
-          params.roomId,
-          params.roomCode,
-          params.building || base?.building || 'Campus',
-          params.eventType,
-          params.summary,
-          params.actor,
-          Math.round(params.beforeWatts),
-          Math.round(params.afterWatts),
-          Math.round(params.afterWatts - params.beforeWatts)
-        );
+      const { insertControlEvent } = this.ensureControlStatements();
+      insertControlEvent.run(
+        id,
+        tsMs,
+        dateIst,
+        hour,
+        params.roomId,
+        params.roomCode,
+        params.building || base?.building || 'Campus',
+        params.eventType,
+        params.summary,
+        params.actor,
+        Math.round(params.beforeWatts),
+        Math.round(params.afterWatts),
+        Math.round(params.afterWatts - params.beforeWatts)
+      );
     } catch (err) {
       console.error('[history] recordControlEvent error:', err);
     }
@@ -1309,6 +1509,140 @@ class EnergyHistoryService {
     return this.db.prepare(sql).all(...args) as unknown as IntervalRow[];
   }
 
+  /**
+   * Fast SQL-level daily summary for solar/demand benchmarks (avoids fetching
+   * 100k+ full interval rows and anomaly scans when only daily/monthly totals are needed).
+   */
+  public getDemandSummaryRange(startDate: string, endDate: string): {
+    daysCount: number;
+    daysWithData: number;
+    totalActualKWh: number;
+    averageDailyKWh: number;
+    monthlyObservedKwh: Record<number, number>;
+  } {
+    const dailyRows = this.db
+      .prepare(
+        `SELECT date_ist, SUM(actual_kwh) AS daily_kwh
+         FROM history_intervals
+         WHERE date_ist >= ? AND date_ist <= ?
+         GROUP BY date_ist
+         ORDER BY date_ist ASC`
+      )
+      .all(startDate, endDate) as Array<{ date_ist: string; daily_kwh: number }>;
+
+    const daysCount = Math.max(1, enumerateIstDates(startDate, endDate).length);
+    let totalActual = 0;
+    const monthlyObservedKwh: Record<number, number> = {};
+
+    for (const r of dailyRows) {
+      const dailyKwh = Number(r.daily_kwh || 0);
+      totalActual += dailyKwh;
+      const mNum = Number(String(r.date_ist || '').slice(5, 7));
+      if (mNum >= 1 && mNum <= 12) {
+        monthlyObservedKwh[mNum] = round1((monthlyObservedKwh[mNum] || 0) + round2(dailyKwh));
+      }
+    }
+
+    const daysWithData = Math.max(1, dailyRows.length);
+    return {
+      daysCount,
+      daysWithData: dailyRows.length,
+      totalActualKWh: round2(totalActual),
+      averageDailyKWh: dailyRows.length > 0 ? round2(totalActual / daysWithData) : 0,
+      monthlyObservedKwh,
+    };
+  }
+
+  /**
+   * Fast SQL-level average daily kWh lookup for environmental weather-energy outlook.
+   * Numerically identical to getOverview({ preset }).kpis.averageDailyKWh.
+   */
+  public getAverageDailyKWhQuick(preset: 'last_7_days' | 'last_30_days'): number {
+    const { startDate, endDate } = this.resolveRangeParams({ preset });
+    const row = this.db
+      .prepare(
+        `SELECT COUNT(*) AS days_with_data, COALESCE(SUM(daily_kwh), 0) AS total_kwh
+         FROM (
+           SELECT date_ist, SUM(actual_kwh) AS daily_kwh
+           FROM history_intervals
+           WHERE date_ist >= ? AND date_ist <= ?
+           GROUP BY date_ist
+         )`
+      )
+      .get(startDate, endDate) as { days_with_data: number; total_kwh: number } | undefined;
+
+    if (!row || !row.days_with_data || row.days_with_data <= 0) {
+      return 0;
+    }
+    return round2(Number(row.total_kwh || 0) / Number(row.days_with_data));
+  }
+
+  private fetchPreviousPeriodSummary(
+    startDate: string,
+    endDate: string,
+    building?: string | null,
+    roomId?: string | null
+  ): {
+    rowCount: number;
+    dayCount: number;
+    totalActual: number;
+    blockTotals: Map<string, number>;
+    roomTotals: Map<string, number>;
+  } {
+    const clauses = ['date_ist >= ?', 'date_ist <= ?'];
+    const args: (string | number)[] = [startDate, endDate];
+    if (building && building !== 'All') {
+      clauses.push('building = ?');
+      args.push(building);
+    }
+    if (roomId && roomId !== 'all') {
+      clauses.push('(room_id = ? OR room_code = ?)');
+      args.push(roomId, roomId);
+    }
+    const whereSql = clauses.join(' AND ');
+
+    const grouped = this.db
+      .prepare(
+        `SELECT room_id, building, SUM(actual_kwh) AS total_kwh, COUNT(*) AS row_cnt
+         FROM history_intervals
+         WHERE ${whereSql}
+         GROUP BY room_id, building`
+      )
+      .all(...args) as Array<{
+        room_id: string;
+        building: string;
+        total_kwh: number;
+        row_cnt: number;
+      }>;
+
+    let rowCount = 0;
+    let totalActual = 0;
+    const blockTotals = new Map<string, number>();
+    const roomTotals = new Map<string, number>();
+
+    for (const g of grouped) {
+      const kwh = Number(g.total_kwh || 0);
+      rowCount += Number(g.row_cnt || 0);
+      totalActual += kwh;
+      blockTotals.set(g.building, (blockTotals.get(g.building) || 0) + kwh);
+      roomTotals.set(g.room_id, (roomTotals.get(g.room_id) || 0) + kwh);
+    }
+
+    let dayCount = 0;
+    if (rowCount > 0) {
+      const dayRow = this.db
+        .prepare(
+          `SELECT COUNT(DISTINCT date_ist) AS day_cnt
+           FROM history_intervals
+           WHERE ${whereSql}`
+        )
+        .get(...args) as { day_cnt: number } | undefined;
+      dayCount = Number(dayRow?.day_cnt || 0);
+    }
+
+    return { rowCount, dayCount, totalActual, blockTotals, roomTotals };
+  }
+
   public getOverview(params: {
     preset?: string;
     startDate?: string;
@@ -1316,6 +1650,7 @@ class EnergyHistoryService {
     building?: string | null;
     roomId?: string | null;
     settings?: SchoolSettings;
+    preFetchedRows?: IntervalRow[];
   }): HistoryOverviewResponse {
     const activeSettings = params.settings || INITIAL_SCHOOL_SETTINGS;
     const resolved = this.resolveRangeParams(params);
@@ -1324,7 +1659,7 @@ class EnergyHistoryService {
     const buildingFilter = params.building && params.building !== 'All' ? params.building : null;
     const roomFilter = params.roomId && params.roomId !== 'all' ? params.roomId : null;
 
-    const rows = this.fetchIntervals(startDate, endDate, buildingFilter, roomFilter);
+    const rows = params.preFetchedRows ?? this.fetchIntervals(startDate, endDate, buildingFilter, roomFilter);
     const scopeRoomCount = roomFilter
       ? 1
       : buildingFilter
@@ -1332,7 +1667,7 @@ class EnergyHistoryService {
       : INITIAL_CLASSROOMS.length;
 
     const range = this.buildRangeMeta(preset, startDate, endDate, rows.length, scopeRoomCount);
-    const prevRows = this.fetchIntervals(
+    const prevSummary = this.fetchPreviousPeriodSummary(
       range.previousStartDate,
       range.previousEndDate,
       buildingFilter,
@@ -1340,7 +1675,7 @@ class EnergyHistoryService {
     );
 
     let totalActual = 0;
-    let totalBaseline = 0;
+    let totalRated = 0;
     let totalLights = 0;
     let totalFans = 0;
     let totalAux = 0;
@@ -1358,7 +1693,7 @@ class EnergyHistoryService {
         isSchoolHours?: boolean;
         isPartial?: boolean;
         actualKWh: number;
-        baselineKWh: number;
+        ratedMaxKWh: number;
         lightingKWh: number;
         fanKWh: number;
         auxKWh: number;
@@ -1371,7 +1706,7 @@ class EnergyHistoryService {
     >();
 
     // Daily buckets (always needed for Average Daily KWh & Lowest/Peak Day calculations)
-    const dailyTotalsMap = new Map<string, { actualKWh: number; baselineKWh: number; dayType: string }>();
+    const dailyTotalsMap = new Map<string, { actualKWh: number; ratedMaxKWh: number; dayType: string }>();
 
     // Block and classroom maps
     const blockAgg = new Map<
@@ -1380,7 +1715,7 @@ class EnergyHistoryService {
         building: string;
         rooms: Set<string>;
         actualKWh: number;
-        baselineKWh: number;
+        ratedMaxKWh: number;
         lightingKWh: number;
         fanKWh: number;
         auxKWh: number;
@@ -1399,7 +1734,7 @@ class EnergyHistoryService {
         floor: string;
         roomType: string;
         actualKWh: number;
-        baselineKWh: number;
+        ratedMaxKWh: number;
         lightingKWh: number;
         fanKWh: number;
         auxKWh: number;
@@ -1416,18 +1751,18 @@ class EnergyHistoryService {
 
     for (const row of rows) {
       totalActual += row.actual_kwh;
-      totalBaseline += row.baseline_kwh;
+      totalRated += row.rated_kwh;
       totalLights += row.lights_kwh;
       totalFans += row.fan_kwh;
       totalAux += row.aux_kwh;
 
       const dailyEntry = dailyTotalsMap.get(row.date_ist) || {
         actualKWh: 0,
-        baselineKWh: 0,
+        ratedMaxKWh: 0,
         dayType: row.day_type,
       };
       dailyEntry.actualKWh += row.actual_kwh;
-      dailyEntry.baselineKWh += row.baseline_kwh;
+      dailyEntry.ratedMaxKWh += row.rated_kwh;
       dailyTotalsMap.set(row.date_ist, dailyEntry);
 
       const sKey =
@@ -1462,7 +1797,7 @@ class EnergyHistoryService {
             row.date_ist === todayIst &&
             (range.granularity === 'daily' || row.hour_ist === currentHourIst),
           actualKWh: 0,
-          baselineKWh: 0,
+          ratedMaxKWh: 0,
           lightingKWh: 0,
           fanKWh: 0,
           auxKWh: 0,
@@ -1476,7 +1811,7 @@ class EnergyHistoryService {
       }
 
       sBucket.actualKWh += row.actual_kwh;
-      sBucket.baselineKWh += row.baseline_kwh;
+      sBucket.ratedMaxKWh += row.rated_kwh;
       sBucket.lightingKWh += row.lights_kwh;
       sBucket.fanKWh += row.fan_kwh;
       sBucket.auxKWh += row.aux_kwh;
@@ -1492,7 +1827,7 @@ class EnergyHistoryService {
         building: row.building,
         rooms: new Set<string>(),
         actualKWh: 0,
-        baselineKWh: 0,
+        ratedMaxKWh: 0,
         lightingKWh: 0,
         fanKWh: 0,
         auxKWh: 0,
@@ -1501,7 +1836,7 @@ class EnergyHistoryService {
       };
       bEntry.rooms.add(row.room_id);
       bEntry.actualKWh += row.actual_kwh;
-      bEntry.baselineKWh += row.baseline_kwh;
+      bEntry.ratedMaxKWh += row.rated_kwh;
       bEntry.lightingKWh += row.lights_kwh;
       bEntry.fanKWh += row.fan_kwh;
       bEntry.auxKWh += row.aux_kwh;
@@ -1518,7 +1853,7 @@ class EnergyHistoryService {
         floor: row.floor,
         roomType: row.room_type,
         actualKWh: 0,
-        baselineKWh: 0,
+        ratedMaxKWh: 0,
         lightingKWh: 0,
         fanKWh: 0,
         auxKWh: 0,
@@ -1529,7 +1864,7 @@ class EnergyHistoryService {
         count: 0,
       };
       rEntry.actualKWh += row.actual_kwh;
-      rEntry.baselineKWh += row.baseline_kwh;
+      rEntry.ratedMaxKWh += row.rated_kwh;
       rEntry.lightingKWh += row.lights_kwh;
       rEntry.fanKWh += row.fan_kwh;
       rEntry.auxKWh += row.aux_kwh;
@@ -1543,36 +1878,23 @@ class EnergyHistoryService {
       roomAgg.set(row.room_id, rEntry);
     }
 
-    // Preceding period totals by overall / block / room
-    let prevTotalActual = 0;
-    const prevBlockTotals = new Map<string, number>();
-    const prevRoomTotals = new Map<string, number>();
-    const prevDays = new Set<string>();
-    for (const pRow of prevRows) {
-      prevTotalActual += pRow.actual_kwh;
-      prevDays.add(pRow.date_ist);
-      prevBlockTotals.set(
-        pRow.building,
-        (prevBlockTotals.get(pRow.building) || 0) + pRow.actual_kwh
-      );
-      prevRoomTotals.set(
-        pRow.room_id,
-        (prevRoomTotals.get(pRow.room_id) || 0) + pRow.actual_kwh
-      );
-    }
+    // Preceding period totals by overall / block / room (computed via SQL GROUP BY)
+    const prevTotalActual = prevSummary.totalActual;
+    const prevBlockTotals = prevSummary.blockTotals;
+    const prevRoomTotals = prevSummary.roomTotals;
+    const prevDaysCount = prevSummary.dayCount;
 
     const totalActualRounded = round2(totalActual);
-    const totalBaselineRounded = round2(totalBaseline);
-    const totalSavedKWh = round2(Math.max(0, totalBaseline - totalActual));
-    const savingsPercent =
-      totalBaseline > 0 ? round1((totalSavedKWh / totalBaseline) * 100) : 0;
+    const ratedCapacityRounded = round2(totalRated);
+    const ratedUtilizationPercent =
+      totalRated > 0 ? round1((totalActual / totalRated) * 100) : 0;
     const daysWithData = Math.max(1, dailyTotalsMap.size);
     const averageDailyKWh = round2(totalActual / daysWithData);
 
-    const comparisonAvailable = prevRows.length > 0 && prevTotalActual > 0.01;
+    const comparisonAvailable = prevSummary.rowCount > 0 && prevTotalActual > 0.01;
     const prevTotalRounded = comparisonAvailable ? round2(prevTotalActual) : null;
     const prevAvgDaily =
-      comparisonAvailable && prevDays.size > 0 ? round2(prevTotalActual / prevDays.size) : null;
+      comparisonAvailable && prevDaysCount > 0 ? round2(prevTotalActual / prevDaysCount) : null;
     const changeKWh = comparisonAvailable ? round2(totalActual - prevTotalActual) : null;
     const changePercent =
       comparisonAvailable && prevTotalActual > 0
@@ -1601,8 +1923,7 @@ class EnergyHistoryService {
         isSchoolHours: b.isSchoolHours,
         isPartial: b.isPartial,
         actualKWh: round2(b.actualKWh),
-        baselineKWh: round2(b.baselineKWh),
-        savedKWh: round2(Math.max(0, b.baselineKWh - b.actualKWh)),
+        ratedMaxKWh: round2(b.ratedMaxKWh),
         lightingKWh: round2(b.lightingKWh),
         fanKWh: round2(b.fanKWh),
         auxKWh: round2(b.auxKWh),
@@ -1623,7 +1944,7 @@ class EnergyHistoryService {
           dateIst: pt.dateIst,
           hourIst: pt.hourIst,
           actualKWh: pt.actualKWh,
-          baselineKWh: pt.baselineKWh,
+          ratedMaxKWh: pt.ratedMaxKWh,
           occupancyPercent: pt.avgOccupancyPercent,
           note:
             pt.dayType && pt.dayType !== 'school'
@@ -1685,8 +2006,9 @@ class EnergyHistoryService {
           floor: r.floor,
           roomType: r.roomType,
           actualKWh: round2(r.actualKWh),
-          baselineKWh: round2(r.baselineKWh),
-          savedKWh: round2(Math.max(0, r.baselineKWh - r.actualKWh)),
+          ratedMaxKWh: round2(r.ratedMaxKWh),
+          ratedUtilizationPercent:
+            r.ratedMaxKWh > 0 ? round1((r.actualKWh / r.ratedMaxKWh) * 100) : 0,
           sharePercent: totalActual > 0 ? round1((r.actualKWh / totalActual) * 100) : 0,
           changeVsPrevPercent: pctChange,
           lightingKWh: round2(r.lightingKWh),
@@ -1713,8 +2035,9 @@ class EnergyHistoryService {
           building: b.building,
           roomCount: b.rooms.size,
           actualKWh: round2(b.actualKWh),
-          baselineKWh: round2(b.baselineKWh),
-          savedKWh: round2(Math.max(0, b.baselineKWh - b.actualKWh)),
+          ratedMaxKWh: round2(b.ratedMaxKWh),
+          ratedUtilizationPercent:
+            b.ratedMaxKWh > 0 ? round1((b.actualKWh / b.ratedMaxKWh) * 100) : 0,
           sharePercent: totalActual > 0 ? round1((b.actualKWh / totalActual) * 100) : 0,
           changeVsPrevPercent: pctChange,
           lightingKWh: round2(b.lightingKWh),
@@ -1737,14 +2060,11 @@ class EnergyHistoryService {
       gridCarbonFactorKgCO2PerKWh: carbon,
       kpis: {
         totalActualKWh: totalActualRounded,
-        totalBaselineKWh: totalBaselineRounded,
-        totalSavedKWh,
-        savingsPercent,
+        ratedCapacityKWh: ratedCapacityRounded,
+        ratedUtilizationPercent,
         averageDailyKWh,
         estimatedCostINR: round2(totalActual * tariff),
-        estimatedCostSavedINR: round2(totalSavedKWh * tariff),
         estimatedCo2Kg: round2(totalActual * carbon),
-        estimatedCo2AvoidedKg: round2(totalSavedKWh * carbon),
         lightingKWh: round2(totalLights),
         fanKWh: round2(totalFans),
         auxKWh: round2(totalAux),
@@ -1767,14 +2087,296 @@ class EnergyHistoryService {
       blocks: blocksRanked,
       classrooms: classroomsRanked,
       installedRatedMaxKW: round2(TOTAL_CAMPUS_RATED_POWER_WATTS / 1000),
-      preRetrofitReferenceMaxKW: Number(
-        (INITIAL_CLASSROOMS.reduce((acc, r) => acc + r.baselinePowerWatts, 0) / 1000).toFixed(3)
-      ),
-      legacyBaselineMaxKW: Number(
-        (INITIAL_CLASSROOMS.reduce((acc, r) => acc + r.baselinePowerWatts, 0) / 1000).toFixed(3)
-      ),
       dataClassification:
-        'Persisted SQLite Historical Integration (kW × hours across 25 ROOMWISE Simulated IoT Nodes)',
+        'Persisted SQLite Historical Integration (kW × hours across 25 ROOMWISE Modelled Nodes)',
+    };
+  }
+
+  public compareEnergyPeriods(params: {
+    periodAQuery: string;
+    periodBQuery: string;
+    building?: string | null;
+    roomId?: string | null;
+    settings?: SchoolSettings;
+    now?: Date;
+  }) {
+    const now = params.now || new Date();
+    const activeSettings = params.settings || INITIAL_SCHOOL_SETTINGS;
+    const todayIst = getIstDateString(now);
+    const { hour: currentHourIst, minute: currentMinuteIst } = getIstHourAndMinute(now);
+    const buildingFilter =
+      params.building && params.building !== 'All' ? params.building.trim() : null;
+    const roomObj = params.roomId
+      ? roomById.get(params.roomId) ||
+        INITIAL_CLASSROOMS.find(
+          (r) => r.roomCode.toLowerCase() === String(params.roomId).toLowerCase()
+        ) ||
+        null
+      : null;
+    const roomIdFilter = roomObj ? roomObj.id : null;
+
+    const rA = resolveNaturalDateQuery(params.periodAQuery || 'yesterday', now);
+    const rB = resolveNaturalDateQuery(params.periodBQuery || 'today', now);
+
+    const rowsA = this.fetchIntervals(rA.startDate, rA.endDate, buildingFilter, roomIdFilter);
+    const rowsB = this.fetchIntervals(rB.startDate, rB.endDate, buildingFilter, roomIdFilter);
+
+    const scopeRoomCount = roomIdFilter
+      ? 1
+      : buildingFilter
+      ? Math.max(1, INITIAL_CLASSROOMS.filter((r) => r.building === buildingFilter).length)
+      : INITIAL_CLASSROOMS.length;
+
+    const metaA = this.buildRangeMeta(rA.preset, rA.startDate, rA.endDate, rowsA.length, scopeRoomCount);
+    const metaB = this.buildRangeMeta(rB.preset, rB.startDate, rB.endDate, rowsB.length, scopeRoomCount);
+
+    const summarizeRows = (rows: IntervalRow[], meta: HistoryRangeMeta) => {
+      const tariff = activeSettings.tariffPerKWhINR;
+      let totalActual = 0;
+      let totalRated = 0;
+      const daySet = new Set<string>();
+      const completedDaySet = new Set<string>();
+      let completedDaysActual = 0;
+      const todayHourSet = new Set<number>();
+      let minHour = 24;
+      let maxHour = -1;
+
+      for (const row of rows) {
+        totalActual += row.actual_kwh;
+        totalRated += row.rated_kwh;
+        daySet.add(row.date_ist);
+        if (row.hour_ist < minHour) minHour = row.hour_ist;
+        if (row.hour_ist > maxHour) maxHour = row.hour_ist;
+        if (row.date_ist === todayIst) {
+          todayHourSet.add(row.hour_ist);
+        } else {
+          completedDaySet.add(row.date_ist);
+          completedDaysActual += row.actual_kwh;
+        }
+      }
+
+      const dataAvailable = rows.length > 0 && daySet.size > 0;
+      const daysWithData = daySet.size;
+      const completedDaysCount = completedDaySet.size;
+      const totalActualKWh = round2(totalActual);
+      const ratedCapacityKWh = round2(totalRated);
+      const ratedUtilizationPercent =
+        totalRated > 0 ? round1((totalActual / totalRated) * 100) : 0;
+
+      // Only compute averageDailyKWh across completed days when partial today is mixed in
+      const averageDailyKWh = !dataAvailable
+        ? null
+        : meta.isPartial && completedDaysCount > 0
+        ? round2(completedDaysActual / completedDaysCount)
+        : meta.isPartial
+        ? null
+        : round2(totalActual / Math.max(1, daysWithData));
+
+      const hoursCoveredCount =
+        meta.startDate === meta.endDate && meta.startDate === todayIst
+          ? todayHourSet.size
+          : daysWithData > 0 && meta.daysCount === 1
+          ? new Set(rows.map((r) => r.hour_ist)).size
+          : 0;
+
+      const elapsedTimeWindowIst =
+        meta.startDate === meta.endDate && dataAvailable && maxHour >= 0
+          ? meta.startDate === todayIst && meta.isPartial
+            ? `${String(Math.max(0, minHour)).padStart(2, '0')}:00–${String(currentHourIst).padStart(2, '0')}:${String(currentMinuteIst).padStart(2, '0')} IST (in-progress partial day)`
+            : `${String(Math.max(0, minHour)).padStart(2, '0')}:00–${String(maxHour).padStart(2, '0')}:59 IST (full day)`
+          : null;
+
+      return {
+        range: meta,
+        dataAvailable,
+        daysWithData,
+        completedDaysCount,
+        hoursCoveredCount,
+        elapsedTimeWindowIst,
+        totalActualKWh,
+        ratedCapacityKWh,
+        ratedUtilizationPercent,
+        averageDailyKWh,
+        estimatedCostINR: round2(totalActualKWh * tariff),
+      };
+    };
+
+    const ovA = !roomIdFilter
+      ? this.getOverview({
+          preset: rA.preset,
+          startDate: rA.startDate,
+          endDate: rA.endDate,
+          building: buildingFilter,
+          settings: activeSettings,
+        })
+      : null;
+    const ovB = !roomIdFilter
+      ? this.getOverview({
+          preset: rB.preset,
+          startDate: rB.startDate,
+          endDate: rB.endDate,
+          building: buildingFilter,
+          settings: activeSettings,
+        })
+      : null;
+
+    const sumA = summarizeRows(rowsA, metaA);
+    const sumB = summarizeRows(rowsB, metaB);
+
+    const hasPartialDay = metaA.isPartial || metaB.isPartial;
+    const bothHaveData = sumA.dataAvailable && sumB.dataAvailable;
+
+    // Compute equivalent elapsed IST time-of-day window when at least one period includes today's partial day
+    let equivalentWindowComparison: {
+      windowLabelIst: string;
+      cutoffHourIst: number;
+      cutoffMinuteIst: number;
+      hoursComparedCount: number;
+      periodAKWh: number;
+      periodBKWh: number;
+      periodADailyEquivalentKWh: number;
+      periodBDailyEquivalentKWh: number;
+      deltaKWh: number;
+      deltaPercent: number | null;
+      higherPeriod: 'periodA' | 'periodB' | 'equal';
+      note: string;
+    } | null = null;
+
+    if (hasPartialDay && bothHaveData) {
+      const todayRows = (metaA.includesToday ? rowsA : rowsB).filter((r) => r.date_ist === todayIst);
+      if (todayRows.length > 0) {
+        const cutoffHourIst = todayRows.reduce((mx, r) => Math.max(mx, r.hour_ist), 0);
+        const cutoffHourTodayRows = todayRows.filter((r) => r.hour_ist === cutoffHourIst);
+        const avgTodayCutoffFraction =
+          cutoffHourTodayRows.length > 0
+            ? Math.min(
+                1,
+                Math.max(
+                  0.02,
+                  cutoffHourTodayRows.reduce((s, r) => s + r.interval_hours, 0) /
+                    cutoffHourTodayRows.length
+                )
+              )
+            : Math.min(1, Math.max(0.02, currentMinuteIst / 60));
+
+        const computeWindowDailyMean = (rows: IntervalRow[]) => {
+          const perDaySums = new Map<string, number>();
+          for (const row of rows) {
+            if (row.hour_ist > cutoffHourIst) continue;
+            let kwh = row.actual_kwh;
+            if (row.hour_ist === cutoffHourIst && row.date_ist !== todayIst) {
+              const rowHrs = Math.max(0.05, row.interval_hours || 1);
+              const scale = Math.min(1, avgTodayCutoffFraction / rowHrs);
+              kwh *= scale;
+            }
+            perDaySums.set(row.date_ist, (perDaySums.get(row.date_ist) || 0) + kwh);
+          }
+          if (perDaySums.size === 0) return null;
+          let sum = 0;
+          for (const v of perDaySums.values()) sum += v;
+          return {
+            perDayMeanKWh: round2(sum / perDaySums.size),
+            totalWindowKWh: round2(sum),
+            daysIncluded: perDaySums.size,
+          };
+        };
+
+        const winA = computeWindowDailyMean(rowsA);
+        const winB = computeWindowDailyMean(rowsB);
+        if (winA && winB) {
+          const valA = winA.perDayMeanKWh;
+          const valB = winB.perDayMeanKWh;
+          // Delta = Period B minus Period A when Period B is newer (or explicit periodB - periodA & periodA - periodB clarity)
+          const deltaBvsA = round2(valB - valA);
+          const pctBvsA = valA > 0.01 ? round1(((valB - valA) / valA) * 100) : null;
+          const windowLabelIst = `00:00–${String(cutoffHourIst).padStart(2, '0')}:${String(
+            currentMinuteIst
+          ).padStart(2, '0')} IST`;
+          const higherPeriod: 'periodA' | 'periodB' | 'equal' =
+            Math.abs(valA - valB) < 0.005 ? 'equal' : valA > valB ? 'periodA' : 'periodB';
+
+          equivalentWindowComparison = {
+            windowLabelIst,
+            cutoffHourIst,
+            cutoffMinuteIst: currentMinuteIst,
+            hoursComparedCount: cutoffHourIst + 1,
+            periodAKWh: valA,
+            periodBKWh: valB,
+            periodADailyEquivalentKWh: valA,
+            periodBDailyEquivalentKWh: valB,
+            deltaKWh: deltaBvsA,
+            deltaPercent: pctBvsA,
+            higherPeriod,
+            note: `Equivalent elapsed-time comparison over ${windowLabelIst} (${cutoffHourIst + 1} hourly buckets; current hour scaled proportionally to ${Math.round(
+              avgTodayCutoffFraction * 100
+            )}% elapsed).`,
+          };
+        }
+      }
+    }
+
+    const dailyRateChangePercent =
+      !bothHaveData
+        ? null
+        : sumA.averageDailyKWh !== null &&
+          sumB.averageDailyKWh !== null &&
+          sumA.averageDailyKWh > 0.05
+        ? round1(((sumB.averageDailyKWh - sumA.averageDailyKWh) / sumA.averageDailyKWh) * 100)
+        : equivalentWindowComparison?.deltaPercent ?? null;
+
+    let partialDayDisclosure: string | null = null;
+    if (metaA.isPartial && !metaB.isPartial) {
+      partialDayDisclosure = `Period A (${rA.startDate}) is an in-progress partial day up to ${String(
+        currentHourIst
+      ).padStart(2, '0')}:${String(currentMinuteIst).padStart(
+        2,
+        '0'
+      )} IST, while Period B (${rB.startDate === rB.endDate ? rB.startDate : `${rB.startDate} to ${rB.endDate}`}) represents full completed day(s). Raw totals cannot be compared 1:1 without matching the elapsed time window.`;
+    } else if (!metaA.isPartial && metaB.isPartial) {
+      partialDayDisclosure = `Period B (${rB.startDate}) is an in-progress partial day up to ${String(
+        currentHourIst
+      ).padStart(2, '0')}:${String(currentMinuteIst).padStart(
+        2,
+        '0'
+      )} IST, while Period A (${rA.startDate === rA.endDate ? rA.startDate : `${rA.startDate} to ${rA.endDate}`}) represents full completed day(s). Raw totals cannot be compared 1:1 without matching the elapsed time window.`;
+    } else if (metaA.isPartial && metaB.isPartial) {
+      partialDayDisclosure = `Both periods include the in-progress partial day (${todayIst} up to ${String(
+        currentHourIst
+      ).padStart(2, '0')}:${String(currentMinuteIst).padStart(2, '0')} IST).`;
+    }
+
+    return {
+      ok: bothHaveData,
+      dataAvailable: bothHaveData,
+      scope: roomObj
+        ? `${roomObj.name} (${roomObj.roomCode})`
+        : buildingFilter || 'All Campus Blocks',
+      building: roomObj ? roomObj.building : buildingFilter,
+      roomId: roomObj?.id ?? null,
+      roomCode: roomObj?.roomCode ?? null,
+      roomName: roomObj?.name ?? null,
+      comparisonBasis: !bothHaveData
+        ? ('insufficient_data' as const)
+        : equivalentWindowComparison
+        ? ('equivalent_elapsed_window' as const)
+        : ('completed_periods' as const),
+      hasPartialDay,
+      partialDayDisclosure,
+      periodA: {
+        query: params.periodAQuery,
+        ...sumA,
+        ...(ovA ? { blocks: ovA.blocks } : {}),
+      },
+      periodB: {
+        query: params.periodBQuery,
+        ...sumB,
+        ...(ovB ? { blocks: ovB.blocks } : {}),
+      },
+      equivalentWindowComparison,
+      dailyRateChangePercent,
+      dataClassification: roomObj
+        ? 'Persisted SQLite Classroom Interval Integration (Modelled Node)'
+        : 'Persisted SQLite Historical Integration (kW × hours across 25 ROOMWISE Modelled Nodes)',
     };
   }
 
@@ -1805,7 +2407,7 @@ class EnergyHistoryService {
     );
 
     let actualKWh = 0;
-    let baselineKWh = 0;
+    let ratedMaxKWh = 0;
     let lightingKWh = 0;
     let fanKWh = 0;
     let auxKWh = 0;
@@ -1821,7 +2423,7 @@ class EnergyHistoryService {
         dateIst: string;
         hourIst?: number;
         actualKWh: number;
-        baselineKWh: number;
+        ratedMaxKWh: number;
         lightingKWh: number;
         fanKWh: number;
         auxKWh: number;
@@ -1836,7 +2438,7 @@ class EnergyHistoryService {
 
     for (const row of rows) {
       actualKWh += row.actual_kwh;
-      baselineKWh += row.baseline_kwh;
+      ratedMaxKWh += row.rated_kwh;
       lightingKWh += row.lights_kwh;
       fanKWh += row.fan_kwh;
       auxKWh += row.aux_kwh;
@@ -1859,7 +2461,7 @@ class EnergyHistoryService {
         dateIst: row.date_ist,
         hourIst: range.granularity === 'hourly' ? row.hour_ist : undefined,
         actualKWh: 0,
-        baselineKWh: 0,
+        ratedMaxKWh: 0,
         lightingKWh: 0,
         fanKWh: 0,
         auxKWh: 0,
@@ -1871,7 +2473,7 @@ class EnergyHistoryService {
         count: 0,
       };
       b.actualKWh += row.actual_kwh;
-      b.baselineKWh += row.baseline_kwh;
+      b.ratedMaxKWh += row.rated_kwh;
       b.lightingKWh += row.lights_kwh;
       b.fanKWh += row.fan_kwh;
       b.auxKWh += row.aux_kwh;
@@ -1925,7 +2527,7 @@ class EnergyHistoryService {
       dateIst: b.dateIst,
       hourIst: b.hourIst,
       actualKWh: round2(b.actualKWh),
-      baselineKWh: round2(b.baselineKWh),
+      ratedMaxKWh: round2(b.ratedMaxKWh),
       lightingKWh: round2(b.lightingKWh),
       fanKWh: round2(b.fanKWh),
       auxKWh: round2(b.auxKWh),
@@ -1951,13 +2553,13 @@ class EnergyHistoryService {
         type: room.type,
         capacity: room.capacity,
         ratedPowerWatts: computeRoomRatedPowerWatts(room.id),
-        baselinePowerWatts: room.baselinePowerWatts,
       },
       range,
       totals: {
         actualKWh: round2(actualKWh),
-        baselineKWh: round2(baselineKWh),
-        savedKWh: round2(Math.max(0, baselineKWh - actualKWh)),
+        ratedMaxKWh: round2(ratedMaxKWh),
+        ratedUtilizationPercent:
+          ratedMaxKWh > 0 ? round1((actualKWh / ratedMaxKWh) * 100) : 0,
         lightingKWh: round2(lightingKWh),
         fanKWh: round2(fanKWh),
         auxKWh: round2(auxKWh),
@@ -2003,7 +2605,7 @@ class EnergyHistoryService {
         string,
         {
           actualKWh: number;
-          baselineKWh: number;
+          ratedMaxKWh: number;
           lightingKWh: number;
           fanKWh: number;
           auxKWh: number;
@@ -2019,7 +2621,7 @@ class EnergyHistoryService {
       if (!hBucket) continue;
       const dEntry = hBucket.days.get(r.date_ist) || {
         actualKWh: 0,
-        baselineKWh: 0,
+        ratedMaxKWh: 0,
         lightingKWh: 0,
         fanKWh: 0,
         auxKWh: 0,
@@ -2028,7 +2630,7 @@ class EnergyHistoryService {
         count: 0,
       };
       dEntry.actualKWh += r.actual_kwh;
-      dEntry.baselineKWh += r.baseline_kwh;
+      dEntry.ratedMaxKWh += r.rated_kwh;
       dEntry.lightingKWh += r.lights_kwh;
       dEntry.fanKWh += r.fan_kwh;
       dEntry.auxKWh += r.aux_kwh;
@@ -2060,7 +2662,7 @@ class EnergyHistoryService {
     const rawHours: TimeOfDayHourBucket[] = byHour.map((hb) => {
       const sampleDays = hb.days.size;
       let sumKWh = 0;
-      let sumBaseKWh = 0;
+      let sumRatedKWh = 0;
       let sumLightKWh = 0;
       let sumFanKWh = 0;
       let sumAuxKWh = 0;
@@ -2069,7 +2671,7 @@ class EnergyHistoryService {
 
       for (const d of hb.days.values()) {
         sumKWh += d.actualKWh;
-        sumBaseKWh += d.baselineKWh;
+        sumRatedKWh += d.ratedMaxKWh;
         sumLightKWh += d.lightingKWh;
         sumFanKWh += d.fanKWh;
         sumAuxKWh += d.auxKWh;
@@ -2087,7 +2689,7 @@ class EnergyHistoryService {
         band,
         totalKWh: round2(sumKWh),
         avgKW: round2(sumKWh / denom),
-        baselineAvgKW: round2(sumBaseKWh / denom),
+        ratedMaxKW: round2(sumRatedKWh / denom),
         lightingAvgKW: round2(sumLightKWh / denom),
         fanAvgKW: round2(sumFanKWh / denom),
         auxAvgKW: round2(sumAuxKWh / denom),
@@ -2162,50 +2764,69 @@ class EnergyHistoryService {
     endDate?: string;
     building?: string | null;
     roomId?: string | null;
+    preFetchedTargetRows?: IntervalRow[];
+    preFetchedRange?: HistoryRangeMeta;
   }): HistoricalAnomaliesResponse {
     const resolved = this.resolveRangeParams(params);
     const { preset, startDate, endDate } = resolved;
     const buildingFilter = params.building && params.building !== 'All' ? params.building : null;
     const roomFilter = params.roomId && params.roomId !== 'all' ? params.roomId : null;
 
-    const targetRows = this.fetchIntervals(startDate, endDate, buildingFilter, roomFilter);
+    const targetRows =
+      params.preFetchedTargetRows ?? this.fetchIntervals(startDate, endDate, buildingFilter, roomFilter);
     const scopeRoomCount = roomFilter
       ? 1
       : buildingFilter
       ? Math.max(1, INITIAL_CLASSROOMS.filter((r) => r.building === buildingFilter).length)
       : INITIAL_CLASSROOMS.length;
-    const range = this.buildRangeMeta(preset, startDate, endDate, targetRows.length, scopeRoomCount);
+    const range =
+      params.preFetchedRange ??
+      this.buildRangeMeta(preset, startDate, endDate, targetRows.length, scopeRoomCount);
 
-    // Fetch trailing 21-day reference window before startDate for comparable baselines
+    // Compute trailing 21-day comparable operational reference directly in SQLite via GROUP BY
     const refStart = shiftIstDate(startDate, -21);
     const refEnd = shiftIstDate(startDate, -1);
-    const refRows = this.fetchIntervals(refStart, refEnd, buildingFilter, roomFilter);
-
-    // Build comparable baseline: (room_id, day_type) -> avg daily KWh, lights KWh, fan KWh
-    const refRoomDayTotals = new Map<string, { actualKWh: number; fanKWh: number; lightsKWh: number; dayType: string; roomId: string }>();
-    for (const r of refRows) {
-      const k = `${r.room_id}:${r.date_ist}`;
-      const cur = refRoomDayTotals.get(k) || {
-        actualKWh: 0,
-        fanKWh: 0,
-        lightsKWh: 0,
-        dayType: r.day_type,
-        roomId: r.room_id,
-      };
-      cur.actualKWh += r.actual_kwh;
-      cur.fanKWh += r.fan_kwh;
-      cur.lightsKWh += r.lights_kwh;
-      refRoomDayTotals.set(k, cur);
+    const refClauses = ['date_ist >= ?', 'date_ist <= ?'];
+    const refArgs: (string | number)[] = [refStart, refEnd];
+    if (buildingFilter) {
+      refClauses.push('building = ?');
+      refArgs.push(buildingFilter);
     }
+    if (roomFilter) {
+      refClauses.push('(room_id = ? OR room_code = ?)');
+      refArgs.push(roomFilter, roomFilter);
+    }
+    const refGrouped = this.db
+      .prepare(
+        `SELECT room_id, day_type,
+                SUM(daily_actual) AS sum_daily_kwh,
+                SUM(daily_fan) AS sum_fan_kwh,
+                COUNT(*) AS samples
+         FROM (
+           SELECT room_id, date_ist, day_type,
+                  SUM(actual_kwh) AS daily_actual,
+                  SUM(fan_kwh) AS daily_fan
+           FROM history_intervals
+           WHERE ${refClauses.join(' AND ')}
+           GROUP BY room_id, date_ist, day_type
+         )
+         GROUP BY room_id, day_type`
+      )
+      .all(...refArgs) as Array<{
+        room_id: string;
+        day_type: string;
+        sum_daily_kwh: number;
+        sum_fan_kwh: number;
+        samples: number;
+      }>;
 
-    const refRoomBaseline = new Map<string, { avgDailyKWh: number; avgFanKWh: number; samples: number }>();
-    for (const v of refRoomDayTotals.values()) {
-      const k = `${v.roomId}:${v.dayType}`;
-      const b = refRoomBaseline.get(k) || { avgDailyKWh: 0, avgFanKWh: 0, samples: 0 };
-      b.avgDailyKWh += v.actualKWh;
-      b.avgFanKWh += v.fanKWh;
-      b.samples += 1;
-      refRoomBaseline.set(k, b);
+    const refRoomComparable = new Map<string, { avgDailyKWh: number; avgFanKWh: number; samples: number }>();
+    for (const v of refGrouped) {
+      refRoomComparable.set(`${v.room_id}:${v.day_type}`, {
+        avgDailyKWh: Number(v.sum_daily_kwh || 0),
+        avgFanKWh: Number(v.sum_fan_kwh || 0),
+        samples: Number(v.samples || 0),
+      });
     }
 
     // Group target rows by (date, room) to evaluate daily + hourly patterns cleanly
@@ -2262,7 +2883,7 @@ class EnergyHistoryService {
           severity: postKWh >= 3.0 ? 'high' : postKWh >= 1.2 ? 'medium' : 'low',
           confidence: 'high',
           observedKWh: postKWh,
-          baselineKWh: expectedStandbyKWh,
+          comparableExpectedKWh: expectedStandbyKWh,
           deviationKWh: devKWh,
           deviationPercent: expectedStandbyKWh > 0 ? round1((devKWh / expectedStandbyKWh) * 100) : 100,
           title: `Post-hours power draw in ${sample.room_code} while vacant`,
@@ -2304,7 +2925,7 @@ class EnergyHistoryService {
           severity: obsKWh >= 1.5 ? 'medium' : 'low',
           confidence: 'high',
           observedKWh: obsKWh,
-          baselineKWh: 0,
+          comparableExpectedKWh: 0,
           deviationKWh: obsKWh,
           deviationPercent: 100,
           title: `Daytime lighting active during vacancy in ${sample.room_code}`,
@@ -2318,12 +2939,12 @@ class EnergyHistoryService {
         });
       }
 
-      // 3. Check Substantial Excess Consumption vs Room's Comparable Baseline (full days only unless severe)
+      // 3. Check Substantial Excess Consumption vs Room's Comparable Trailing Average (full days only unless severe)
       const isPartialToday = sample.date_ist === todayIst && intervals.length < 22;
       if (!isPartialToday) {
         const dayActual = intervals.reduce((s, i) => s + i.actual_kwh, 0);
         const dayFan = intervals.reduce((s, i) => s + i.fan_kwh, 0);
-        const refStats = refRoomBaseline.get(`${sample.room_id}:${sample.day_type}`);
+        const refStats = refRoomComparable.get(`${sample.room_id}:${sample.day_type}`);
         const comparableAvg =
           refStats && refStats.samples > 0
             ? refStats.avgDailyKWh / refStats.samples
@@ -2349,19 +2970,19 @@ class EnergyHistoryService {
             roomCode: sample.room_code,
             roomName,
             building: sample.building,
-            type: isFanDriven ? 'abnormal_fan_pattern' : 'excess_over_baseline',
+            type: isFanDriven ? 'abnormal_fan_pattern' : 'excess_over_comparable',
             severity: devPct >= 75 || devKWh >= 4.0 ? 'high' : 'medium',
             confidence: refStats && refStats.samples >= 3 ? 'high' : 'moderate',
             observedKWh: round2(dayActual),
-            baselineKWh: round2(comparableAvg),
+            comparableExpectedKWh: round2(comparableAvg),
             deviationKWh: round2(devKWh),
             deviationPercent: round1(devPct),
             title: isFanDriven
               ? `Elevated BLDC fan & thermal load in ${sample.room_code} (+${round1(devPct)}%)`
-              : `${sample.room_code} consumed +${round1(devPct)}% above comparable baseline`,
-            explanation: `${roomName} used ${round2(dayActual)} kWh on ${formatIstShortLabel(sample.date_ist)} vs its ${round2(comparableAvg)} kWh comparable ${sample.day_type}-day baseline (+${round2(devKWh)} kWh).`,
+              : `${sample.room_code} consumed +${round1(devPct)}% above comparable prior-day avg`,
+            explanation: `${roomName} used ${round2(dayActual)} kWh on ${formatIstShortLabel(sample.date_ist)} vs its ${round2(comparableAvg)} kWh trailing ${sample.day_type}-day average (+${round2(devKWh)} kWh).`,
             evidence: [
-              `Comparable baseline (${refStats?.samples ?? 0} prior ${sample.day_type} days): ${round2(comparableAvg)} kWh`,
+              `Comparable prior avg (${refStats?.samples ?? 0} prior ${sample.day_type} days): ${round2(comparableAvg)} kWh`,
               `Daily mean temperature: ${avgTemp}°C · Fan energy: ${round2(dayFan)} kWh`,
               `Peak interval occupancy: ${Math.round(Math.max(...intervals.map((i) => i.occupied_fraction)) * 100)}%`,
             ],
@@ -2406,43 +3027,74 @@ class EnergyHistoryService {
     roomId?: string | null;
   }): HistoricalInvestigationResponse {
     const resolved = this.resolveRangeParams(params);
+    const buildingFilter = params.building && params.building !== 'All' ? params.building : null;
+    const roomFilter = params.roomId && params.roomId !== 'all' ? params.roomId : null;
+
+    // Fetch target interval rows ONCE and reuse across overview, anomalies, and hourly attribution.
+    const targetRows = this.fetchIntervals(
+      resolved.startDate,
+      resolved.endDate,
+      buildingFilter,
+      roomFilter
+    );
+
     const overview = this.getOverview({
       preset: resolved.preset,
       startDate: resolved.startDate,
       endDate: resolved.endDate,
       building: params.building,
       roomId: params.roomId,
+      preFetchedRows: targetRows,
     });
 
-    // Compute trailing 14-day comparable-day-type baseline for honest attribution
+    // Compute trailing 14-day comparable-day-type average via a single SQL GROUP BY query
     const lookbackStart = shiftIstDate(resolved.startDate, -14);
     const lookbackEnd = shiftIstDate(resolved.startDate, -1);
-    const lookbackRows = this.fetchIntervals(
-      lookbackStart,
-      lookbackEnd,
-      params.building,
-      params.roomId
-    );
+    const lbClauses = ['date_ist >= ?', 'date_ist <= ?'];
+    const lbArgs: (string | number)[] = [lookbackStart, lookbackEnd];
+    if (buildingFilter) {
+      lbClauses.push('building = ?');
+      lbArgs.push(buildingFilter);
+    }
+    if (roomFilter) {
+      lbClauses.push('(room_id = ? OR room_code = ?)');
+      lbArgs.push(roomFilter, roomFilter);
+    }
+    const lookbackGrouped = this.db
+      .prepare(
+        `SELECT room_id, building, date_ist, day_type, SUM(actual_kwh) AS daily_kwh
+         FROM history_intervals
+         WHERE ${lbClauses.join(' AND ')}
+         GROUP BY room_id, building, date_ist, day_type`
+      )
+      .all(...lbArgs) as Array<{
+        room_id: string;
+        building: string;
+        date_ist: string;
+        day_type: string;
+        daily_kwh: number;
+      }>;
 
     const targetDates = enumerateIstDates(resolved.startDate, resolved.endDate);
     const targetIsWeekendOnly = targetDates.every(
       (d) => classifyIstDay(d, getIstDateString()) === 'sunday'
     );
-    const filteredLookback = lookbackRows.filter((r) =>
+    const filteredLookback = lookbackGrouped.filter((r) =>
       targetIsWeekendOnly ? r.day_type === 'sunday' : r.day_type !== 'sunday' && r.day_type !== 'holiday'
     );
-    const lookbackPool = filteredLookback.length > 0 ? filteredLookback : lookbackRows;
+    const lookbackPool = filteredLookback.length > 0 ? filteredLookback : lookbackGrouped;
 
     const lbDayTotals = new Map<string, number>();
     const lbBlockDayTotals = new Map<string, number>();
     const lbRoomDayTotals = new Map<string, number>();
 
     for (const r of lookbackPool) {
-      lbDayTotals.set(r.date_ist, (lbDayTotals.get(r.date_ist) || 0) + r.actual_kwh);
+      const kwh = Number(r.daily_kwh || 0);
+      lbDayTotals.set(r.date_ist, (lbDayTotals.get(r.date_ist) || 0) + kwh);
       const bk = `${r.building}:${r.date_ist}`;
-      lbBlockDayTotals.set(bk, (lbBlockDayTotals.get(bk) || 0) + r.actual_kwh);
+      lbBlockDayTotals.set(bk, (lbBlockDayTotals.get(bk) || 0) + kwh);
       const rk = `${r.room_id}:${r.date_ist}`;
-      lbRoomDayTotals.set(rk, (lbRoomDayTotals.get(rk) || 0) + r.actual_kwh);
+      lbRoomDayTotals.set(rk, (lbRoomDayTotals.get(rk) || 0) + kwh);
     }
 
     const avgPerDayCampus =
@@ -2506,12 +3158,6 @@ class EnergyHistoryService {
     }).sort((a, b) => (b.deltaKWh ?? b.actualKWh) - (a.deltaKWh ?? a.actualKWh))
       .slice(0, 8);
 
-    const targetRows = this.fetchIntervals(
-      resolved.startDate,
-      resolved.endDate,
-      params.building,
-      params.roomId
-    );
     const avgTempC =
       targetRows.length > 0
         ? round1(targetRows.reduce((s, r) => s + r.temperature_c, 0) / targetRows.length)
@@ -2531,6 +3177,8 @@ class EnergyHistoryService {
       endDate: resolved.endDate,
       building: params.building,
       roomId: params.roomId,
+      preFetchedTargetRows: targetRows,
+      preFetchedRange: overview.range,
     }).anomalies.slice(0, 8);
 
     const eventsRaw = this.db
@@ -2563,7 +3211,7 @@ class EnergyHistoryService {
     }
     if (lbDayTotals.size < 3) {
       uncertaintyNotes.push(
-        'Limited prior comparable days were available in the baseline window, lowering baseline precision.'
+        'Limited prior comparable days were available in the lookback window, lowering reference precision.'
       );
     }
     uncertaintyNotes.push(
@@ -2582,18 +3230,57 @@ class EnergyHistoryService {
     ];
     if (comparableCampusTotal !== null && deltaCampusKWh !== null && deltaCampusPct !== null) {
       narrativeParts.push(
-        `Compared to the ${lbDayTotals.size}-day comparable school baseline (${comparableCampusTotal} kWh), consumption was ${deltaCampusKWh >= 0 ? `+${deltaCampusKWh}` : deltaCampusKWh} kWh (${deltaCampusPct >= 0 ? `+${deltaCampusPct}` : deltaCampusPct}%).`
+        `Compared to the ${lbDayTotals.size}-day comparable prior-day average (${comparableCampusTotal} kWh), consumption was ${deltaCampusKWh >= 0 ? `+${deltaCampusKWh}` : deltaCampusKWh} kWh (${deltaCampusPct >= 0 ? `+${deltaCampusPct}` : deltaCampusPct}%).`
       );
     }
     if (topBlock) {
       narrativeParts.push(
-        `Largest block contributor: ${topBlock.building} (${topBlock.actualKWh} kWh${topBlock.deltaKWh !== null ? `, ${topBlock.deltaKWh >= 0 ? `+${topBlock.deltaKWh}` : topBlock.deltaKWh} kWh vs baseline` : ''}).`
+        `Largest block contributor: ${topBlock.building} (${topBlock.actualKWh} kWh${topBlock.deltaKWh !== null ? `, ${topBlock.deltaKWh >= 0 ? `+${topBlock.deltaKWh}` : topBlock.deltaKWh} kWh vs comparable avg` : ''}).`
       );
     }
     if (topRoom) {
       narrativeParts.push(
         `Top room variance: ${topRoom.roomCode} (${topRoom.name}) at ${topRoom.actualKWh} kWh${topRoom.postHoursKWh > 0.5 ? ` with ${topRoom.postHoursKWh} kWh post-hours draw` : ''}.`
       );
+    }
+
+    const targetDayTypes = Array.from(
+      new Set(targetDates.map((d) => classifyIstDay(d, getIstDateString())))
+    );
+    const hasData = targetRows.length > 0;
+    const isUnusuallyHigh =
+      hasData &&
+      deltaCampusPct !== null &&
+      deltaCampusPct >= 10 &&
+      (deltaCampusKWh ?? 0) > 0.15;
+
+    let comparisonVerdict: NonNullable<HistoricalInvestigationResponse['dayContext']>['comparisonVerdict'] =
+      'insufficient_reference';
+    if (!hasData) {
+      comparisonVerdict = 'no_data';
+    } else if (targetIsWeekendOnly && (deltaCampusPct === null || deltaCampusPct < 15)) {
+      comparisonVerdict = 'weekend_or_holiday_low';
+    } else if (deltaCampusPct === null) {
+      comparisonVerdict = 'insufficient_reference';
+    } else if (isUnusuallyHigh) {
+      comparisonVerdict = 'elevated';
+    } else if (deltaCampusPct <= -10) {
+      comparisonVerdict = 'below_typical';
+    } else {
+      comparisonVerdict = 'within_normal_range';
+    }
+
+    const hourTotals = new Map<number, number>();
+    for (const r of targetRows) {
+      hourTotals.set(r.hour_ist, (hourTotals.get(r.hour_ist) || 0) + r.actual_kwh);
+    }
+    let peakHour: number | null = null;
+    let peakHourKWh: number | null = null;
+    for (const [h, kwh] of hourTotals.entries()) {
+      if (peakHourKWh === null || kwh > peakHourKWh) {
+        peakHour = h;
+        peakHourKWh = round2(kwh);
+      }
     }
 
     return {
@@ -2603,7 +3290,7 @@ class EnergyHistoryService {
         startDate: resolved.startDate,
         endDate: resolved.endDate,
         actualKWh: overview.kpis.totalActualKWh,
-        expectedSchoolBaselineKWh: overview.kpis.totalBaselineKWh,
+        ratedMaxKWh: overview.kpis.ratedCapacityKWh,
         comparableHistoricalAvgKWh: comparableCampusTotal,
         deltaVsComparableKWh: deltaCampusKWh,
         deltaVsComparablePercent: deltaCampusPct,
@@ -2624,6 +3311,17 @@ class EnergyHistoryService {
       events,
       narrativeSummary: narrativeParts.join(' '),
       uncertaintyNotes,
+      dayContext: {
+        targetDayTypes,
+        isWeekendOrHolidayOnly: targetIsWeekendOnly,
+        comparableSampleDays: lbDayTotals.size,
+        recordedIntervals: targetRows.length,
+        hasData,
+        isUnusuallyHigh,
+        comparisonVerdict,
+        peakHourLabel: peakHour !== null ? `${String(peakHour).padStart(2, '0')}:00 IST` : null,
+        peakHourKWh,
+      },
     };
   }
 }
@@ -2632,11 +3330,12 @@ export function resolveNaturalDateQuery(
   rawQuery: string,
   now: Date = new Date()
 ): { preset: HistoryDatePreset; startDate: string; endDate: string } {
-  const q = rawQuery.toLowerCase().trim();
+  const qRaw = rawQuery.toLowerCase().trim();
+  const q = qRaw.replace(/_/g, ' ').replace(/\s+/g, ' ');
   const today = getIstDateString(now);
 
   // Explicit ISO date (YYYY-MM-DD)
-  const isoMatches = q.match(/\b(\d{4}-\d{2}-\d{2})\b/g);
+  const isoMatches = qRaw.match(/\b(\d{4}-\d{2}-\d{2})\b/g);
   if (isoMatches && isoMatches.length >= 2 && isValidIstDate(isoMatches[0]) && isValidIstDate(isoMatches[1])) {
     const a = isoMatches[0];
     const b = isoMatches[1];
@@ -2651,13 +3350,22 @@ export function resolveNaturalDateQuery(
   if (q === 'today' || q.includes('today') || q.includes('so far')) {
     return { preset: 'today', startDate: today, endDate: today };
   }
+  if (
+    q === 'day before yesterday' ||
+    q.includes('day before yesterday') ||
+    q.includes('2 days ago') ||
+    q.includes('two days ago')
+  ) {
+    const d = shiftIstDate(today, -2);
+    return { preset: 'custom', startDate: d, endDate: d };
+  }
+  if (q.includes('3 days ago') || q.includes('three days ago')) {
+    const d = shiftIstDate(today, -3);
+    return { preset: 'custom', startDate: d, endDate: d };
+  }
   if (q === 'yesterday' || q.includes('yesterday')) {
     const y = shiftIstDate(today, -1);
     return { preset: 'yesterday', startDate: y, endDate: y };
-  }
-  if (q.includes('day before yesterday') || q.includes('2 days ago')) {
-    const d = shiftIstDate(today, -2);
-    return { preset: 'custom', startDate: d, endDate: d };
   }
   if (q.includes('previous month') || q.includes('last month')) {
     return { preset: 'previous_month', ...resolveHistoryPresetRange('previous_month', undefined, undefined, now) };

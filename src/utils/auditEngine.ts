@@ -191,7 +191,7 @@ export function evaluateLiveAuditFindings(
         monthlyCostWasteINR,
         remediationAction:
           acWatts >= 1200
-            ? `Trim AC setpoint/shading buffer and balance BLDC airflow (${wasteWatts}W estimated curtailment).`
+            ? `Trim AC setpoint/shading buffer and balance BLDC airflow (${wasteWatts}W estimated load reduction).`
             : `Restore fan sectors to closed-loop AUTO (${targetFanPct}% adaptive speed).`,
         isResolved: resolved,
         detectedAt: 'Live Telemetry Sync',

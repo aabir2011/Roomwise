@@ -35,6 +35,7 @@ export interface CampusSceneCallbacks {
   onSelectBuilding?: (building: BuildingName) => void;
   onHoverRoom: (roomId: string | null) => void;
   onProjectLabels?: (positions: ProjectedLabelPos[]) => void;
+  onFrameRendered?: () => void;
   onWebGLContextLost?: () => void;
 }
 
@@ -152,6 +153,7 @@ export class CampusLiveScene {
       antialias: !this.isSoftwareGl,
       powerPreference: 'high-performance',
       alpha: false,
+      preserveDrawingBuffer: true,
     });
     this.renderer.setSize(width, height);
     this.renderer.setPixelRatio(this.isSoftwareGl ? 1 : Math.min(window.devicePixelRatio || 1, 2));
@@ -258,6 +260,10 @@ export class CampusLiveScene {
 
   public isSoftwareRenderer(): boolean {
     return this.isSoftwareGl;
+  }
+
+  public getCanvas(): HTMLCanvasElement {
+    return this.renderer.domElement;
   }
 
   private initRainLayer(): void {
@@ -733,6 +739,7 @@ export class CampusLiveScene {
   private renderOnce(): void {
     if (this.disposed) return;
     this.renderer.render(this.scene, this.camera);
+    this.callbacks.onFrameRendered?.();
     this.projectLandmarkLabels();
   }
 
@@ -1156,6 +1163,7 @@ export class CampusLiveScene {
     }
 
     this.renderer.render(this.scene, this.camera);
+    this.callbacks.onFrameRendered?.();
     this.projectLandmarkLabels();
 
     if (needsMoreFrames) {

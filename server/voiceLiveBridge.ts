@@ -7,13 +7,13 @@ import type { IncomingMessage } from 'node:http';
 import type { Server as HttpServer } from 'node:http';
 import { WebSocketServer, WebSocket } from 'ws';
 import {
-  GoogleGenAI,
   Modality,
   Type,
   type FunctionDeclaration,
   type LiveServerMessage,
   type Session,
 } from '@google/genai';
+import { getSharedGeminiClient } from './geminiClient.ts';
 import type { Appliance, AuditFinding, Classroom, SchoolSettings } from '../src/types/energy.ts';
 import {
   INITIAL_CLASSROOMS,
@@ -40,7 +40,13 @@ import {
   computeEcbcCompliancePercent,
   evaluateLiveAuditFindings,
 } from '../src/utils/auditEngine.ts';
+import {
+  computeCampusCanonicalSummary,
+  computeClassroomCanonicalMetrics,
+} from '../src/utils/canonicalEnergy.ts';
 import { formatRoomNameForSpeech } from '../src/utils/voicePronunciation.ts';
+import { canonicalizeWrittenText, normalizeRawUtterance } from '../src/utils/voiceTerminology.ts';
+import { finalizeTranscriptText, mergeTranscriptChunk } from '../src/utils/voiceTranscript.ts';
 import type {
   VoiceClientNavigationAction,
   VoiceServerMessage,
@@ -62,6 +68,7 @@ import {
   type VoiceCapabilityRegistry,
   type VoiceSessionMemory,
 } from './voiceCapabilityRegistry.ts';
+import type { GeminiOrchestrationOptions } from './voiceSemanticNlu.ts';
 
 const LIVE_MODEL = 'gemini-3.8-live';
 const IDLE_TIMEOUT_MS = 25_000;
@@ -112,12 +119,21 @@ export interface ServerApplianceCommandInput {
 
 export interface ServerApplianceCommandOutput {
   ok: boolean;
+  verified?: boolean;
   error?: string;
   roomId?: string;
   roomCode?: string;
   appliances?: Appliance[];
   totalPowerWatts?: number;
   summary?: string;
+  verifiedUnit?: {
+    id: string;
+    unitCode?: string;
+    name: string;
+    outputPercent: number;
+    operatingMode: string;
+    currentPowerWatts: number;
+  };
 }
 
 export interface CampusOptimizationInput {
@@ -335,126 +351,86 @@ function formatVoiceRoomActivity(room: Classroom): 'Motion detected' | 'No recen
 }
 
 function computeDerivedCampusSummary(rooms: Classroom[], settings: SchoolSettings) {
-  let totalCurrentPowerWatts = 0;
-  let totalRatedPowerWatts = 0;
-  let totalBaselinePowerWatts = 0;
-  let dailyActualKWh = 0;
-  let dailyBaselineKWh = 0;
-  let totalConfiguredSeatCapacity = 0;
+  const canonical = computeCampusCanonicalSummary(rooms, settings);
   let motionDetectedRoomsCount = 0;
-  let totalRoomsCalibrated = 0;
+  let totalConfiguredSeatCapacity = 0;
 
   for (const room of rooms) {
-    totalCurrentPowerWatts += room.currentPowerWatts;
-    totalRatedPowerWatts +=
-      room.ratedPowerWatts ?? computeAppliancesRatedPowerWatts(room.appliances);
-    totalBaselinePowerWatts += room.baselinePowerWatts;
-    dailyActualKWh += room.dailyActualKWh;
-    dailyBaselineKWh += room.dailyBaselineKWh;
     totalConfiguredSeatCapacity += room.capacity;
     if (formatVoiceRoomActivity(room) === 'Motion detected') motionDetectedRoomsCount++;
-    if (room.calibration.isCalibrated) totalRoomsCalibrated++;
   }
-
-  const effectiveRatedWatts = totalRatedPowerWatts || TOTAL_CAMPUS_RATED_POWER_WATTS;
-  const curtailedFromRatedWatts = Math.max(0, effectiveRatedWatts - totalCurrentPowerWatts);
-  const ratedUtilizationPercent =
-    effectiveRatedWatts > 0
-      ? Number(((totalCurrentPowerWatts / effectiveRatedWatts) * 100).toFixed(1))
-      : 0;
-  const powerSavedWatts = Math.max(0, totalBaselinePowerWatts - totalCurrentPowerWatts);
-  const dailySavedKWh = Math.max(0, dailyBaselineKWh - dailyActualKWh);
-  const dailyCostSavedINR = Number((dailySavedKWh * settings.tariffPerKWhINR).toFixed(2));
-  const dailyEmissionsAvoidedKgCO2 = Number(
-    (dailySavedKWh * settings.gridCarbonFactorKgCO2PerKWh).toFixed(2)
-  );
-  const savingsPercent =
-    totalBaselinePowerWatts > 0
-      ? Number(((powerSavedWatts / totalBaselinePowerWatts) * 100).toFixed(1))
-      : 0;
-
-  const installedCapacityDifferenceWatts = Math.max(
-    0,
-    totalBaselinePowerWatts - effectiveRatedWatts
-  );
-  const installedCapacityDifferencePercent =
-    totalBaselinePowerWatts > 0
-      ? Number(((installedCapacityDifferenceWatts / totalBaselinePowerWatts) * 100).toFixed(1))
-      : 0;
 
   return {
     totalRooms: rooms.length,
     motionDetectedRoomsCount,
     noRecentMotionRoomsCount: rooms.length - motionDetectedRoomsCount,
-    totalRoomsCalibrated,
+    totalRoomsCalibrated: canonical.totalRoomsCalibrated,
     totalConfiguredSeatCapacity,
-    totalCurrentPowerWatts,
-    totalCurrentPowerKW: Number((totalCurrentPowerWatts / 1000).toFixed(2)),
-    totalRatedPowerWatts: effectiveRatedWatts,
-    totalRatedPowerKW: Number((effectiveRatedWatts / 1000).toFixed(2)),
-    curtailedFromRatedWatts,
-    ratedUtilizationPercent,
-    totalBaselinePowerWatts,
-    totalBaselinePowerKW: Number((totalBaselinePowerWatts / 1000).toFixed(3)),
-    installedCapacityDifferenceWatts,
-    installedCapacityDifferencePercent,
-    powerSavedWatts,
-    savingsPercent,
-    dailyActualKWh: Number(dailyActualKWh.toFixed(2)),
-    dailyBaselineKWh: Number(dailyBaselineKWh.toFixed(2)),
-    dailySavedKWh: Number(dailySavedKWh.toFixed(2)),
-    dailyCostSavedINR,
-    dailyEmissionsAvoidedKgCO2,
+    totalCurrentPowerWatts: canonical.totalCurrentPowerWatts,
+    totalCurrentPowerKW: Number((canonical.totalCurrentPowerWatts / 1000).toFixed(2)),
+    totalRatedPowerWatts: canonical.totalRatedPowerWatts,
+    totalRatedPowerKW: Number((canonical.totalRatedPowerWatts / 1000).toFixed(2)),
+    availableHeadroomWatts: canonical.availableHeadroomWatts,
+    availableHeadroomKW: Number((canonical.availableHeadroomWatts / 1000).toFixed(2)),
+    ratedUtilizationPercent: canonical.ratedUtilizationPercent,
+    headroomPercent: canonical.headroomPercent,
+    dailyActualKWh: canonical.dailyActualKWh,
+    dailyRatedCeilingKWh: canonical.dailyRatedCeilingKWh,
+    dailyCostINR: canonical.dailyCostINR,
+    dailyEmissionsKgCO2: canonical.dailyEmissionsKgCO2,
+    monthlyActualKWh: canonical.monthlyActualKWh,
+    monthlyCostINR: canonical.monthlyCostINR,
+    monthlyEmissionsTonnesCO2: canonical.monthlyEmissionsTonnesCO2,
+    annualActualKWh: canonical.annualActualKWh,
+    annualCostINR: canonical.annualCostINR,
+    annualEmissionsTonnesCO2: canonical.annualEmissionsTonnesCO2,
   };
 }
 
 function generateDeterministicPeriodMetrics(
   baseActualKWh: number,
-  baseBaselineKWh: number,
+  baseRatedCeilingKWh: number,
   tariff: number,
   carbonFactor: number,
   period: string
 ) {
   const normalized = (period || 'today').toLowerCase();
   if (normalized === 'today' || normalized === 'day' || normalized === 'daily') {
-    const saved = Math.max(0, baseBaselineKWh - baseActualKWh);
+    const headroomKWh = Math.max(0, baseRatedCeilingKWh - baseActualKWh);
     return {
-      period: 'Today (7.0 Operating Hours: 07:30–14:30)',
+      period: `Today (${OPERATING_HOURS_PER_DAY.toFixed(1)} Operating Hours: 07:30–14:30)`,
       actualKWh: Number(baseActualKWh.toFixed(2)),
-      baselineKWh: Number(baseBaselineKWh.toFixed(2)),
-      savedKWh: Number(saved.toFixed(2)),
-      costSavedINR: Number((saved * tariff).toFixed(2)),
-      co2AvoidedKg: Number((saved * carbonFactor).toFixed(2)),
-      dataClassification: 'Simulated Campus Daily Energy Total & Calculated Estimate',
+      ratedMaxKWh: Number(baseRatedCeilingKWh.toFixed(2)),
+      unusedRatedHeadroomKWh: Number(headroomKWh.toFixed(2)),
+      estimatedCostINR: Number((baseActualKWh * tariff).toFixed(2)),
+      co2Kg: Number((baseActualKWh * carbonFactor).toFixed(2)),
+      dataClassification: 'Modelled Campus Daily Energy & Cost Estimate',
     };
   }
   if (normalized === '7d' || normalized === 'week' || normalized === 'weekly') {
-    // 6 school operating days per week
-    const actual = Number((baseActualKWh * 5.82).toFixed(2));
-    const baseline = Number((baseBaselineKWh * 6.0).toFixed(2));
-    const saved = Number(Math.max(0, baseline - actual).toFixed(2));
+    const days = 6;
+    const actual = Number((baseActualKWh * days).toFixed(2));
+    const ratedMax = Number((baseRatedCeilingKWh * days).toFixed(2));
     return {
       period: 'Last 7 Days (6 School Days)',
       actualKWh: actual,
-      baselineKWh: baseline,
-      savedKWh: saved,
-      costSavedINR: Number((saved * tariff).toFixed(2)),
-      co2AvoidedKg: Number((saved * carbonFactor).toFixed(2)),
-      dataClassification: 'Simulated Historical Estimate (Extrapolated from 6 Operating Days)',
+      ratedMaxKWh: ratedMax,
+      unusedRatedHeadroomKWh: Number(Math.max(0, ratedMax - actual).toFixed(2)),
+      estimatedCostINR: Number((actual * tariff).toFixed(2)),
+      co2Kg: Number((actual * carbonFactor).toFixed(2)),
+      dataClassification: 'Modelled Weekly Estimate (6 Operating Days)',
     };
   }
-  // 30d / monthly (~24 school days)
-  const actual = Number((baseActualKWh * 23.4).toFixed(2));
-  const baseline = Number((baseBaselineKWh * 24.0).toFixed(2));
-  const saved = Number(Math.max(0, baseline - actual).toFixed(2));
+  const actual = Number((baseActualKWh * SCHOOL_DAYS_PER_MONTH).toFixed(1));
+  const ratedMax = Number((baseRatedCeilingKWh * SCHOOL_DAYS_PER_MONTH).toFixed(1));
   return {
-    period: 'Last 30 Days (~24 School Operating Days)',
+    period: `Monthly (${SCHOOL_DAYS_PER_MONTH} School Operating Days)`,
     actualKWh: actual,
-    baselineKWh: baseline,
-    savedKWh: saved,
-    costSavedINR: Number((saved * tariff).toFixed(2)),
-    co2AvoidedKg: Number((saved * carbonFactor).toFixed(2)),
-    dataClassification: 'Simulated Historical Estimate (Extrapolated Monthly Campus Model)',
+    ratedMaxKWh: ratedMax,
+    unusedRatedHeadroomKWh: Number(Math.max(0, ratedMax - actual).toFixed(1)),
+    estimatedCostINR: Number((actual * tariff).toFixed(2)),
+    co2Kg: Number((actual * carbonFactor).toFixed(2)),
+    dataClassification: `Modelled Monthly Campus Estimate (${SCHOOL_DAYS_PER_MONTH} School Days)`,
   };
 }
 
@@ -462,7 +438,7 @@ const ROOMWISE_FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
   {
     name: 'get_campus_overview',
     description:
-      'Returns the overall ROOMWISE campus snapshot for DAV Model School, IIT Kharagpur: blocks, room counts, PIR motion activity state (motion detected vs no recent motion), configured seating capacity, current power draw vs baseline, active tab, and current user role.',
+      'Returns the overall ROOMWISE campus snapshot for DAV Model School, IIT Kharagpur: blocks, room counts, PIR motion activity state (motion detected vs no recent motion), configured seating capacity, current power draw vs installed rated maximum, active tab, and current user role.',
     parameters: {
       type: Type.OBJECT,
       properties: {},
@@ -471,7 +447,7 @@ const ROOMWISE_FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
   {
     name: 'get_current_energy_summary',
     description:
-      'Returns current campus power (Watts & kW), baseline load, power conserved, WBSEDCL tariff INR savings, and CEA carbon avoidance.',
+      'Returns current campus power (Watts & kW), installed rated maximum (13.39 kW), available rated headroom, WBSEDCL HT-2 tariff INR cost, and CEA grid carbon emissions.',
     parameters: {
       type: Type.OBJECT,
       properties: {},
@@ -480,7 +456,7 @@ const ROOMWISE_FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
   {
     name: 'get_energy_consumption_history',
     description:
-      'Queries persisted historical campus, building, or classroom energy records (kWh, baseline comparison, INR cost, CO2, lighting/fan/aux breakdown, and top blocks/rooms) over any date range in Asia/Kolkata IST. Supports natural queries like "yesterday", "today", "last week", "this week", "last 7 days", "last 30 days", "this month", "last month", "October", or explicit dates.',
+      'Queries persisted historical campus, building, or classroom energy records (kWh, installed rated capacity utilisation, INR cost, CO2, lighting/fan/aux breakdown, and top blocks/rooms) over any date range in Asia/Kolkata IST. Supports natural queries like "yesterday", "today", "last week", "this week", "last 7 days", "last 30 days", "this month", "last month", "October", or explicit dates.',
     parameters: {
       type: Type.OBJECT,
       properties: {
@@ -511,13 +487,30 @@ const ROOMWISE_FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
   {
     name: 'compare_energy_periods',
     description:
-      'Compares persisted historical campus energy consumption, daily averages, cost, and block shifts between two date ranges (e.g., "today" vs "last 7 days", "yesterday" vs "last week", "this_month" vs "previous_month", "this week" vs "last week").',
+      'Compares persisted historical energy consumption between two periods (e.g., "yesterday" vs "today", "last week" vs "this week", "this_month" vs "previous_month") at campus, building, or classroom level. When one period is in-progress partial today (IST), automatically computes an apples-to-apples equivalent elapsed IST time-of-day window comparison alongside completed full-day figures.',
     parameters: {
       type: Type.OBJECT,
       properties: {
-        periodA: { type: Type.STRING, description: 'First period: today, yesterday, last week, 7d, 30d, this_month, previous_month, October, etc.' },
-        periodB: { type: Type.STRING, description: 'Second period to compare against.' },
+        periodA: {
+          type: Type.STRING,
+          description:
+            'First period (or omit to reuse the previously discussed period/date from conversation context), e.g. yesterday, last week, 7d, 30d, this_month, previous_month, October, or YYYY-MM-DD.',
+        },
+        periodB: {
+          type: Type.STRING,
+          description: 'Second period to compare against (e.g. today, this week, current month).',
+        },
         building: { type: Type.STRING, description: 'Optional building filter.' },
+        roomQuery: {
+          type: Type.STRING,
+          description:
+            'Optional classroom name or code (e.g. "Class X-B", "G3-G02"), or "it" to reuse the classroom in context.',
+        },
+        useContextScope: {
+          type: Type.BOOLEAN,
+          description:
+            'When true (default when referencing a prior query), preserves classroom or building scope from the immediately preceding energy query.',
+        },
       },
     },
   },
@@ -1122,83 +1115,12 @@ const ROOMWISE_FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
   },
 ];
 
-function buildSystemInstruction(
-  admin: VoiceAdminIdentity | null,
-  activeTab: string
-): string {
-  const roleDesc = admin
-    ? `Authenticated Administrator: ${admin.adminName} (${admin.role}). You are AUTHORISED to execute every control & configuration action across ROOMWISE: single & group appliance controls (lights, fan sectors, projectors, AC), block/floor/campus batch controls, One-Click Campus Optimization, individual audit finding remediation, classroom recalibration, classroom & campus settings updates, admin logout, and security audit inspection.`
-    : `Student Mode (Read-Only Guest at session start). Navigation, analytics, building comparisons, rankings, what-if forecasts, telemetry, committee directory, CSV export, print preview, Space Intelligence inspection, and energy audit inspection are allowed. Appliance controls, batch overrides, campus optimization, recalibration, room/campus parameter updates, and security audit log inspection require administrator sign-in.`;
-
-  return `You are ROOMWISE Voice Intelligence for DAV Model School, IIT Kharagpur — an institutional smart-campus energy management AI assistant capable of performing everything a human operator can do across ROOMWISE and advanced cross-campus analytics & batch automation.
-
-CURRENT SESSION CONTEXT:
-- Active View: ${activeTab}
-- Session Authority: ${roleDesc}
-- Wake word activation is strictly a hands-free UI trigger and NEVER elevates privileges or bypasses server authentication.
-
-VOICE PERSONA & ACCENT CONSISTENCY (CRITICAL):
-- Always speak with Charon's calm, steady, neutral default voice and accent from the very first wake acknowledgement through every single turn of the conversation.
-- NEVER begin in or adopt an Indian English accent or regional English inflection, even though the school is located in India. Keep English pronunciation consistently in Charon's neutral default voice without ever switching accents mid-session.
-
-MULTILINGUAL & VERNACULAR SPEECH RECOGNITION & RESPONSE (CRITICAL):
-- Automatically identify the user's spoken language from incoming audio — including English, Hindi (हिन्दी), Bengali (বাংলা), other regional languages, or natural code-switching.
-- Respond naturally in the same language the user spoke, ensuring transcripts use authentic native script (Devanagari / देवनागरी for Hindi, Bengali script / বাংলা লিপি for Bengali, Latin script for English). Never output broken phonetic transliteration or gibberish when clear Hindi or Bengali speech is heard.
-- Keep technical room codes, units, and telemetry values accurate ('G3-G01', '13.39 kW', '18.635 kW', '5,245 W', 'ROOMWISE') even inside Hindi or Bengali responses, and execute all ROOMWISE tools normally regardless of spoken language.
-
-DYNAMIC AUTHORIZATION RULE (CRITICAL):
-- The user can sign in or sign out as an administrator at ANY moment during the conversation, or right before repeating a request.
-- NEVER refuse a control, optimization, calibration, or settings request based solely on earlier turns in the conversation or earlier Student Mode status!
-- Whenever the user asks to control appliances, optimize the campus, resolve audit findings, recalibrate, or change settings, ALWAYS invoke the matching tool directly. The ROOMWISE server validates the live session token on every single tool invocation:
-  - If the user has signed in, the tool succeeds immediately and executes the action.
-  - Only if the tool explicitly returns PERMISSION_DENIED should you explain that administrator sign-in is required and offer navigate_roomwise(target="admin-login").
-
-CAPABILITIES & DOMAIN REASONING:
-- Full Control & Configuration (Admin): Single/group appliance controls in any room (lights, fan sectors, projector, AC, or whole room), batch controls by block, floor, vacant rooms, or whole campus (control_building_or_campus_appliances), One-Click Campus Optimization (optimize_campus_energy), single finding remediation (resolve_audit_finding), Bayesian α/β recalibration per room/block/campus (recalibrate_classroom), per-room target lux / max fan speed / auto eco / overtime overrides (update_classroom_parameters), and full campus policy settings (update_campus_settings).
-- Full UI & Session Actions (execute_app_action): Navigate to Space Intelligence ("space-intelligence"), Energy History ("history"), open standalone /classroom/:code telemetry pages, open Phone QR Scanner, close modals, export 25-room Analytics CSV, open & print BEE Audit Report, pause/resume live IoT drift simulation, mute standby, close voice overlay, or lock/logout admin.
-- Space Intelligence (Attendance-Aware Allocation): Query register-based section attendance, enrolled class strength, room max seating capacities, energy-saving reallocation proposals, rejection reasons, and approval history (get_space_intelligence_summary, get_space_allocation_recommendations, get_space_allocation_history).
-- Historical Intelligence & Diagnostic Reasoning (Asia/Kolkata): Query real stored interval records across up to 90 days (get_energy_consumption_history, compare_energy_periods, get_classroom_energy_history, get_time_of_day_profile, get_historical_anomalies, investigate_energy_reason).
-- Deep Intelligence & Analytics: Side-by-side 5-block comparison (compare_buildings), multi-metric 25-room ranking & filtering (rank_and_filter_classrooms), non-destructive what-if tariff/carbon/efficiency modeling (simulate_policy_what_if), anomaly & phantom load detection, and security audit & committee directory (get_security_audit_and_staff).
-- Proactively call tools before quoting numbers or confirming actions — NEVER guess wattages, kWh totals, room states, audit counts, attendance counts, or claim an action happened without a tool confirming ok=true.
-
-PIR SENSOR VS ATTENDANCE HONESTY RULE (CRITICAL):
-- ROOMWISE PIR sensors detect physical movement ONLY ("Motion detected" or "No recent motion detected") — they do NOT count students!
-- NEVER claim that PIR sensors measured a specific number of students present or a live physical occupancy percentage.
-- When asked about attendance or class size, distinguish clearly:
-  1. Enrolled strength (static administrative record, e.g., "Enrolled strength: 44 students"),
-  2. Register attendance (from the imported attendance register in Space Intelligence, e.g., "Attendance recorded: 31/44 on YYYY-MM-DD"), and
-  3. Room activity (live PIR sensor motion state: "Motion detected" or "No recent motion detected").
-
-HISTORICAL DIAGNOSTIC RULES (CRITICAL):
-- When asked about past consumption ("yesterday", "last week", "October", "past 30 days"), highest-consuming classrooms/blocks over a period, peak hours, unusual consumption patterns, or "Why was energy higher...?", ALWAYS query the historical tools (especially investigate_energy_reason for "why" questions!).
-- Cite concrete retrieved numbers (kWh, % change, comparable baseline, block/room drivers, lighting vs fan vs aux share, post-hours kWh).
-- Distinguish correlation from causation honestly, note when Today is an incomplete partial day, and state caveats when relevant.
-- NEVER respond to a historical diagnostic question with a vague dismissal like "Everything is optimised."
-
-OPERATIONAL & SAFETY RULES:
-1. Keep spoken replies concise, clear, and calm (2–4 sentences unless deeper breakdown is requested).
-2. Distinguish data provenance accurately when discussing metrics:
-   - Live room power, lux, and PIR motion state come from ROOMWISE's 25 Simulated IoT Nodes.
-   - Attendance figures come from the persistent school attendance register (Space Intelligence).
-   - Historical kWh totals are integrated (Power kW × Time hours) in the persistent ROOMWISE SQLite store in Asia/Kolkata timezone.
-   - Rupee & CO2 savings are calculated estimates using the active WBSEDCL tariff and CEA grid factor.
-3. For One-Click Campus Optimization / Audit Remediation:
-   - When asked about audit issues, call generate_energy_audit_summary to read live room-by-room inefficiencies.
-   - When an authenticated administrator directly instructs you to run One-Click Campus Optimization, optimize the campus, or fix audit issues, call optimize_campus_energy (passing confirmed=true) or resolve_audit_finding and report exact curtailed watts and updated rooms.
-   - Only pass confirmed=false when the administrator asks an exploratory question ("what would happen if we optimize?").
-4. For manual single/group/block appliance overrides:
-   - When the administrator gives a clear, direct command (e.g. "turn off all lights in Pre-Primary Block", "set fans in Class X-A to 60%", "restore Lab to auto"), execute it cleanly; use confirmed=false preview only when the request is ambiguous or exploratory ("what happens if we shut down occupied labs?").
-5. Installed Capacity vs Estimated Pre-Retrofit Reference Capacity (CRITICAL TERMINOLOGY RULE):
-   - Installed Rated Maximum across all ${ROOM_APPLIANCE_SPECS.length} rooms at 100% is ${formatCapacityKW(TOTAL_CAMPUS_RATED_POWER_WATTS)} kW (${TOTAL_CAMPUS_RATED_POWER_WATTS} W) — the exact combined rated power of all 268 currently installed appliances. Use this as the primary reference for live campus load, rated utilisation (100% at 13.39 kW), and curtailment.
-   - Estimated Pre-Retrofit Reference Capacity is 18.635 kW (18,635 W) — derived from pre-retrofit baselinePowerWatts estimates representing conventional lighting and induction fan configurations. NEVER round 18.635 kW down to 18.63 kW, and clearly state it is a comparative engineering reference rather than current installed capacity or measured historical electricity consumption.
-   - The difference between them (18,635 W vs 13,390 W) is 5,245 W (5.245 kW, or ~28.1% lower installed rated capacity), representing an Installed Capacity Difference vs Pre-Retrofit Reference — NEVER call this static capacity difference "Energy Saved", "Actual Savings", or "Consumption Reduction", and note that actual electricity savings depend on operating hours (7.0 h/day), occupancy, appliance usage, and adaptive control.`;
-}
-
-function resolveApplianceUnit(appliances: Appliance[], unitQuery: string): Appliance | null {
+export function resolveApplianceUnit(appliances: Appliance[], unitQuery: string): Appliance | null {
   const q = unitQuery.toLowerCase().trim();
+  if (!q) return null;
   const qCompact = q.replace(/[^a-z0-9]/g, '');
 
-  // Match exact ID or unitCode (e.g., "L1", "FS2", "PRJ1")
+  // Match exact ID or unitCode (e.g., "L1", "L2", "S1", "FS2", "AUX")
   const direct = appliances.find(
     (a) =>
       a.id.toLowerCase() === q ||
@@ -1207,30 +1129,51 @@ function resolveApplianceUnit(appliances: Appliance[], unitQuery: string): Appli
   );
   if (direct) return direct;
 
-  // Match friendly spoken references: "fan sector 2", "sector 2", "light 1", "projector"
+  // Match numbered lighting/fan references cleanly (e.g. "Luminaire 2", "Light 2", "L2", "Fan Sector 1", "F1", "S1")
   const numMatch = q.match(/(\d+)/);
   const idxNum = numMatch ? Number(numMatch[1]) : null;
   if (idxNum !== null) {
-    if (q.includes('fan') || q.includes('sector')) {
-      const fanMatch = appliances.find(
-        (a) =>
-          a.type === 'fan' &&
-          (a.sectorIndex === idxNum ||
-            a.unitCode?.toLowerCase() === `fs${idxNum}` ||
-            a.name.toLowerCase().includes(`sector ${idxNum}`))
+    const isLightQuery =
+      /\b(luminaire|luminaires|light|lights|lamp|lamps|led|fixture|fixtures|tube|bulb)\b/.test(q) ||
+      /^l\d+$/.test(qCompact);
+    if (isLightQuery) {
+      return (
+        appliances.find(
+          (a) =>
+            a.type === 'lights' &&
+            (a.sectorIndex === idxNum ||
+              a.unitCode?.toLowerCase() === `l${idxNum}` ||
+              a.name.toLowerCase().includes(`#${idxNum}`))
+        ) || null
       );
-      if (fanMatch) return fanMatch;
     }
-    if (q.includes('light') || q.includes('lamp') || q.includes('led')) {
-      const lightMatch = appliances.find(
-        (a) =>
-          a.type === 'lights' &&
-          (a.sectorIndex === idxNum ||
-            a.unitCode?.toLowerCase() === `l${idxNum}` ||
-            a.name.toLowerCase().includes(`#${idxNum}`))
+
+    const isFanQuery =
+      /\b(fan|fans|sector|sectors|blower|blowers)\b/.test(q) ||
+      /^(f|fs|s)\d+$/.test(qCompact);
+    if (isFanQuery) {
+      return (
+        appliances.find(
+          (a) =>
+            a.type === 'fan' &&
+            (a.sectorIndex === idxNum ||
+              a.unitCode?.toLowerCase() === `s${idxNum}` ||
+              a.unitCode?.toLowerCase() === `fs${idxNum}` ||
+              a.name.toLowerCase().includes(`sector ${idxNum}`) ||
+              a.name.toLowerCase().includes(`s${idxNum}`))
+        ) || null
       );
-      if (lightMatch) return lightMatch;
     }
+  }
+
+  // Match auxiliary singletons cleanly ("projector", "smart board", "ac", "air conditioner")
+  if (/\b(projector|smart\s*board|display|screen)\b/.test(q)) {
+    const proj = appliances.find((a) => a.type === 'projector');
+    if (proj) return proj;
+  }
+  if (/\b(ac|air\s*conditioner|hvac|cooling)\b/.test(q)) {
+    const ac = appliances.find((a) => a.type === 'ac');
+    if (ac) return ac;
   }
 
   return (
@@ -1240,6 +1183,393 @@ function resolveApplianceUnit(appliances: Appliance[], unitQuery: string): Appli
         a.name.toLowerCase().replace(/[^a-z0-9]/g, '').includes(qCompact)
     ) || null
   );
+}
+
+interface SharedApplianceControlParams {
+  args: Record<string, unknown>;
+  rooms: Classroom[];
+  settings: SchoolSettings;
+  adminIdentity: VoiceAdminIdentity | null;
+  memory?: VoiceSessionMemory;
+  deps: VoiceLiveBridgeDeps;
+  emitMessage: (msg: VoiceServerMessage) => void;
+  updateSessionRoom?: (
+    roomId: string,
+    appliances: Appliance[],
+    totalPowerWatts: number
+  ) => Classroom[];
+}
+
+function executeClassroomApplianceControl(
+  params: SharedApplianceControlParams
+): Record<string, unknown> {
+  const { args, rooms, settings, adminIdentity, memory, deps, emitMessage, updateSessionRoom } =
+    params;
+
+  // 1. Authoritative server-side RBAC check
+  if (!adminIdentity) {
+    emitMessage({
+      type: 'tool_status',
+      toolName: 'control_classroom_appliance',
+      status: 'denied',
+      message: 'Blocked: Administrator authentication required',
+    });
+    return {
+      ok: false,
+      authorized: false,
+      error:
+        'PERMISSION_DENIED: Appliance control is blocked in Student Mode. Only a signed-in ROOMWISE administrator can modify classroom lights or fans.',
+      actionRequired: 'admin_login',
+    };
+  }
+
+  const emitValidationError = (error: string, extra?: Record<string, unknown>) => {
+    emitMessage({
+      type: 'tool_status',
+      toolName: 'control_classroom_appliance',
+      status: 'error',
+      message: error,
+    });
+    return { ok: false, error, ...(extra || {}) };
+  };
+
+  // 2. Classroom resolution (single pass)
+  const roomQuery = typeof args.roomQuery === 'string' ? args.roomQuery : '';
+  const resolvedRoom = memory
+    ? resolveClassroomRobust(rooms, roomQuery, memory)
+    : resolveClassroom(rooms, roomQuery);
+  if (resolvedRoom.ambiguous) {
+    return emitValidationError(
+      'Multiple classrooms matched. Ask the administrator to confirm the exact classroom.',
+      {
+        ambiguous: true,
+        matches: resolvedRoom.ambiguous.map((r) => ({ roomCode: r.roomCode, name: r.name })),
+      }
+    );
+  }
+  if (!resolvedRoom.match) {
+    return emitValidationError(`No classroom found matching "${roomQuery}".`);
+  }
+
+  const room = resolvedRoom.match;
+  const targetType = typeof args.targetType === 'string' ? args.targetType : 'unit';
+  const mode = typeof args.mode === 'string' ? args.mode : 'set';
+  const unitQuery = typeof args.unitQuery === 'string' ? args.unitQuery.trim() : '';
+  const isVacant = room.occupancyStatus === 'Unoccupied' || room.currentOccupants === 0;
+
+  // 3. Strict argument validation (reject out-of-range percentages instead of silently clamping)
+  let targetPct = 0;
+  if (mode === 'set' && targetType !== 'room_auto') {
+    if (typeof args.outputPercent !== 'number' || !Number.isFinite(args.outputPercent)) {
+      return emitValidationError('Numeric outputPercent (0 to 100) is required when mode is "set".');
+    }
+    if (args.outputPercent < 0 || args.outputPercent > 100) {
+      return emitValidationError(
+        `Invalid outputPercent (${args.outputPercent}%). Intensity must be between 0% and 100%.`
+      );
+    }
+    targetPct = Math.round(args.outputPercent);
+  }
+
+  // 4. Target resolution (single unit vs group vs room_auto)
+  let action: ServerApplianceCommandInput['action'];
+  let targetUnit: Appliance | null = null;
+  let groupType: ServerApplianceCommandInput['type'] | undefined;
+  let affectedCount = 1;
+  let targetDesc = '';
+
+  if (targetType === 'room_auto') {
+    action = 'restore_room_auto';
+    affectedCount = room.appliances.length;
+    targetDesc = `All ${affectedCount} appliances in ${room.name} (${room.roomCode}) -> Adaptive AUTO`;
+  } else if (
+    targetType === 'lights_group' ||
+    targetType === 'fans_group' ||
+    targetType === 'projector_group' ||
+    targetType === 'ac_group' ||
+    targetType === 'all_group'
+  ) {
+    groupType =
+      targetType === 'lights_group'
+        ? 'lights'
+        : targetType === 'fans_group'
+        ? 'fan'
+        : targetType === 'projector_group'
+        ? 'projector'
+        : targetType === 'ac_group'
+        ? 'ac'
+        : 'all';
+    action = mode === 'restore_auto' ? 'restore_room_auto' : 'set_group';
+    const matchedApps =
+      groupType === 'all' ? room.appliances : room.appliances.filter((a) => a.type === groupType);
+    affectedCount = matchedApps.length;
+    const groupLabel =
+      groupType === 'all'
+        ? 'appliances'
+        : groupType === 'lights'
+        ? 'lights'
+        : groupType === 'fan'
+        ? 'fan sectors'
+        : groupType === 'projector'
+        ? 'projectors'
+        : 'AC units';
+    targetDesc =
+      mode === 'restore_auto'
+        ? `All ${affectedCount} ${groupLabel} in ${room.name} -> AUTO`
+        : `All ${affectedCount} ${groupLabel} in ${room.name} -> ${targetPct === 0 ? 'OFF' : `${targetPct}%`}`;
+  } else {
+    if (!unitQuery) {
+      return emitValidationError(
+        'unitQuery is required when targetType is "unit". Specify a unit such as "Luminaire 2", "L2", or "Fan Sector 1".',
+        { availableUnits: room.appliances.map((a) => `${a.unitCode || a.id}: ${a.name}`) }
+      );
+    }
+    targetUnit = resolveApplianceUnit(room.appliances, unitQuery);
+    if (!targetUnit) {
+      return emitValidationError(`Appliance "${unitQuery}" not found in ${room.roomCode}.`, {
+        availableUnits: room.appliances.map((a) => `${a.unitCode || a.id}: ${a.name}`),
+      });
+    }
+    action = mode === 'restore_auto' ? 'restore_unit_auto' : 'set_unit';
+    targetDesc = `${targetUnit.unitCode || targetUnit.name} in ${room.name} (${room.roomCode}) -> ${
+      mode === 'restore_auto' ? 'Adaptive AUTO' : targetPct === 0 ? 'OFF' : `${targetPct}%`
+    }`;
+  }
+
+  // Require explicit confirmation preview ONLY if confirmed===false is explicitly passed
+  if (args.confirmed === false) {
+    return {
+      ok: false,
+      confirmationRequired: true,
+      preview: {
+        roomCode: room.roomCode,
+        roomName: room.name,
+        roomActivity: formatVoiceRoomActivity(room),
+        targetDescription: targetDesc,
+        affectedUnitsCount: affectedCount,
+        currentRoomPowerWatts: room.currentPowerWatts,
+      },
+      message:
+        'Confirmation required before applying this override. Briefly describe the planned change and ask the administrator to confirm.',
+    };
+  }
+
+  // 5. Execute & verify on authoritative backend store
+  const result = deps.executeApplianceCommand({
+    roomId: room.id,
+    action,
+    applianceId: targetUnit?.id,
+    type: groupType,
+    outputPercent: targetPct,
+    isVacant,
+    admin: adminIdentity,
+  });
+
+  if (!result.ok || !result.appliances) {
+    return emitValidationError(result.error || 'Failed to execute appliance command.');
+  }
+
+  const updatedRoomWatts = result.totalPowerWatts ?? room.currentPowerWatts;
+  const finalSummary = result.summary || targetDesc;
+
+  // 6. Immediately broadcast verified state update to UI BEFORE secondary summary work
+  emitMessage({
+    type: 'appliance_state_updated',
+    payload: {
+      roomId: room.id,
+      roomCode: room.roomCode,
+      appliances: result.appliances,
+      totalPowerWatts: updatedRoomWatts,
+      summary: finalSummary,
+    },
+  });
+  emitMessage({
+    type: 'tool_status',
+    toolName: 'control_classroom_appliance',
+    status: 'completed',
+    message: finalSummary,
+  });
+
+  // 7. Incrementally update session snapshot & compute campus power without full 25-room re-merge
+  const updatedRooms = updateSessionRoom
+    ? updateSessionRoom(room.id, result.appliances, updatedRoomWatts)
+    : rooms.map((c) =>
+        c.id === room.id
+          ? {
+              ...c,
+              appliances: result.appliances!,
+              currentPowerWatts: updatedRoomWatts,
+              ratedPowerWatts: computeAppliancesRatedPowerWatts(result.appliances!),
+              dailyActualKWh: Number(((updatedRoomWatts * OPERATING_HOURS_PER_DAY) / 1000).toFixed(2)),
+            }
+          : c
+      );
+
+  let campusCurrentWatts = 0;
+  let campusRatedWatts = 0;
+  for (const r of updatedRooms) {
+    campusCurrentWatts += r.currentPowerWatts;
+    campusRatedWatts += r.ratedPowerWatts ?? computeAppliancesRatedPowerWatts(r.appliances);
+  }
+
+  return {
+    ok: true,
+    verified: result.verified ?? true,
+    alreadyApplied: true,
+    authorizedBy: adminIdentity.adminName,
+    roomId: room.id,
+    roomCode: room.roomCode,
+    roomName: room.name,
+    name: room.name,
+    summary: finalSummary,
+    verifiedUnit: result.verifiedUnit,
+    newTotalPowerWatts: updatedRoomWatts,
+    campusTotalCurrentPowerWatts: Math.round(campusCurrentWatts),
+    campusTotalCurrentPowerKW: Number((campusCurrentWatts / 1000).toFixed(2)),
+    campusInstalledRatedMaxKW: Number((campusRatedWatts / 1000).toFixed(2)),
+    tariffPerKWhINR: settings.tariffPerKWhINR,
+  };
+}
+
+function executeCompareEnergyPeriodsTool(params: {
+  args: Record<string, unknown>;
+  rooms: Classroom[];
+  settings: SchoolSettings;
+  memory: VoiceSessionMemory;
+}): Record<string, unknown> {
+  const { args, rooms, settings, memory } = params;
+  const rawA = typeof args.periodA === 'string' ? args.periodA.trim() : '';
+  const isContextRefPeriod =
+    !rawA ||
+    /^(?:it|that|previous|prior|previous\s+period|that\s+period|that\s+day|earlier|same)$/i.test(rawA);
+
+  let qA = rawA;
+  if (isContextRefPeriod) {
+    if (
+      memory.lastResolvedStartDate &&
+      (!memory.lastResolvedEndDate || memory.lastResolvedStartDate === memory.lastResolvedEndDate)
+    ) {
+      qA = memory.lastResolvedStartDate;
+    } else if (memory.lastPeriod && memory.lastPeriod.toLowerCase() !== 'today') {
+      qA = memory.lastPeriod;
+    } else {
+      qA = 'yesterday';
+    }
+  }
+
+  const rawB = typeof args.periodB === 'string' ? args.periodB.trim() : '';
+  const qB = rawB || 'today';
+
+  let buildingFilter =
+    typeof args.building === 'string' && args.building.trim() && args.building.trim() !== 'All'
+      ? args.building.trim()
+      : null;
+
+  let roomIdFilter: string | null = null;
+  const rawRoomQuery = typeof args.roomQuery === 'string' ? args.roomQuery.trim() : '';
+  if (rawRoomQuery) {
+    const resolved = resolveClassroomRobust(rooms, rawRoomQuery, memory);
+    if (!resolved.match) {
+      return {
+        ok: false,
+        ambiguous: Boolean(resolved.ambiguous),
+        matches: resolved.ambiguous?.map((r) => ({ roomCode: r.roomCode, name: r.name })),
+        error: resolved.ambiguous
+          ? `Multiple classrooms matched "${rawRoomQuery}". Clarify which classroom to compare.`
+          : `Classroom "${rawRoomQuery}" could not be identified.`,
+      };
+    }
+    roomIdFilter = resolved.match.id;
+    buildingFilter = resolved.match.building;
+  } else if (!buildingFilter && args.useContextScope !== false) {
+    const lastRoomScoped =
+      memory.lastToolName === 'get_classroom_energy_history' ||
+      memory.lastToolName === 'get_classroom_comprehensive_brief' ||
+      memory.lastToolName === 'get_classroom_status' ||
+      memory.lastToolName === 'get_classroom_telemetry';
+    if (lastRoomScoped && memory.lastMentionedRoomId) {
+      roomIdFilter = memory.lastMentionedRoomId;
+    } else if (isContextRefPeriod && memory.lastMentionedBuilding) {
+      buildingFilter = memory.lastMentionedBuilding;
+    }
+  }
+
+  const comparison = energyHistoryService.compareEnergyPeriods({
+    periodAQuery: qA,
+    periodBQuery: qB,
+    building: buildingFilter,
+    roomId: roomIdFilter,
+    settings,
+  });
+
+  if (comparison.roomId) {
+    memory.lastMentionedRoomId = comparison.roomId;
+    memory.lastMentionedRoomCode = comparison.roomCode || null;
+  }
+  if (comparison.building) {
+    memory.lastMentionedBuilding = comparison.building;
+  }
+  return comparison;
+}
+
+function syncWsToolResultToMemory(
+  toolName: string,
+  toolArgs: Record<string, unknown>,
+  result: Record<string, unknown>,
+  rooms: Classroom[],
+  memory: VoiceSessionMemory
+): void {
+  if (typeof result.roomId === 'string' && result.roomId) {
+    memory.lastMentionedRoomId = result.roomId;
+  }
+  if (typeof result.roomCode === 'string' && result.roomCode) {
+    memory.lastMentionedRoomCode = result.roomCode;
+    if (!memory.lastMentionedRoomId) {
+      const m = rooms.find((r) => r.roomCode.toLowerCase() === String(result.roomCode).toLowerCase());
+      if (m) memory.lastMentionedRoomId = m.id;
+    }
+  }
+  if (typeof result.building === 'string' && result.building) {
+    memory.lastMentionedBuilding = result.building;
+  } else if (typeof toolArgs.building === 'string' && toolArgs.building) {
+    memory.lastMentionedBuilding = toolArgs.building;
+  }
+
+  const detail = result.detail as Record<string, unknown> | undefined;
+  const rangeObj = (result.range ||
+    result.targetPeriod ||
+    detail?.range ||
+    result.historicalEnergy) as Record<string, unknown> | undefined;
+  if (typeof rangeObj?.startDate === 'string' && rangeObj.startDate) {
+    memory.lastResolvedStartDate = rangeObj.startDate;
+  }
+  if (typeof rangeObj?.endDate === 'string' && rangeObj.endDate) {
+    memory.lastResolvedEndDate = rangeObj.endDate;
+  }
+
+  const periodCandidate =
+    typeof toolArgs.period === 'string' && toolArgs.period.trim()
+      ? toolArgs.period.trim()
+      : typeof toolArgs.naturalQuery === 'string' && toolArgs.naturalQuery.trim()
+      ? toolArgs.naturalQuery.trim()
+      : null;
+  if (periodCandidate && periodCandidate !== memory.lastPeriod) {
+    memory.previousPeriod = memory.lastPeriod;
+    memory.lastPeriod = periodCandidate;
+  }
+
+  const totals = (result.totals || detail?.totals) as Record<string, unknown> | undefined;
+  if (typeof result.actualKWh === 'number' && Number.isFinite(result.actualKWh)) {
+    memory.lastRetrievedActualKWh = result.actualKWh;
+  } else if (typeof rangeObj?.actualKWh === 'number' && Number.isFinite(rangeObj.actualKWh)) {
+    memory.lastRetrievedActualKWh = rangeObj.actualKWh;
+  } else if (typeof totals?.actualKWh === 'number' && Number.isFinite(totals.actualKWh)) {
+    memory.lastRetrievedActualKWh = totals.actualKWh;
+  } else if (typeof totals?.totalActualKWh === 'number' && Number.isFinite(totals.totalActualKWh)) {
+    memory.lastRetrievedActualKWh = totals.totalActualKWh;
+  }
+
+  if (toolName) memory.lastToolName = toolName;
 }
 
 export function registerVoiceLiveWebSocket(
@@ -1265,6 +1595,12 @@ export function registerVoiceLiveWebSocket(
       wss.emit('connection', ws, req);
     });
   });
+
+  // Hoist one shared capability registry across all Live WebSocket connections
+  // (avoids reconstructing 50 tool definitions & declarations on every wake/connect).
+  const sharedLiveCapabilityRegistry: VoiceCapabilityRegistry = createRoomwiseCapabilityRegistry(
+    ROOMWISE_FUNCTION_DECLARATIONS
+  );
 
   wss.on('connection', async (ws: WebSocket, req: IncomingMessage) => {
     const sendJson = (msg: VoiceServerMessage) => {
@@ -1304,21 +1640,67 @@ export function registerVoiceLiveWebSocket(
     let isClosing = false;
     let lastActivityAt = Date.now();
     let isModelTurnActive = false;
+    let activeToolCallsCount = 0;
+    let awaitingPostToolResponse = false;
+    let postToolFallbackTimer: ReturnType<typeof setTimeout> | null = null;
+    const cancelledToolCallIds = new Set<string>();
+    const activeToolControllers = new Map<string, AbortController>();
     let hasReceivedUserSpeech = false;
     let consecutiveAudioSendErrors = 0;
-    let lastInputTranscript = '';
-    let lastOutputTranscript = '';
+    let currentUserTurnText = '';
+    let currentAssistantTurnText = '';
 
-    const capabilityRegistry: VoiceCapabilityRegistry = createRoomwiseCapabilityRegistry(
-      ROOMWISE_FUNCTION_DECLARATIONS
-    );
+    const clearPostToolFallback = () => {
+      if (postToolFallbackTimer) {
+        clearTimeout(postToolFallbackTimer);
+        postToolFallbackTimer = null;
+      }
+    };
+
+    const abortAllActiveTools = () => {
+      for (const controller of activeToolControllers.values()) {
+        try {
+          controller.abort();
+        } catch {
+          // ignore
+        }
+      }
+      activeToolControllers.clear();
+    };
+
+    const capabilityRegistry: VoiceCapabilityRegistry = sharedLiveCapabilityRegistry;
     const sessionMemory: VoiceSessionMemory = createInitialVoiceSessionMemory(
       currentSnapshot.activeTab,
       currentSnapshot.selectedRoomId
     );
 
+    const commitWsConversationTurn = () => {
+      const userFinal = finalizeTranscriptText(currentUserTurnText).trim();
+      const assistantFinal = finalizeTranscriptText(currentAssistantTurnText).trim();
+      if (userFinal) {
+        sessionMemory.recentTurns.push({
+          role: 'user',
+          text: userFinal.slice(0, 1500),
+          timestamp: Date.now(),
+        });
+      }
+      if (assistantFinal) {
+        sessionMemory.lastAssistantReply = assistantFinal;
+        sessionMemory.recentTurns.push({
+          role: 'assistant',
+          text: assistantFinal.slice(0, 1500),
+          timestamp: Date.now(),
+        });
+      }
+      if (sessionMemory.recentTurns.length > 24) {
+        sessionMemory.recentTurns = sessionMemory.recentTurns.slice(-24);
+      }
+      currentUserTurnText = '';
+      currentAssistantTurnText = '';
+    };
+
     const idleInterval = setInterval(() => {
-      if (isClosing || isModelTurnActive) return;
+      if (isClosing || isModelTurnActive || activeToolCallsCount > 0) return;
       if (Date.now() - lastActivityAt >= IDLE_TIMEOUT_MS) {
         sendJson({
           type: 'idle_timeout',
@@ -1333,6 +1715,8 @@ export function registerVoiceLiveWebSocket(
       if (isClosing) return;
       isClosing = true;
       clearInterval(idleInterval);
+      clearPostToolFallback();
+      abortAllActiveTools();
       try {
         liveSession?.close();
       } catch {
@@ -1358,20 +1742,21 @@ export function registerVoiceLiveWebSocket(
         case 'get_campus_overview': {
           const buildingMap = new Map<
             string,
-            { building: string; totalRooms: number; motionDetectedRooms: number; currentWatts: number; baselineWatts: number }
+            { building: string; totalRooms: number; motionDetectedRooms: number; currentWatts: number; ratedWatts: number }
           >();
           for (const r of rooms) {
+            const ratedW = r.ratedPowerWatts ?? computeAppliancesRatedPowerWatts(r.appliances);
             const b = buildingMap.get(r.building) || {
               building: r.building,
               totalRooms: 0,
               motionDetectedRooms: 0,
               currentWatts: 0,
-              baselineWatts: 0,
+              ratedWatts: 0,
             };
             b.totalRooms++;
             if (formatVoiceRoomActivity(r) === 'Motion detected') b.motionDetectedRooms++;
             b.currentWatts += r.currentPowerWatts;
-            b.baselineWatts += r.baselinePowerWatts;
+            b.ratedWatts += ratedW;
             buildingMap.set(r.building, b);
           }
 
@@ -1385,7 +1770,7 @@ export function registerVoiceLiveWebSocket(
             authenticatedAdmin: adminIdentity?.adminName || null,
             ...summary,
             blocks: Array.from(buildingMap.values()),
-            dataClassification: 'Simulated IoT Node Telemetry (25 Nodes) & Calculated Baseline Estimates',
+            dataClassification: 'Modelled 25-Node Telemetry & Installed Rated Capacity Reference',
           };
         }
 
@@ -1397,26 +1782,21 @@ export function registerVoiceLiveWebSocket(
             installedRatedMaxKW: summary.totalRatedPowerKW,
             totalRatedPowerWatts: summary.totalRatedPowerWatts,
             totalRatedPowerKW: summary.totalRatedPowerKW,
-            curtailedFromRatedWatts: summary.curtailedFromRatedWatts,
+            availableHeadroomWatts: summary.availableHeadroomWatts,
+            availableHeadroomKW: summary.availableHeadroomKW,
             ratedUtilizationPercent: summary.ratedUtilizationPercent,
-            estimatedPreRetrofitReferenceWatts: summary.totalBaselinePowerWatts,
-            estimatedPreRetrofitReferenceKW: summary.totalBaselinePowerKW,
-            installedCapacityDifferenceWatts: summary.installedCapacityDifferenceWatts,
-            installedCapacityDifferencePercent: summary.installedCapacityDifferencePercent,
-            totalBaselinePowerWatts: summary.totalBaselinePowerWatts,
-            totalBaselinePowerKW: summary.totalBaselinePowerKW,
-            powerSavedWatts: summary.powerSavedWatts,
-            savingsPercent: summary.savingsPercent,
+            headroomPercent: summary.headroomPercent,
             dailyActualKWh: summary.dailyActualKWh,
-            dailyBaselineKWh: summary.dailyBaselineKWh,
-            dailySavedKWh: summary.dailySavedKWh,
+            dailyRatedCeilingKWh: summary.dailyRatedCeilingKWh,
             tariffPerKWhINR: settings.tariffPerKWhINR,
-            dailyCostSavedINR: summary.dailyCostSavedINR,
+            dailyCostINR: summary.dailyCostINR,
+            monthlyActualKWh: summary.monthlyActualKWh,
+            monthlyCostINR: summary.monthlyCostINR,
             gridCarbonFactorKgCO2PerKWh: settings.gridCarbonFactorKgCO2PerKWh,
-            dailyEmissionsAvoidedKgCO2: summary.dailyEmissionsAvoidedKgCO2,
-            baselineComparisonNote:
-              `Installed Rated Maximum at 100% is ${formatCapacityKW(summary.totalRatedPowerWatts)} kW (${summary.totalRatedPowerWatts} W); Estimated Pre-Retrofit Reference Capacity is ${formatCapacityKW(summary.totalBaselinePowerWatts)} kW (${summary.totalBaselinePowerWatts} W), an Installed Capacity Difference of ${summary.installedCapacityDifferenceWatts} W (~${summary.installedCapacityDifferencePercent}% lower installed rated capacity; actual electricity savings depend on operating hours, occupancy, appliance usage, and adaptive control).`,
-            dataClassification: 'Simulated Node Power Draw & Comparative Engineering Estimates',
+            dailyEmissionsKgCO2: summary.dailyEmissionsKgCO2,
+            capacityNote:
+              `Live campus load is ${formatCapacityKW(summary.totalCurrentPowerWatts)} kW (${summary.totalCurrentPowerWatts} W), representing ${summary.ratedUtilizationPercent}% of ${formatCapacityKW(summary.totalRatedPowerWatts)} kW (${summary.totalRatedPowerWatts} W) Installed Rated Maximum, with ${formatCapacityKW(summary.availableHeadroomWatts)} kW (${summary.availableHeadroomWatts} W) Available Rated Headroom.`,
+            dataClassification: 'Modelled 25-Node Power Draw & Operational Cost Estimates',
           };
         }
 
@@ -1452,7 +1832,7 @@ export function registerVoiceLiveWebSocket(
               label: p.subLabel || p.label,
               dateIst: p.dateIst,
               actualKWh: p.actualKWh,
-              baselineKWh: p.baselineKWh,
+              ratedMaxKWh: p.ratedMaxKWh,
               avgOccupancyPercent: p.avgOccupancyPercent,
               isPartial: Boolean(p.isPartial),
             })),
@@ -1461,61 +1841,12 @@ export function registerVoiceLiveWebSocket(
         }
 
         case 'compare_energy_periods': {
-          const qA = typeof args.periodA === 'string' ? args.periodA.trim() : 'today';
-          const qB = typeof args.periodB === 'string' ? args.periodB.trim() : 'last 7 days';
-          const rA = resolveNaturalDateQuery(qA);
-          const rB = resolveNaturalDateQuery(qB);
-          const buildingFilter =
-            typeof args.building === 'string' && args.building.trim() ? args.building.trim() : null;
-
-          const ovA = energyHistoryService.getOverview({
-            preset: rA.preset,
-            startDate: rA.startDate,
-            endDate: rA.endDate,
-            building: buildingFilter,
+          return executeCompareEnergyPeriodsTool({
+            args,
+            rooms,
             settings,
+            memory: sessionMemory,
           });
-          const ovB = energyHistoryService.getOverview({
-            preset: rB.preset,
-            startDate: rB.startDate,
-            endDate: rB.endDate,
-            building: buildingFilter,
-            settings,
-          });
-
-          const avgDeltaPct =
-            ovB.kpis.averageDailyKWh > 0.05
-              ? Number(
-                  (
-                    ((ovA.kpis.averageDailyKWh - ovB.kpis.averageDailyKWh) /
-                      ovB.kpis.averageDailyKWh) *
-                    100
-                  ).toFixed(1)
-                )
-              : null;
-
-          return {
-            periodA: {
-              query: qA,
-              range: ovA.range,
-              totalActualKWh: ovA.kpis.totalActualKWh,
-              averageDailyKWh: ovA.kpis.averageDailyKWh,
-              savingsPercent: ovA.kpis.savingsPercent,
-              estimatedCostINR: ovA.kpis.estimatedCostINR,
-              blocks: ovA.blocks,
-            },
-            periodB: {
-              query: qB,
-              range: ovB.range,
-              totalActualKWh: ovB.kpis.totalActualKWh,
-              averageDailyKWh: ovB.kpis.averageDailyKWh,
-              savingsPercent: ovB.kpis.savingsPercent,
-              estimatedCostINR: ovB.kpis.estimatedCostINR,
-              blocks: ovB.blocks,
-            },
-            dailyRateChangePercent: avgDeltaPct,
-            dataClassification: ovA.dataClassification,
-          };
         }
 
         case 'get_time_of_day_profile': {
@@ -1566,56 +1897,69 @@ export function registerVoiceLiveWebSocket(
         }
 
         case 'investigate_energy_reason': {
-          const q = typeof args.naturalQuery === 'string' ? args.naturalQuery.trim() : 'yesterday';
+          const q =
+            typeof args.naturalQuery === 'string' && args.naturalQuery.trim()
+              ? args.naturalQuery.trim()
+              : typeof args.period === 'string' && args.period.trim()
+              ? args.period.trim()
+              : 'yesterday';
           const buildingFilter =
             typeof args.building === 'string' && args.building.trim() ? args.building.trim() : null;
           let roomIdFilter: string | null = null;
+          let matchedRoom: Classroom | null = null;
           if (typeof args.roomQuery === 'string' && args.roomQuery.trim()) {
             const res = resolveClassroom(rooms, args.roomQuery);
-            if (res.match) roomIdFilter = res.match.id;
+            if (res.match) {
+              roomIdFilter = res.match.id;
+              matchedRoom = res.match;
+            }
           }
+          const investigation = energyHistoryService.investigatePeriod({
+            naturalQuery: q,
+            building: buildingFilter,
+            roomId: roomIdFilter,
+          });
           return {
-            ...energyHistoryService.investigatePeriod({
-              naturalQuery: q,
-              building: buildingFilter,
-              roomId: roomIdFilter,
-            }),
+            ...investigation,
+            scopeRoomCode: matchedRoom?.roomCode ?? null,
+            scopeRoomName: matchedRoom?.name ?? null,
+            scopeBuilding: buildingFilter ?? matchedRoom?.building ?? null,
           };
         }
 
         case 'get_energy_savings_estimate': {
           const daily = generateDeterministicPeriodMetrics(
             summary.dailyActualKWh,
-            summary.dailyBaselineKWh,
+            summary.dailyRatedCeilingKWh,
             settings.tariffPerKWhINR,
             settings.gridCarbonFactorKgCO2PerKWh,
             'today'
           );
-          const monthlySavedKWh = Number((daily.savedKWh * SCHOOL_DAYS_PER_MONTH).toFixed(1));
-          const annualSavedKWh = Number((daily.savedKWh * SCHOOL_DAYS_PER_YEAR).toFixed(0));
           return {
             tariffPerKWhINR: settings.tariffPerKWhINR,
             carbonFactorKgPerKWh: settings.gridCarbonFactorKgCO2PerKWh,
             schoolDaysPerMonth: SCHOOL_DAYS_PER_MONTH,
             schoolDaysPerYear: SCHOOL_DAYS_PER_YEAR,
             daily: {
-              savedKWh: daily.savedKWh,
-              costSavedINR: daily.costSavedINR,
-              co2AvoidedKg: daily.co2AvoidedKg,
+              actualKWh: daily.actualKWh,
+              ratedMaxKWh: daily.ratedMaxKWh,
+              unusedRatedHeadroomKWh: daily.unusedRatedHeadroomKWh,
+              estimatedCostINR: daily.estimatedCostINR,
+              co2Kg: daily.co2Kg,
             },
             monthlySchoolDays: {
               daysBasis: SCHOOL_DAYS_PER_MONTH,
-              savedKWh: monthlySavedKWh,
-              costSavedINR: Number((monthlySavedKWh * settings.tariffPerKWhINR).toFixed(0)),
-              co2AvoidedKg: Number((monthlySavedKWh * settings.gridCarbonFactorKgCO2PerKWh).toFixed(1)),
+              actualKWh: summary.monthlyActualKWh,
+              estimatedCostINR: summary.monthlyCostINR,
+              co2Tonnes: summary.monthlyEmissionsTonnesCO2,
             },
             annualSchoolDays: {
               daysBasis: SCHOOL_DAYS_PER_YEAR,
-              savedKWh: annualSavedKWh,
-              costSavedINR: Number((annualSavedKWh * settings.tariffPerKWhINR).toFixed(0)),
-              co2AvoidedKg: Number((annualSavedKWh * settings.gridCarbonFactorKgCO2PerKWh).toFixed(0)),
+              actualKWh: summary.annualActualKWh,
+              estimatedCostINR: summary.annualCostINR,
+              co2Tonnes: summary.annualEmissionsTonnesCO2,
             },
-            dataClassification: 'Calculated Estimate based on WBSEDCL HT-2, CEA Grid Factor & 22/225 Day-School Calendar',
+            dataClassification: 'Modelled Estimate based on WBSEDCL HT-2, CEA Grid Factor & 22/225 Day-School Calendar',
           };
         }
 
@@ -1629,17 +1973,21 @@ export function registerVoiceLiveWebSocket(
           });
           return {
             count: filtered.length,
-            classrooms: filtered.map((r) => ({
-              roomCode: r.roomCode,
-              name: r.name,
-              building: r.building,
-              floor: r.floor,
-              roomActivity: formatVoiceRoomActivity(r),
-              configuredSeatCapacity: r.capacity,
-              currentPowerWatts: r.currentPowerWatts,
-              baselinePowerWatts: r.baselinePowerWatts,
-            })),
-            dataClassification: 'Simulated IoT Node Inventory (PIR motion only, no headcounts)',
+            classrooms: filtered.map((r) => {
+              const ratedPowerWatts = r.ratedPowerWatts ?? computeAppliancesRatedPowerWatts(r.appliances);
+              return {
+                roomCode: r.roomCode,
+                name: r.name,
+                building: r.building,
+                floor: r.floor,
+                roomActivity: formatVoiceRoomActivity(r),
+                configuredSeatCapacity: r.capacity,
+                currentPowerWatts: r.currentPowerWatts,
+                ratedPowerWatts,
+                availableHeadroomWatts: Math.max(0, ratedPowerWatts - r.currentPowerWatts),
+              };
+            }),
+            dataClassification: 'Modelled Node Inventory (PIR motion only, no headcounts)',
           };
         }
 
@@ -1661,8 +2009,7 @@ export function registerVoiceLiveWebSocket(
           const lights = r.appliances.filter((a) => a.type === 'lights');
           const fans = r.appliances.filter((a) => a.type === 'fan');
           const manualCount = r.appliances.filter((a) => a.operatingMode === 'MANUAL' || a.isManualOverride).length;
-          const ratedPowerWatts =
-            r.ratedPowerWatts ?? computeAppliancesRatedPowerWatts(r.appliances);
+          const metrics = computeClassroomCanonicalMetrics(r, settings);
           return {
             found: true,
             roomCode: r.roomCode,
@@ -1672,18 +2019,20 @@ export function registerVoiceLiveWebSocket(
             type: r.type,
             roomActivity: formatVoiceRoomActivity(r),
             configuredSeatCapacity: r.capacity,
-            currentPowerWatts: r.currentPowerWatts,
-            ratedPowerWatts,
-            curtailedFromRatedWatts: Math.max(0, ratedPowerWatts - r.currentPowerWatts),
-            baselinePowerWatts: r.baselinePowerWatts,
-            powerSavedWatts: Math.max(0, r.baselinePowerWatts - r.currentPowerWatts),
+            currentPowerWatts: metrics.currentPowerWatts,
+            ratedPowerWatts: metrics.ratedPowerWatts,
+            availableHeadroomWatts: metrics.availableHeadroomWatts,
+            ratedUtilizationPercent: metrics.ratedUtilizationPercent,
+            headroomPercent: metrics.headroomPercent,
+            dailyActualKWh: metrics.dailyActualKWh,
+            dailyCostINR: metrics.dailyCostINR,
             manualOverrideUnits: manualCount,
             lightsActive: lights.filter((l) => (l.outputPercent ?? 0) > 0).length,
             lightsTotal: lights.length,
             fansActive: fans.filter((f) => (f.outputPercent ?? 0) > 0).length,
             fansTotal: fans.length,
             ruleExplanation: r.decision.ruleExplanation,
-            dataClassification: 'Simulated Node State (PIR detects movement, not student counts)',
+            dataClassification: 'Modelled Node State (PIR detects movement, not student counts)',
           };
         }
 
@@ -1708,7 +2057,7 @@ export function registerVoiceLiveWebSocket(
             pir: r.pir,
             learnedParameters: r.calibration.learnedParameters,
             isCalibrated: r.calibration.isCalibrated,
-            dataClassification: 'Simulated IoT Node Environmental Telemetry',
+            dataClassification: 'Modelled Node Environmental Telemetry',
           };
         }
 
@@ -1724,6 +2073,7 @@ export function registerVoiceLiveWebSocket(
             };
           }
           const r = res.match;
+          const ratedPowerWatts = r.ratedPowerWatts ?? computeAppliancesRatedPowerWatts(r.appliances);
           const resolvedRange = resolveNaturalDateQuery(period);
           const roomHist = energyHistoryService.getRoomHistory({
             roomId: r.id,
@@ -1737,7 +2087,8 @@ export function registerVoiceLiveWebSocket(
             roomCode: r.roomCode,
             name: r.name,
             currentPowerWatts: r.currentPowerWatts,
-            baselinePowerWatts: r.baselinePowerWatts,
+            ratedPowerWatts,
+            availableHeadroomWatts: Math.max(0, ratedPowerWatts - r.currentPowerWatts),
             history: roomHist,
           };
         }
@@ -1753,23 +2104,28 @@ export function registerVoiceLiveWebSocket(
               matchesB: resB.ambiguous?.map((r) => `${r.roomCode} (${r.name})`),
             };
           }
-          const summarize = (r: Classroom) => ({
-            roomCode: r.roomCode,
-            name: r.name,
-            building: r.building,
-            roomActivity: formatVoiceRoomActivity(r),
-            configuredSeatCapacity: r.capacity,
-            currentPowerWatts: r.currentPowerWatts,
-            baselinePowerWatts: r.baselinePowerWatts,
-            dailyActualKWh: r.dailyActualKWh,
-            dailySavedKWh: Number(Math.max(0, r.dailyBaselineKWh - r.dailyActualKWh).toFixed(2)),
-            ambientLux: r.environment.ambientLux,
-            temperatureC: r.environment.temperature,
-          });
+          const summarize = (r: Classroom) => {
+            const metrics = computeClassroomCanonicalMetrics(r, settings);
+            return {
+              roomCode: r.roomCode,
+              name: r.name,
+              building: r.building,
+              roomActivity: formatVoiceRoomActivity(r),
+              configuredSeatCapacity: r.capacity,
+              currentPowerWatts: metrics.currentPowerWatts,
+              ratedPowerWatts: metrics.ratedPowerWatts,
+              availableHeadroomWatts: metrics.availableHeadroomWatts,
+              ratedUtilizationPercent: metrics.ratedUtilizationPercent,
+              dailyActualKWh: metrics.dailyActualKWh,
+              dailyCostINR: metrics.dailyCostINR,
+              ambientLux: r.environment.ambientLux,
+              temperatureC: r.environment.temperature,
+            };
+          };
           return {
             classroomA: summarize(resA.match),
             classroomB: summarize(resB.match),
-            dataClassification: 'Simulated Node Comparison & Calculated Savings',
+            dataClassification: 'Modelled Node Operational Comparison',
           };
         }
 
@@ -1922,7 +2278,7 @@ export function registerVoiceLiveWebSocket(
               utilizationPercent: Math.round(ratio * 100),
               currentPowerWatts: r.currentPowerWatts,
               ratedPowerWatts: ratedW,
-              baselinePowerWatts: r.baselinePowerWatts,
+              availableHeadroomWatts: Math.max(0, ratedW - r.currentPowerWatts),
             }));
 
           const openAuditAlerts = liveFindings
@@ -2000,20 +2356,25 @@ export function registerVoiceLiveWebSocket(
         }
 
         case 'explain_energy_trend': {
-          const topSavers = [...rooms]
-            .map((r) => ({
-              roomCode: r.roomCode,
-              name: r.name,
-              savedKWh: Number(Math.max(0, r.dailyBaselineKWh - r.dailyActualKWh).toFixed(2)),
-              daylightAlpha: r.calibration.learnedParameters.daylightPenetrationAlpha,
-              naturalDaylightLux: r.environment.naturalDaylightLux,
-            }))
-            .sort((a, b) => b.savedKWh - a.savedKWh)
+          const topHeadroom = [...rooms]
+            .map((r) => {
+              const metrics = computeClassroomCanonicalMetrics(r, settings);
+              return {
+                roomCode: r.roomCode,
+                name: r.name,
+                headroomPercent: metrics.headroomPercent,
+                availableHeadroomWatts: metrics.availableHeadroomWatts,
+                daylightAlpha: r.calibration.learnedParameters.daylightPenetrationAlpha,
+                naturalDaylightLux: r.environment.naturalDaylightLux,
+              };
+            })
+            .sort((a, b) => b.availableHeadroomWatts - a.availableHeadroomWatts)
             .slice(0, 5);
           return {
-            campusSavingsPercent: summary.savingsPercent,
+            campusRatedUtilizationPercent: summary.ratedUtilizationPercent,
+            campusHeadroomPercent: summary.headroomPercent,
             learningMode: settings.learningMode,
-            topDaylightAndAdaptiveSavers: topSavers,
+            topDaylightAndHeadroomRooms: topHeadroom,
             highestCurrentConsumers: [...rooms]
               .sort((a, b) => b.currentPowerWatts - a.currentPowerWatts)
               .slice(0, 5)
@@ -2023,7 +2384,7 @@ export function registerVoiceLiveWebSocket(
                 currentPowerWatts: r.currentPowerWatts,
                 type: r.type,
               })),
-            dataClassification: 'Engineering Interpretation of Simulated Telemetry',
+            dataClassification: 'Engineering Interpretation of Modelled Node Telemetry',
           };
         }
 
@@ -2085,199 +2446,31 @@ export function registerVoiceLiveWebSocket(
         }
 
         case 'control_classroom_appliance': {
-          // 1. Live Server-Side Authentication Check (never trust wake-word or client flag)
-          if (!adminIdentity) {
-            sendJson({
-              type: 'tool_status',
-              toolName: 'control_classroom_appliance',
-              status: 'denied',
-              message: 'Blocked: Administrator authentication required',
-            });
-            return {
-              ok: false,
-              authorized: false,
-              error:
-                'PERMISSION_DENIED: Appliance control is blocked in Student Mode. Only a signed-in ROOMWISE administrator can modify classroom lights or fans.',
-              actionRequired: 'admin_login',
-            };
-          }
-
-          const roomQuery = typeof args.roomQuery === 'string' ? args.roomQuery : '';
-          const resolvedRoom = resolveClassroom(rooms, roomQuery);
-          if (resolvedRoom.ambiguous) {
-            return {
-              ok: false,
-              ambiguous: true,
-              matches: resolvedRoom.ambiguous.map((r) => ({ roomCode: r.roomCode, name: r.name })),
-              message: 'Multiple classrooms matched. Ask the administrator to confirm the exact classroom.',
-            };
-          }
-          if (!resolvedRoom.match) {
-            return { ok: false, error: `No classroom found matching "${roomQuery}".` };
-          }
-
-          const room = resolvedRoom.match;
-          const targetType = typeof args.targetType === 'string' ? args.targetType : 'unit';
-          const mode = typeof args.mode === 'string' ? args.mode : 'set';
-          const unitQuery = typeof args.unitQuery === 'string' ? args.unitQuery : '';
-          const confirmed = Boolean(args.confirmed);
-          const isVacant = room.occupancyStatus === 'Unoccupied' || room.currentOccupants === 0;
-
-          if (mode === 'set' && (typeof args.outputPercent !== 'number' || !Number.isFinite(args.outputPercent))) {
-            return { ok: false, error: 'Numeric outputPercent (0 to 100) is required when mode is "set".' };
-          }
-          const clampedPct =
-            typeof args.outputPercent === 'number'
-              ? Math.max(0, Math.min(100, Math.round(args.outputPercent)))
-              : 0;
-
-          let action: ServerApplianceCommandInput['action'];
-          let targetUnit: Appliance | null = null;
-          let groupType: ServerApplianceCommandInput['type'] | undefined;
-          let affectedCount = 1;
-          let targetDesc = '';
-
-          if (targetType === 'room_auto') {
-            action = 'restore_room_auto';
-            affectedCount = room.appliances.length;
-            targetDesc = `All ${affectedCount} appliances in ${room.name} (${room.roomCode}) -> Adaptive AUTO`;
-          } else if (
-            targetType === 'lights_group' ||
-            targetType === 'fans_group' ||
-            targetType === 'projector_group' ||
-            targetType === 'ac_group' ||
-            targetType === 'all_group'
-          ) {
-            groupType =
-              targetType === 'lights_group'
-                ? 'lights'
-                : targetType === 'fans_group'
-                ? 'fan'
-                : targetType === 'projector_group'
-                ? 'projector'
-                : targetType === 'ac_group'
-                ? 'ac'
-                : 'all';
-            action = mode === 'restore_auto' ? 'restore_room_auto' : 'set_group';
-            const matchedApps =
-              groupType === 'all'
-                ? room.appliances
-                : room.appliances.filter((a) => a.type === groupType);
-            affectedCount = matchedApps.length;
-            const groupLabel =
-              groupType === 'all'
-                ? 'appliances'
-                : groupType === 'lights'
-                ? 'lights'
-                : groupType === 'fan'
-                ? 'fan sectors'
-                : groupType === 'projector'
-                ? 'projectors'
-                : 'AC units';
-            targetDesc =
-              mode === 'restore_auto'
-                ? `All ${affectedCount} ${groupLabel} in ${room.name} -> AUTO`
-                : `All ${affectedCount} ${groupLabel} in ${room.name} -> ${clampedPct === 0 ? 'OFF' : `${clampedPct}%`}`;
-          } else {
-            if (!unitQuery) {
-              return {
-                ok: false,
-                error: 'unitQuery is required when targetType is "unit". List units with get_appliance_configuration first.',
-              };
-            }
-            targetUnit = resolveApplianceUnit(room.appliances, unitQuery);
-            if (!targetUnit) {
-              return {
-                ok: false,
-                error: `Appliance "${unitQuery}" not found in ${room.roomCode}.`,
-                availableUnits: room.appliances.map((a) => `${a.unitCode || a.id}: ${a.name}`),
-              };
-            }
-            action = mode === 'restore_auto' ? 'restore_unit_auto' : 'set_unit';
-            targetDesc = `${targetUnit.unitCode || targetUnit.name} in ${room.name} (${room.roomCode}) -> ${
-              mode === 'restore_auto' ? 'Adaptive AUTO' : clampedPct === 0 ? 'OFF' : `${clampedPct}%`
-            }`;
-          }
-
-          // Require explicit confirmation ONLY if confirmed===false is explicitly passed
-          const isExplicitPreview = args.confirmed === false;
-          if (isExplicitPreview) {
-            return {
-              ok: false,
-              confirmationRequired: true,
-              preview: {
-                roomCode: room.roomCode,
-                roomName: room.name,
-                roomActivity: formatVoiceRoomActivity(room),
-                targetDescription: targetDesc,
-                affectedUnitsCount: affectedCount,
-                currentRoomPowerWatts: room.currentPowerWatts,
-              },
-              message:
-                'Confirmation required before applying this override. Briefly describe the planned change and ask the administrator to confirm.',
-            };
-          }
-
-          const result = deps.executeApplianceCommand({
-            roomId: room.id,
-            action,
-            applianceId: targetUnit?.id,
-            type: groupType,
-            outputPercent: clampedPct,
-            isVacant,
-            admin: adminIdentity,
-          });
-
-          if (!result.ok || !result.appliances) {
-            return { ok: false, error: result.error || 'Failed to execute appliance command.' };
-          }
-
-          // Keep session snapshot current
-          currentSnapshot.classrooms = currentSnapshot.classrooms.map((c) => {
-            if (c.id !== room.id) return c;
-            const updatedWatts = result.totalPowerWatts ?? c.currentPowerWatts;
-            const ratedW = computeAppliancesRatedPowerWatts(result.appliances!);
-            return {
-              ...c,
-              appliances: result.appliances!,
-              currentPowerWatts: updatedWatts,
-              ratedPowerWatts: ratedW,
-              dailyActualKWh: Number(((updatedWatts * OPERATING_HOURS_PER_DAY) / 1000).toFixed(2)),
-            };
-          });
-          const postSingleSummary = computeDerivedCampusSummary(
-            mergeSnapshotWithServerAppliances(currentSnapshot, deps),
-            settings
-          );
-
-          sendJson({
-            type: 'appliance_state_updated',
-            payload: {
-              roomId: room.id,
-              roomCode: room.roomCode,
-              appliances: result.appliances,
-              totalPowerWatts: result.totalPowerWatts ?? 0,
-              summary: result.summary || targetDesc,
+          return executeClassroomApplianceControl({
+            args,
+            rooms,
+            settings,
+            adminIdentity,
+            memory: sessionMemory,
+            deps,
+            emitMessage: sendJson,
+            updateSessionRoom: (roomId, appliances, totalPowerWatts) => {
+              currentSnapshot.classrooms = currentSnapshot.classrooms.map((c) =>
+                c.id === roomId
+                  ? {
+                      ...c,
+                      appliances,
+                      currentPowerWatts: totalPowerWatts,
+                      ratedPowerWatts: computeAppliancesRatedPowerWatts(appliances),
+                      dailyActualKWh: Number(
+                        ((totalPowerWatts * OPERATING_HOURS_PER_DAY) / 1000).toFixed(2)
+                      ),
+                    }
+                  : c
+              );
+              return currentSnapshot.classrooms;
             },
           });
-          sendJson({
-            type: 'tool_status',
-            toolName: 'control_classroom_appliance',
-            status: 'completed',
-            message: result.summary || targetDesc,
-          });
-
-          return {
-            ok: true,
-            authorizedBy: adminIdentity.adminName,
-            roomCode: room.roomCode,
-            roomName: room.name,
-            summary: result.summary || targetDesc,
-            newTotalPowerWatts: result.totalPowerWatts,
-            campusTotalCurrentPowerWatts: postSingleSummary.totalCurrentPowerWatts,
-            campusTotalCurrentPowerKW: postSingleSummary.totalCurrentPowerKW,
-            campusInstalledRatedMaxKW: postSingleSummary.totalRatedPowerKW,
-          };
         }
 
         case 'control_building_or_campus_appliances': {
@@ -2422,9 +2615,8 @@ export function registerVoiceLiveWebSocket(
             campusInstalledRatedMaxWatts: postBatchSummary.totalRatedPowerWatts,
             campusInstalledRatedMaxKW: postBatchSummary.totalRatedPowerKW,
             campusRatedUtilizationPercent: postBatchSummary.ratedUtilizationPercent,
-            campusEstimatedPreRetrofitReferenceKW: postBatchSummary.totalBaselinePowerKW,
-            installedCapacityDifferenceWatts: postBatchSummary.installedCapacityDifferenceWatts,
-            reconciliationNote: `Live campus load is ${postBatchSummary.totalCurrentPowerKW} kW (${postBatchSummary.ratedUtilizationPercent}% of ${postBatchSummary.totalRatedPowerKW} kW Installed Rated Maximum; Estimated Pre-Retrofit Reference Capacity is ${formatCapacityKW(postBatchSummary.totalBaselinePowerWatts)} kW).`,
+            campusAvailableHeadroomKW: postBatchSummary.availableHeadroomKW,
+            reconciliationNote: `Live campus load is ${postBatchSummary.totalCurrentPowerKW} kW (${postBatchSummary.ratedUtilizationPercent}% of ${postBatchSummary.totalRatedPowerKW} kW Installed Rated Maximum; Available Rated Headroom: ${postBatchSummary.availableHeadroomKW} kW).`,
             summary: batchResult.summary,
           };
         }
@@ -3119,8 +3311,10 @@ export function registerVoiceLiveWebSocket(
             );
           }
 
-          const efficiencyOf = (r: Classroom) =>
-            r.dailyBaselineKWh > 0 ? Math.max(0, r.dailyBaselineKWh - r.dailyActualKWh) / r.dailyBaselineKWh : 0;
+          const headroomRatioOf = (r: Classroom) => {
+            const ratedW = r.ratedPowerWatts ?? computeAppliancesRatedPowerWatts(r.appliances);
+            return ratedW > 0 ? Math.max(0, ratedW - r.currentPowerWatts) / ratedW : 0;
+          };
 
           pool.sort((a, b) => {
             switch (sortBy) {
@@ -3129,9 +3323,9 @@ export function registerVoiceLiveWebSocket(
               case 'waste_desc':
                 return (wasteByRoom.get(b.id) || 0) - (wasteByRoom.get(a.id) || 0);
               case 'efficiency_desc':
-                return efficiencyOf(b) - efficiencyOf(a);
+                return headroomRatioOf(b) - headroomRatioOf(a);
               case 'efficiency_asc':
-                return efficiencyOf(a) - efficiencyOf(b);
+                return headroomRatioOf(a) - headroomRatioOf(b);
               case 'temperature_desc':
                 return b.environment.temperature - a.environment.temperature;
               case 'co2_desc':
@@ -3147,21 +3341,26 @@ export function registerVoiceLiveWebSocket(
           return {
             sortBy,
             totalMatched: pool.length,
-            results: pool.slice(0, limit).map((r) => ({
-              roomCode: r.roomCode,
-              name: r.name,
-              building: r.building,
-              floor: r.floor,
-              occupancyStatus: r.occupancyStatus,
-              currentPowerWatts: r.currentPowerWatts,
-              baselinePowerWatts: r.baselinePowerWatts,
-              efficiencyPercent: Number((efficiencyOf(r) * 100).toFixed(1)),
-              estimatedWasteWatts: wasteByRoom.get(r.id) || 0,
-              temperatureC: r.environment.temperature,
-              co2Ppm: r.environment.co2Ppm,
-              naturalDaylightLux: r.environment.naturalDaylightLux,
-              manualUnitsCount: r.appliances.filter((a) => a.operatingMode === 'MANUAL' || a.isManualOverride).length,
-            })),
+            results: pool.slice(0, limit).map((r) => {
+              const metrics = computeClassroomCanonicalMetrics(r, settings);
+              return {
+                roomCode: r.roomCode,
+                name: r.name,
+                building: r.building,
+                floor: r.floor,
+                occupancyStatus: r.occupancyStatus,
+                currentPowerWatts: metrics.currentPowerWatts,
+                ratedPowerWatts: metrics.ratedPowerWatts,
+                availableHeadroomWatts: metrics.availableHeadroomWatts,
+                ratedUtilizationPercent: metrics.ratedUtilizationPercent,
+                headroomPercent: metrics.headroomPercent,
+                estimatedWasteWatts: wasteByRoom.get(r.id) || 0,
+                temperatureC: r.environment.temperature,
+                co2Ppm: r.environment.co2Ppm,
+                naturalDaylightLux: r.environment.naturalDaylightLux,
+                manualUnitsCount: r.appliances.filter((a) => a.operatingMode === 'MANUAL' || a.isManualOverride).length,
+              };
+            }),
           };
         }
 
@@ -3175,12 +3374,12 @@ export function registerVoiceLiveWebSocket(
               totalSeatCapacity: number;
               currentWatts: number;
               ratedWatts: number;
-              baselineWatts: number;
               dailyActualKWh: number;
-              dailyBaselineKWh: number;
+              dailyRatedCeilingKWh: number;
             }
           >();
           for (const r of rooms) {
+            const metrics = computeClassroomCanonicalMetrics(r, settings);
             const b = map.get(r.building) || {
               building: r.building,
               roomCount: 0,
@@ -3188,26 +3387,24 @@ export function registerVoiceLiveWebSocket(
               totalSeatCapacity: 0,
               currentWatts: 0,
               ratedWatts: 0,
-              baselineWatts: 0,
               dailyActualKWh: 0,
-              dailyBaselineKWh: 0,
+              dailyRatedCeilingKWh: 0,
             };
             b.roomCount++;
             if (formatVoiceRoomActivity(r) === 'Motion detected') b.motionDetectedRooms++;
             b.totalSeatCapacity += r.capacity;
-            b.currentWatts += r.currentPowerWatts;
-            b.ratedWatts += r.ratedPowerWatts ?? computeAppliancesRatedPowerWatts(r.appliances);
-            b.baselineWatts += r.baselinePowerWatts;
-            b.dailyActualKWh += r.dailyActualKWh;
-            b.dailyBaselineKWh += r.dailyBaselineKWh;
+            b.currentWatts += metrics.currentPowerWatts;
+            b.ratedWatts += metrics.ratedPowerWatts;
+            b.dailyActualKWh += metrics.dailyActualKWh;
+            b.dailyRatedCeilingKWh += metrics.dailyRatedCeilingKWh;
             map.set(r.building, b);
           }
 
           return {
             buildings: Array.from(map.values()).map((b) => {
-              const powerSavedWatts = Math.max(0, b.baselineWatts - b.currentWatts);
-              const curtailedFromRatedWatts = Math.max(0, b.ratedWatts - b.currentWatts);
-              const dailySavedKWh = Math.max(0, b.dailyBaselineKWh - b.dailyActualKWh);
+              const availableHeadroomWatts = Math.max(0, b.ratedWatts - b.currentWatts);
+              const ratedUtilizationPercent =
+                b.ratedWatts > 0 ? Number(((b.currentWatts / b.ratedWatts) * 100).toFixed(1)) : 0;
               return {
                 building: b.building,
                 roomCount: b.roomCount,
@@ -3215,19 +3412,13 @@ export function registerVoiceLiveWebSocket(
                 totalSeatCapacity: b.totalSeatCapacity,
                 currentWatts: b.currentWatts,
                 ratedWatts: b.ratedWatts,
-                curtailedFromRatedWatts,
-                ratedUtilizationPercent:
-                  b.ratedWatts > 0 ? Number(((b.currentWatts / b.ratedWatts) * 100).toFixed(1)) : 0,
-                baselineWatts: b.baselineWatts,
-                powerSavedWatts,
-                savingsPercent:
-                  b.baselineWatts > 0
-                    ? Number(((powerSavedWatts / b.baselineWatts) * 100).toFixed(1))
-                    : 0,
+                availableHeadroomWatts,
+                ratedUtilizationPercent,
+                headroomPercent:
+                  b.ratedWatts > 0 ? Number(Math.max(0, 100 - ratedUtilizationPercent).toFixed(1)) : 0,
                 dailyActualKWh: Number(b.dailyActualKWh.toFixed(2)),
-                dailyBaselineKWh: Number(b.dailyBaselineKWh.toFixed(2)),
-                dailySavedKWh: Number(dailySavedKWh.toFixed(2)),
-                dailyCostSavedINR: Number((dailySavedKWh * settings.tariffPerKWhINR).toFixed(2)),
+                dailyRatedCeilingKWh: Number(b.dailyRatedCeilingKWh.toFixed(2)),
+                dailyCostINR: Number((b.dailyActualKWh * settings.tariffPerKWhINR).toFixed(2)),
               };
             }),
           };
@@ -3248,16 +3439,14 @@ export function registerVoiceLiveWebSocket(
               : 0;
 
           const currentActualKWh = summary.dailyActualKWh;
-          const currentSavedKWh = summary.dailySavedKWh;
           const projectedActualKWh = Number((currentActualKWh * (1 - extraPct / 100)).toFixed(2));
-          const projectedSavedKWh = Number(
-            Math.max(0, summary.dailyBaselineKWh - projectedActualKWh).toFixed(2)
-          );
+          const incrementalSavedKWh = Number(Math.max(0, currentActualKWh - projectedActualKWh).toFixed(2));
 
           const currentDailyBillINR = Number((currentActualKWh * settings.tariffPerKWhINR).toFixed(2));
           const projectedDailyBillINR = Number((projectedActualKWh * newTariff).toFixed(2));
-          const currentDailySavedINR = summary.dailyCostSavedINR;
-          const projectedDailySavedINR = Number((projectedSavedKWh * newTariff).toFixed(2));
+          const projectedIncrementalCostDeltaINR = Number(
+            Math.max(0, currentDailyBillINR - projectedDailyBillINR).toFixed(2)
+          );
 
           return {
             assumptions: {
@@ -3268,18 +3457,20 @@ export function registerVoiceLiveWebSocket(
               additionalReductionPercent: extraPct,
             },
             daily: {
-              currentSavedKWh,
-              projectedSavedKWh,
+              currentActualKWh,
+              projectedActualKWh,
+              incrementalReductionKWh: incrementalSavedKWh,
               currentDailyBillINR,
               projectedDailyBillINR,
-              currentDailyCostSavedINR: currentDailySavedINR,
-              projectedDailyCostSavedINR: projectedDailySavedINR,
-              projectedDailyCO2AvoidedKg: Number((projectedSavedKWh * newCarbon).toFixed(2)),
+              projectedDailyBillReductionINR: projectedIncrementalCostDeltaINR,
+              projectedDailyCO2AvoidedKg: Number((incrementalSavedKWh * newCarbon).toFixed(2)),
             },
-            annual220SchoolDays: {
-              projectedSavedKWh: Number((projectedSavedKWh * 220).toFixed(0)),
-              projectedAnnualCostSavedINR: Number((projectedDailySavedINR * 220).toFixed(0)),
-              projectedAnnualCO2AvoidedKg: Number((projectedSavedKWh * newCarbon * 220).toFixed(0)),
+            annualSchoolDays: {
+              schoolDaysPerYear: SCHOOL_DAYS_PER_YEAR,
+              projectedAnnualKWh: Number((projectedActualKWh * SCHOOL_DAYS_PER_YEAR).toFixed(0)),
+              projectedIncrementalReductionKWh: Number((incrementalSavedKWh * SCHOOL_DAYS_PER_YEAR).toFixed(0)),
+              projectedAnnualBillINR: Number((projectedDailyBillINR * SCHOOL_DAYS_PER_YEAR).toFixed(0)),
+              projectedAnnualCO2AvoidedKg: Number((incrementalSavedKWh * newCarbon * SCHOOL_DAYS_PER_YEAR).toFixed(0)),
             },
           };
         }
@@ -3389,7 +3580,8 @@ export function registerVoiceLiveWebSocket(
 
     const executeRegistryToolCall = async (
       name: string,
-      args: Record<string, unknown>
+      args: Record<string, unknown>,
+      abortSignal?: AbortSignal
     ): Promise<Record<string, unknown>> => {
       const adminIdentity = deps.resolveAdminFromWs(req, explicitToken);
       const mergedRooms = mergeSnapshotWithServerAppliances(currentSnapshot, deps);
@@ -3405,7 +3597,7 @@ export function registerVoiceLiveWebSocket(
         resolvedFindingIds: currentSnapshot.resolvedFindingIds,
         timestamp: currentSnapshot.snapshotTimestamp,
       };
-      return capabilityRegistry.execute(name, args, {
+      const result = await capabilityRegistry.execute(name, args, {
         snapshot: snapshotPayload,
         rooms: mergedRooms,
         settings: currentSnapshot.settings,
@@ -3413,7 +3605,10 @@ export function registerVoiceLiveWebSocket(
         memory: sessionMemory,
         emitClientMessage: sendJson,
         delegateLegacyTool: executeToolCall,
+        abortSignal,
       });
+      syncWsToolResultToMemory(name, args, result, mergedRooms, sessionMemory);
+      return result;
     };
 
     const pendingMessages: Record<string, unknown>[] = [];
@@ -3431,6 +3626,10 @@ export function registerVoiceLiveWebSocket(
       if (msgType === 'interrupt') {
         lastActivityAt = Date.now();
         isModelTurnActive = false;
+        awaitingPostToolResponse = false;
+        clearPostToolFallback();
+        abortAllActiveTools();
+        commitWsConversationTurn();
         sendJson({ type: 'interrupted' });
         return;
       }
@@ -3438,26 +3637,63 @@ export function registerVoiceLiveWebSocket(
       if (msgType === 'confirm_action') {
         lastActivityAt = Date.now();
         const confirmed = Boolean(parsed.confirmed);
+        activeToolCallsCount += 1;
         void executeRegistryToolCall(
           confirmed ? 'confirm_pending_action' : 'cancel_pending_action',
           {}
-        ).then((res) => {
-          const msgText =
-            typeof res.summary === 'string'
-              ? res.summary
-              : typeof res.message === 'string'
-              ? res.message
-              : typeof res.error === 'string'
-              ? res.error
-              : confirmed
-              ? 'Confirmed action executed.'
-              : 'Pending action cancelled.';
-          sendJson({
-            type: 'output_transcript',
-            text: formatRoomNameForSpeech(msgText),
-            isFinal: true,
+        )
+          .then((res) => {
+            const msgText =
+              typeof res.summary === 'string'
+                ? res.summary
+                : typeof res.message === 'string'
+                ? res.message
+                : typeof res.error === 'string'
+                ? res.error
+                : confirmed
+                ? 'Confirmed action executed.'
+                : 'Pending action cancelled.';
+            sendJson({
+              type: 'output_transcript',
+              text: canonicalizeWrittenText(msgText),
+              isFinal: true,
+            });
+            sendJson({ type: 'turn_complete' });
+            if (liveSession && !isClosing) {
+              try {
+                liveSession.sendClientContent({
+                  turns: [
+                    {
+                      role: 'user',
+                      parts: [
+                        {
+                          text: `[SYSTEM UI CONFIRMATION]: The user clicked ${
+                            confirmed ? 'Confirm' : 'Cancel'
+                          } on the pending action. Result: ${msgText}`,
+                        },
+                      ],
+                    },
+                  ],
+                  turnComplete: false,
+                });
+              } catch {
+                // ignore transient context sync errors
+              }
+            }
+          })
+          .catch((err) => {
+            sendJson({
+              type: 'tool_status',
+              toolName: confirmed ? 'confirm_pending_action' : 'cancel_pending_action',
+              status: 'error',
+              message: err instanceof Error ? err.message : 'Failed to process confirmation.',
+            });
+            sendJson({ type: 'turn_complete' });
+          })
+          .finally(() => {
+            activeToolCallsCount = Math.max(0, activeToolCallsCount - 1);
+            lastActivityAt = Date.now();
           });
-        });
         return;
       }
 
@@ -3596,10 +3832,16 @@ export function registerVoiceLiveWebSocket(
           console.warn('[voice] wake_greeting send failed:', err);
         }
       } else if (msgType === 'text_turn' && typeof parsed.text === 'string') {
+        // Preserve the user's original message untouched (including any Indian language,
+        // Romanised input, and code-mixed phrasing) so Gemini Live interprets true intent directly.
         const clean = parsed.text.trim();
         if (!clean) return;
         lastActivityAt = Date.now();
         hasReceivedUserSpeech = true;
+        if (currentAssistantTurnText.trim()) {
+          commitWsConversationTurn();
+        }
+        currentUserTurnText = clean;
         try {
           liveSession.sendClientContent({
             turns: [{ role: 'user', parts: [{ text: clean }] }],
@@ -3650,12 +3892,7 @@ export function registerVoiceLiveWebSocket(
         timestamp: currentSnapshot.snapshotTimestamp,
       };
 
-      const ai = new GoogleGenAI({
-        apiKey,
-        httpOptions: {
-          headers: { 'User-Agent': 'aistudio-build' },
-        },
-      });
+      const ai = getSharedGeminiClient(apiKey);
 
       const connectedSession = await ai.live.connect({
         model: LIVE_MODEL,
@@ -3686,31 +3923,74 @@ export function registerVoiceLiveWebSocket(
 
             if (message.serverContent?.interrupted) {
               isModelTurnActive = false;
+              awaitingPostToolResponse = false;
+              clearPostToolFallback();
+              abortAllActiveTools();
+              commitWsConversationTurn();
               sendJson({ type: 'interrupted' });
             }
 
-            const rawInputText = message.serverContent?.inputTranscription?.text?.trim();
-            if (rawInputText && rawInputText !== lastInputTranscript) {
-              lastInputTranscript = rawInputText;
-              hasReceivedUserSpeech = true;
+            if (Array.isArray(message.toolCallCancellation?.ids)) {
+              for (const cancelledId of message.toolCallCancellation.ids) {
+                if (typeof cancelledId === 'string') {
+                  cancelledToolCallIds.add(cancelledId);
+                  const ctrl = activeToolControllers.get(cancelledId);
+                  if (ctrl) {
+                    try {
+                      ctrl.abort();
+                    } catch {
+                      // ignore
+                    }
+                    activeToolControllers.delete(cancelledId);
+                  }
+                }
+              }
+            }
+
+            // CRITICAL: Preserve raw leading/trailing spaces on streaming Gemini Live
+            // transcription deltas — never call .trim() or drop repeated valid chunks!
+            const inputTr = message.serverContent?.inputTranscription as
+              | { text?: string; finished?: boolean }
+              | undefined;
+            if ((typeof inputTr?.text === 'string' && inputTr.text.length > 0) || Boolean(inputTr?.finished)) {
+              const rawInput = typeof inputTr?.text === 'string' ? inputTr.text : '';
+              if (rawInput.trim().length > 0) {
+                hasReceivedUserSpeech = true;
+                if (currentAssistantTurnText.trim()) {
+                  commitWsConversationTurn();
+                }
+                currentUserTurnText = mergeTranscriptChunk(currentUserTurnText, rawInput);
+              }
               sendJson({
                 type: 'input_transcript',
-                text: rawInputText,
+                text: rawInput,
+                final: Boolean(inputTr?.finished),
               });
             }
 
-            const rawOutputText = message.serverContent?.outputTranscription?.text?.trim();
-            if (rawOutputText && rawOutputText !== lastOutputTranscript) {
-              lastOutputTranscript = rawOutputText;
+            const outputTr = message.serverContent?.outputTranscription as
+              | { text?: string; finished?: boolean }
+              | undefined;
+            if ((typeof outputTr?.text === 'string' && outputTr.text.length > 0) || Boolean(outputTr?.finished)) {
+              const rawOutput = typeof outputTr?.text === 'string' ? outputTr.text : '';
+              if (rawOutput.length > 0) {
+                isModelTurnActive = true;
+                awaitingPostToolResponse = false;
+                clearPostToolFallback();
+                currentAssistantTurnText = mergeTranscriptChunk(currentAssistantTurnText, rawOutput);
+              }
               sendJson({
                 type: 'output_transcript',
-                text: rawOutputText,
+                text: rawOutput,
+                final: Boolean(outputTr?.finished),
               });
             }
 
             const parts = message.serverContent?.modelTurn?.parts;
             if (Array.isArray(parts)) {
               isModelTurnActive = true;
+              awaitingPostToolResponse = false;
+              clearPostToolFallback();
               for (const part of parts) {
                 if (part.inlineData?.data) {
                   sendJson({
@@ -3723,13 +4003,31 @@ export function registerVoiceLiveWebSocket(
             }
 
             if (message.serverContent?.turnComplete) {
-              isModelTurnActive = false;
-              lastInputTranscript = '';
-              lastOutputTranscript = '';
-              sendJson({ type: 'turn_complete' });
+              if (activeToolCallsCount > 0 || awaitingPostToolResponse) {
+                // Suppress Gemini Live's empty tool-boundary turnComplete so the client
+                // stays active until the spoken confirmation turn actually finishes.
+                clearPostToolFallback();
+                postToolFallbackTimer = setTimeout(() => {
+                  postToolFallbackTimer = null;
+                  if (!isClosing && awaitingPostToolResponse && activeToolCallsCount === 0) {
+                    awaitingPostToolResponse = false;
+                    isModelTurnActive = false;
+                    commitWsConversationTurn();
+                    sendJson({ type: 'turn_complete' });
+                  }
+                }, 6000);
+              } else {
+                isModelTurnActive = false;
+                commitWsConversationTurn();
+                sendJson({ type: 'turn_complete' });
+              }
             }
 
             if (message.toolCall?.functionCalls && message.toolCall.functionCalls.length > 0 && liveSession) {
+              activeToolCallsCount += 1;
+              isModelTurnActive = true;
+              awaitingPostToolResponse = true;
+              clearPostToolFallback();
               const functionResponses = [];
               const customStatusTools = new Set([
                 'navigate_roomwise',
@@ -3741,43 +4039,96 @@ export function registerVoiceLiveWebSocket(
                 'update_classroom_parameters',
                 'update_campus_settings',
                 'execute_app_action',
+                'consult_deep_reasoning',
               ]);
-              for (const fc of message.toolCall.functionCalls) {
-                const fcName = fc.name || '';
-                sendJson({
-                  type: 'tool_status',
-                  toolName: fcName,
-                  status: 'running',
-                  message: `Running ${fcName.replace(/_/g, ' ')}`,
-                });
-                const response = await executeRegistryToolCall(
-                  fcName,
-                  (fc.args || {}) as Record<string, unknown>
-                );
-                if (!customStatusTools.has(fcName)) {
-                  sendJson({
-                    type: 'tool_status',
-                    toolName: fcName,
-                    status: response.ok === false ? 'error' : 'completed',
-                    message:
-                      typeof response.summary === 'string'
-                        ? response.summary
-                        : typeof response.error === 'string'
-                        ? response.error
-                        : undefined,
-                  });
-                }
-                functionResponses.push({
-                  id: fc.id,
-                  name: fcName,
-                  response,
-                });
-              }
 
               try {
-                liveSession.sendToolResponse({ functionResponses });
-              } catch (err) {
-                console.warn('[voice] Failed sending tool response to Gemini Live:', err);
+                const calls = message.toolCall.functionCalls;
+                const canParallelizeWsBatch =
+                  calls.length > 1 &&
+                  calls.every((fc) => fc.name && capabilityRegistry.isParallelSafe(fc.name));
+
+                const runWsCall = async (fc: (typeof calls)[number]) => {
+                  const fcId = fc.id || '';
+                  const fcName = fc.name || '';
+                  if (fcId && cancelledToolCallIds.has(fcId)) {
+                    cancelledToolCallIds.delete(fcId);
+                    return null;
+                  }
+                  const toolAbortController = new AbortController();
+                  if (fcId) {
+                    activeToolControllers.set(fcId, toolAbortController);
+                  }
+                  if (!customStatusTools.has(fcName)) {
+                    sendJson({
+                      type: 'tool_status',
+                      toolName: fcName,
+                      status: 'running',
+                      message: `Running ${fcName.replace(/_/g, ' ')}`,
+                    });
+                  }
+                  let response: Record<string, unknown>;
+                  try {
+                    response = await executeRegistryToolCall(
+                      fcName,
+                      (fc.args || {}) as Record<string, unknown>,
+                      toolAbortController.signal
+                    );
+                  } catch (toolErr) {
+                    const errMsg =
+                      toolErr instanceof Error ? toolErr.message : 'Tool execution error.';
+                    response = { ok: false, error: errMsg };
+                  } finally {
+                    if (fcId) activeToolControllers.delete(fcId);
+                  }
+                  if (fcId && cancelledToolCallIds.has(fcId)) {
+                    cancelledToolCallIds.delete(fcId);
+                    return null;
+                  }
+                  if (!customStatusTools.has(fcName)) {
+                    sendJson({
+                      type: 'tool_status',
+                      toolName: fcName,
+                      status: response.ok === false ? 'error' : 'completed',
+                      message:
+                        typeof response.summary === 'string'
+                          ? response.summary
+                          : typeof response.error === 'string'
+                          ? response.error
+                          : undefined,
+                    });
+                  }
+                  return {
+                    id: fc.id,
+                    name: fcName,
+                    response,
+                  };
+                };
+
+                const outcomes = canParallelizeWsBatch
+                  ? await Promise.all(calls.map((fc) => runWsCall(fc)))
+                  : await (async () => {
+                      const seq: Array<{ id?: string; name: string; response: Record<string, unknown> } | null> = [];
+                      for (const fc of calls) {
+                        seq.push(await runWsCall(fc));
+                      }
+                      return seq;
+                    })();
+
+                for (const item of outcomes) {
+                  if (item) functionResponses.push(item);
+                }
+
+                if (functionResponses.length > 0 && liveSession && !isClosing) {
+                  try {
+                    liveSession.sendToolResponse({ functionResponses });
+                  } catch (err) {
+                    console.warn('[voice] Failed sending tool response to Gemini Live:', err);
+                  }
+                }
+              } finally {
+                activeToolCallsCount = Math.max(0, activeToolCallsCount - 1);
+                lastActivityAt = Date.now();
               }
             }
           },
@@ -3853,6 +4204,7 @@ export function registerVoiceLiveWebSocket(
 export function createRoomwiseVoiceCommandExecutor(deps: VoiceLiveBridgeDeps) {
   const registry = createRoomwiseCapabilityRegistry(ROOMWISE_FUNCTION_DECLARATIONS);
   const sessions = new Map<string, VoiceSessionMemory>();
+  const sessionClassroomsCache = new Map<string, Classroom[]>();
 
   const getOrCreateSession = (sessionId: string, activeTab = 'dashboard', selectedRoomId: string | null = null) => {
     let mem = sessions.get(sessionId);
@@ -3861,7 +4213,10 @@ export function createRoomwiseVoiceCommandExecutor(deps: VoiceLiveBridgeDeps) {
       sessions.set(sessionId, mem);
       if (sessions.size > 100) {
         const oldestKey = sessions.keys().next().value;
-        if (oldestKey) sessions.delete(oldestKey);
+        if (oldestKey) {
+          sessions.delete(oldestKey);
+          sessionClassroomsCache.delete(oldestKey);
+        }
       }
     } else {
       mem.activeTab = activeTab;
@@ -3870,8 +4225,14 @@ export function createRoomwiseVoiceCommandExecutor(deps: VoiceLiveBridgeDeps) {
     return mem;
   };
 
-  const buildSnapshotRooms = (inputRooms?: Classroom[]): Classroom[] => {
-    const base = Array.isArray(inputRooms) && inputRooms.length > 0 ? inputRooms : DEFAULT_EXPANDED_CLASSROOMS;
+  const buildSnapshotRooms = (sessionId: string, inputRooms?: Classroom[]): Classroom[] => {
+    let base: Classroom[];
+    if (Array.isArray(inputRooms) && inputRooms.length > 0) {
+      sessionClassroomsCache.set(sessionId, inputRooms);
+      base = inputRooms;
+    } else {
+      base = sessionClassroomsCache.get(sessionId) || DEFAULT_EXPANDED_CLASSROOMS;
+    }
     const store = deps.getServerRoomsMap();
     return base.map((c) => {
       const serverRec = store.get(c.id);
@@ -3909,24 +4270,33 @@ export function createRoomwiseVoiceCommandExecutor(deps: VoiceLiveBridgeDeps) {
           totalCurrentPowerWatts: summary.totalCurrentPowerWatts,
           totalCurrentPowerKW: summary.totalCurrentPowerKW,
           totalRatedPowerKW: summary.totalRatedPowerKW,
+          availableHeadroomKW: summary.availableHeadroomKW,
           ratedUtilizationPercent: summary.ratedUtilizationPercent,
-          savingsPercent: summary.savingsPercent,
+          headroomPercent: summary.headroomPercent,
         };
       case 'get_current_energy_summary':
         return {
           totalCurrentPowerWatts: summary.totalCurrentPowerWatts,
           totalCurrentPowerKW: summary.totalCurrentPowerKW,
+          totalRatedPowerKW: summary.totalRatedPowerKW,
+          availableHeadroomKW: summary.availableHeadroomKW,
+          ratedUtilizationPercent: summary.ratedUtilizationPercent,
           dailyActualKWh: summary.dailyActualKWh,
-          dailyBaselineKWh: summary.dailyBaselineKWh,
-          savingsPercent: summary.savingsPercent,
+          dailyRatedCeilingKWh: summary.dailyRatedCeilingKWh,
+          dailyCostINR: summary.dailyCostINR,
+          monthlyActualKWh: summary.monthlyActualKWh,
+          monthlyCostINR: summary.monthlyCostINR,
         };
       case 'get_energy_savings_estimate': {
-        const dailySaved = Number(Math.max(0, summary.dailyBaselineKWh - summary.dailyActualKWh).toFixed(2));
         return {
-          savingsPercent: summary.savingsPercent,
-          dailySavedKWh: dailySaved,
-          monthlySavedKWh: Number((dailySaved * SCHOOL_DAYS_PER_MONTH).toFixed(1)),
-          annualSavedKWh: Number((dailySaved * SCHOOL_DAYS_PER_YEAR).toFixed(0)),
+          ratedUtilizationPercent: summary.ratedUtilizationPercent,
+          headroomPercent: summary.headroomPercent,
+          dailyActualKWh: summary.dailyActualKWh,
+          dailyCostINR: summary.dailyCostINR,
+          monthlyActualKWh: summary.monthlyActualKWh,
+          monthlyCostINR: summary.monthlyCostINR,
+          annualActualKWh: summary.annualActualKWh,
+          annualCostINR: summary.annualCostINR,
           schoolDaysPerMonth: SCHOOL_DAYS_PER_MONTH,
           schoolDaysPerYear: SCHOOL_DAYS_PER_YEAR,
         };
@@ -3944,8 +4314,22 @@ export function createRoomwiseVoiceCommandExecutor(deps: VoiceLiveBridgeDeps) {
         };
       case 'get_classroom_status': {
         const res = resolveClassroomRobust(rooms, String(args.roomQuery || ''), memory);
-        if (!res.match) return { ok: false, found: false, error: `No classroom found for "${String(args.roomQuery || '')}".` };
+        if (res.ambiguous) {
+          return {
+            ok: false,
+            found: false,
+            ambiguous: true,
+            matches: res.ambiguous.map((r) => ({ roomCode: r.roomCode, name: r.name, building: r.building })),
+            message: 'Multiple classrooms matched that query. Please clarify which one.',
+          };
+        }
+        if (!res.match) {
+          return { ok: false, found: false, error: `No classroom found for "${String(args.roomQuery || '')}".` };
+        }
         const r = res.match;
+        const lights = r.appliances.filter((a) => a.type === 'lights');
+        const fans = r.appliances.filter((a) => a.type === 'fan');
+        const metrics = computeClassroomCanonicalMetrics(r, settings);
         return {
           ok: true,
           found: true,
@@ -3954,14 +4338,33 @@ export function createRoomwiseVoiceCommandExecutor(deps: VoiceLiveBridgeDeps) {
           name: r.name,
           building: r.building,
           floor: r.floor,
-          currentPowerWatts: r.currentPowerWatts,
+          type: r.type,
+          currentPowerWatts: metrics.currentPowerWatts,
+          ratedPowerWatts: metrics.ratedPowerWatts,
+          availableHeadroomWatts: metrics.availableHeadroomWatts,
+          ratedUtilizationPercent: metrics.ratedUtilizationPercent,
+          lightsActive: lights.filter((l) => (l.outputPercent ?? 0) > 0).length,
+          lightsTotal: lights.length,
+          fansActive: fans.filter((f) => (f.outputPercent ?? 0) > 0).length,
+          fansTotal: fans.length,
           occupancyStatus: r.occupancyStatus,
           roomActivity: formatVoiceRoomActivity(r),
+          ruleExplanation: r.decision.ruleExplanation,
         };
       }
       case 'get_classroom_telemetry': {
         const res = resolveClassroomRobust(rooms, String(args.roomQuery || ''), memory);
-        if (!res.match) return { ok: false, found: false, error: `No classroom found for "${String(args.roomQuery || '')}".` };
+        if (res.ambiguous) {
+          return {
+            ok: false,
+            found: false,
+            ambiguous: true,
+            matches: res.ambiguous.map((r) => ({ roomCode: r.roomCode, name: r.name, building: r.building })),
+          };
+        }
+        if (!res.match) {
+          return { ok: false, found: false, error: `No classroom found for "${String(args.roomQuery || '')}".` };
+        }
         const r = res.match;
         return {
           ok: true,
@@ -3971,55 +4374,518 @@ export function createRoomwiseVoiceCommandExecutor(deps: VoiceLiveBridgeDeps) {
           name: r.name,
           building: r.building,
           environment: r.environment,
+          targetLux: r.calibration.manualParameters.targetLux,
+          pir: r.pir,
+          learnedParameters: r.calibration.learnedParameters,
+          isCalibrated: r.calibration.isCalibrated,
           currentPowerWatts: r.currentPowerWatts,
           roomActivity: formatVoiceRoomActivity(r),
         };
       }
-      case 'compare_buildings': {
-        const map = new Map<string, { building: string; rooms: number; currentPowerWatts: number }>();
-        for (const r of rooms) {
-          const cur = map.get(r.building) || { building: r.building, rooms: 0, currentPowerWatts: 0 };
-          cur.rooms += 1;
-          cur.currentPowerWatts += r.currentPowerWatts;
-          map.set(r.building, cur);
+      case 'compare_classrooms': {
+        const resA = resolveClassroomRobust(rooms, String(args.roomQueryA || ''), memory);
+        const resB = resolveClassroomRobust(rooms, String(args.roomQueryB || ''), memory);
+        if (!resA.match || !resB.match) {
+          return {
+            ok: false,
+            found: false,
+            error: 'Could not uniquely resolve both classrooms to compare.',
+            matchesA: resA.ambiguous?.map((r) => `${r.roomCode} (${r.name})`),
+            matchesB: resB.ambiguous?.map((r) => `${r.roomCode} (${r.name})`),
+          };
         }
-        return { ok: true, buildings: Array.from(map.values()) };
-      }
-      case 'rank_and_filter_classrooms': {
-        const limit = typeof args.limit === 'number' ? args.limit : 5;
-        const sorted = [...rooms].sort((a, b) => b.currentPowerWatts - a.currentPowerWatts).slice(0, limit);
+        const summarizeRoom = (r: Classroom) => {
+          const metrics = computeClassroomCanonicalMetrics(r, settings);
+          return {
+            roomCode: r.roomCode,
+            name: r.name,
+            building: r.building,
+            roomActivity: formatVoiceRoomActivity(r),
+            currentPowerWatts: metrics.currentPowerWatts,
+            ratedPowerWatts: metrics.ratedPowerWatts,
+            availableHeadroomWatts: metrics.availableHeadroomWatts,
+            dailyActualKWh: metrics.dailyActualKWh,
+            dailyCostINR: metrics.dailyCostINR,
+            ambientLux: r.environment.ambientLux,
+            temperatureC: r.environment.temperature,
+          };
+        };
         return {
           ok: true,
-          results: sorted.map((r) => ({
+          classroomA: summarizeRoom(resA.match),
+          classroomB: summarizeRoom(resB.match),
+        };
+      }
+      case 'get_occupancy_status': {
+        const query = typeof args.roomQuery === 'string' ? args.roomQuery.trim() : '';
+        if (query) {
+          const res = resolveClassroomRobust(rooms, query, memory);
+          if (!res.match) {
+            return {
+              ok: false,
+              found: false,
+              ambiguous: Boolean(res.ambiguous),
+              matches: res.ambiguous?.map((r) => `${r.roomCode} (${r.name})`),
+            };
+          }
+          return {
+            ok: true,
+            found: true,
+            roomCode: res.match.roomCode,
+            name: res.match.name,
+            roomActivity: formatVoiceRoomActivity(res.match),
+            configuredSeatCapacity: res.match.capacity,
+            pir: res.match.pir,
+            note: 'PIR detects physical movement only, not headcounts. Use Space Intelligence for register attendance.',
+          };
+        }
+        return {
+          ok: true,
+          totalRooms: rooms.length,
+          motionDetectedRoomsCount: summary.motionDetectedRoomsCount,
+          noRecentMotionRoomsCount: summary.noRecentMotionRoomsCount,
+          totalConfiguredSeatCapacity: summary.totalConfiguredSeatCapacity,
+          noRecentMotionRooms: rooms
+            .filter((r) => formatVoiceRoomActivity(r) !== 'Motion detected')
+            .map((r) => ({ roomCode: r.roomCode, name: r.name, currentPowerWatts: r.currentPowerWatts })),
+        };
+      }
+      case 'get_lighting_status': {
+        const query = typeof args.roomQuery === 'string' ? args.roomQuery.trim() : '';
+        if (query) {
+          const res = resolveClassroomRobust(rooms, query, memory);
+          if (!res.match) return { ok: false, found: false, error: `No single classroom matched "${query}".` };
+          const lights = res.match.appliances.filter((a) => a.type === 'lights');
+          return {
+            ok: true,
+            found: true,
+            roomCode: res.match.roomCode,
+            name: res.match.name,
+            totalLightingWatts: lights.reduce((acc, l) => acc + l.currentPowerWatts, 0),
+            units: lights.map((l) => ({
+              id: l.id,
+              unitCode: l.unitCode,
+              name: l.name,
+              outputPercent: l.outputPercent ?? 0,
+              currentPowerWatts: l.currentPowerWatts,
+              operatingMode: l.operatingMode || 'AUTO',
+            })),
+          };
+        }
+        return {
+          ok: true,
+          topLightingConsumers: [...rooms]
+            .map((r) => ({
+              roomCode: r.roomCode,
+              name: r.name,
+              lightingWatts: r.appliances
+                .filter((a) => a.type === 'lights')
+                .reduce((acc, a) => acc + a.currentPowerWatts, 0),
+            }))
+            .sort((a, b) => b.lightingWatts - a.lightingWatts)
+            .slice(0, 6),
+        };
+      }
+      case 'get_fan_status': {
+        const query = typeof args.roomQuery === 'string' ? args.roomQuery.trim() : '';
+        if (query) {
+          const res = resolveClassroomRobust(rooms, query, memory);
+          if (!res.match) return { ok: false, found: false, error: `No single classroom matched "${query}".` };
+          const fans = res.match.appliances.filter((a) => a.type === 'fan');
+          return {
+            ok: true,
+            found: true,
+            roomCode: res.match.roomCode,
+            name: res.match.name,
+            totalFanWatts: fans.reduce((acc, f) => acc + f.currentPowerWatts, 0),
+            sectors: fans.map((f) => ({
+              id: f.id,
+              unitCode: f.unitCode,
+              name: f.name,
+              outputPercent: f.outputPercent ?? 0,
+              fanSpeed: f.fanSpeed ?? 0,
+              currentPowerWatts: f.currentPowerWatts,
+              operatingMode: f.operatingMode || 'AUTO',
+            })),
+          };
+        }
+        return {
+          ok: true,
+          topFanConsumers: [...rooms]
+            .map((r) => ({
+              roomCode: r.roomCode,
+              name: r.name,
+              fanWatts: r.appliances
+                .filter((a) => a.type === 'fan')
+                .reduce((acc, a) => acc + a.currentPowerWatts, 0),
+            }))
+            .sort((a, b) => b.fanWatts - a.fanWatts)
+            .slice(0, 6),
+        };
+      }
+      case 'get_appliance_configuration': {
+        const query = typeof args.roomQuery === 'string' ? args.roomQuery.trim() : '';
+        const res = resolveClassroomRobust(rooms, query, memory);
+        if (!res.match) return { ok: false, found: false, error: `No single classroom matched "${query}".` };
+        return {
+          ok: true,
+          found: true,
+          roomCode: res.match.roomCode,
+          name: res.match.name,
+          totalPowerWatts: res.match.currentPowerWatts,
+          appliances: res.match.appliances.map((a) => ({
+            id: a.id,
+            unitCode: a.unitCode,
+            name: a.name,
+            type: a.type,
+            powerRatingWatts: a.powerRatingWatts,
+            currentPowerWatts: a.currentPowerWatts,
+            outputPercent: a.outputPercent ?? 0,
+            operatingMode: a.operatingMode || (a.isManualOverride ? 'MANUAL' : 'AUTO'),
+          })),
+        };
+      }
+      case 'identify_unusual_consumption': {
+        const liveFindings = evaluateLiveAuditFindings(rooms, settings, resolvedFindingIds);
+        const manualOverrides = rooms
+          .filter((r) => r.appliances.some((a) => a.operatingMode === 'MANUAL' || a.isManualOverride))
+          .map((r) => ({
+            roomCode: r.roomCode,
+            name: r.name,
+            occupancyStatus: r.occupancyStatus,
+            currentPowerWatts: r.currentPowerWatts,
+            manualUnits: r.appliances
+              .filter((a) => a.operatingMode === 'MANUAL' || a.isManualOverride)
+              .map((a) => `${a.unitCode || a.name} (${a.outputPercent}%)`),
+          }));
+        const openAuditAlerts = liveFindings
+          .filter((f) => !f.isResolved)
+          .map((f) => ({
+            id: f.id,
+            roomCode: f.roomCode,
+            classroomName: f.classroomName,
+            severity: f.severity,
+            type: f.type,
+            title: f.title,
+            estimatedWasteWatts: f.estimatedWasteWatts,
+          }));
+        return {
+          ok: true,
+          manualOverrideRooms: manualOverrides,
+          unresolvedAuditAlerts: openAuditAlerts,
+        };
+      }
+      case 'compare_buildings': {
+        const map = new Map<
+          string,
+          {
+            building: string;
+            roomCount: number;
+            motionDetectedRooms: number;
+            currentWatts: number;
+            ratedWatts: number;
+            dailyActualKWh: number;
+            dailyRatedCeilingKWh: number;
+          }
+        >();
+        for (const r of rooms) {
+          const metrics = computeClassroomCanonicalMetrics(r, settings);
+          const cur = map.get(r.building) || {
+            building: r.building,
+            roomCount: 0,
+            motionDetectedRooms: 0,
+            currentWatts: 0,
+            ratedWatts: 0,
+            dailyActualKWh: 0,
+            dailyRatedCeilingKWh: 0,
+          };
+          cur.roomCount += 1;
+          if (formatVoiceRoomActivity(r) === 'Motion detected') cur.motionDetectedRooms += 1;
+          cur.currentWatts += metrics.currentPowerWatts;
+          cur.ratedWatts += metrics.ratedPowerWatts;
+          cur.dailyActualKWh += metrics.dailyActualKWh;
+          cur.dailyRatedCeilingKWh += metrics.dailyRatedCeilingKWh;
+          map.set(r.building, cur);
+        }
+        return {
+          ok: true,
+          buildings: Array.from(map.values()).map((b) => {
+            const availableHeadroomWatts = Math.max(0, b.ratedWatts - b.currentWatts);
+            const ratedUtilizationPercent =
+              b.ratedWatts > 0 ? Number(((b.currentWatts / b.ratedWatts) * 100).toFixed(1)) : 0;
+            return {
+              building: b.building,
+              rooms: b.roomCount,
+              roomCount: b.roomCount,
+              motionDetectedRooms: b.motionDetectedRooms,
+              currentWatts: b.currentWatts,
+              currentPowerWatts: b.currentWatts,
+              ratedWatts: b.ratedWatts,
+              availableHeadroomWatts,
+              ratedUtilizationPercent,
+              headroomPercent:
+                b.ratedWatts > 0 ? Number(Math.max(0, 100 - ratedUtilizationPercent).toFixed(1)) : 0,
+              dailyActualKWh: Number(b.dailyActualKWh.toFixed(2)),
+              dailyRatedCeilingKWh: Number(b.dailyRatedCeilingKWh.toFixed(2)),
+              dailyCostINR: Number((b.dailyActualKWh * settings.tariffPerKWhINR).toFixed(2)),
+            };
+          }),
+        };
+      }
+      case 'rank_and_filter_classrooms': {
+        const sortBy = typeof args.sortBy === 'string' ? args.sortBy : 'power_desc';
+        const bFilter = typeof args.building === 'string' ? args.building.toLowerCase().trim() : '';
+        const limit = typeof args.limit === 'number' ? Math.max(1, Math.min(25, Math.round(args.limit))) : 5;
+        let pool = rooms.filter((r) => (!bFilter ? true : r.building.toLowerCase().includes(bFilter)));
+        const headroomRatioOf = (r: Classroom) => {
+          const ratedW = r.ratedPowerWatts ?? computeAppliancesRatedPowerWatts(r.appliances);
+          return ratedW > 0 ? Math.max(0, ratedW - r.currentPowerWatts) / ratedW : 0;
+        };
+        pool = [...pool].sort((a, b) => {
+          switch (sortBy) {
+            case 'power_asc':
+              return a.currentPowerWatts - b.currentPowerWatts;
+            case 'efficiency_desc':
+              return headroomRatioOf(b) - headroomRatioOf(a);
+            case 'temperature_desc':
+              return b.environment.temperature - a.environment.temperature;
+            case 'co2_desc':
+              return b.environment.co2Ppm - a.environment.co2Ppm;
+            default:
+              return b.currentPowerWatts - a.currentPowerWatts;
+          }
+        });
+        return {
+          ok: true,
+          sortBy,
+          results: pool.slice(0, limit).map((r) => ({
             roomCode: r.roomCode,
             name: r.name,
             building: r.building,
             currentPowerWatts: r.currentPowerWatts,
+            headroomPercent: Number((headroomRatioOf(r) * 100).toFixed(1)),
           })),
         };
       }
       case 'get_energy_consumption_history': {
-        const period = typeof args.period === 'string' ? args.period : 'last_7_days';
+        const period = typeof args.period === 'string' && args.period.trim() ? args.period.trim() : 'last_7_days';
+        const buildingFilter =
+          typeof args.building === 'string' && args.building.trim() ? args.building.trim() : null;
         const range = resolveNaturalDateQuery(period);
         const overview = energyHistoryService.getOverview({
+          preset: range.preset,
           startDate: range.startDate,
           endDate: range.endDate,
+          building: buildingFilter,
           settings,
         });
-        return { ok: true, period, range, totals: overview.kpis };
+        const hasData = overview.range.recordedRoomIntervals > 0;
+        return {
+          ok: true,
+          hasData,
+          period,
+          building: buildingFilter,
+          range: overview.range,
+          actualKWh: overview.kpis.totalActualKWh,
+          ratedMaxKWh: overview.kpis.ratedCapacityKWh,
+          ratedUtilizationPercent: overview.kpis.ratedUtilizationPercent,
+          averageDailyKWh: overview.kpis.averageDailyKWh,
+          totals: overview.kpis,
+          blocks: overview.blocks,
+          dataClassification: overview.dataClassification,
+        };
       }
       case 'get_classroom_energy_history': {
         const res = resolveClassroomRobust(rooms, String(args.roomQuery || ''), memory);
+        if (res.ambiguous) {
+          return {
+            ok: false,
+            ambiguous: true,
+            matches: res.ambiguous.map((r) => ({ roomCode: r.roomCode, name: r.name })),
+          };
+        }
         if (!res.match) return { ok: false, error: 'Classroom not found.' };
-        const period = typeof args.period === 'string' ? args.period : 'last_7_days';
+        const period = typeof args.period === 'string' && args.period.trim() ? args.period.trim() : 'last_7_days';
         const range = resolveNaturalDateQuery(period);
         const detail = energyHistoryService.getRoomHistory({
           roomId: res.match.id,
+          preset: range.preset,
           startDate: range.startDate,
           endDate: range.endDate,
           settings,
         });
-        return { ok: true, roomId: res.match.id, roomCode: res.match.roomCode, name: res.match.name, detail };
+        const hasData = Boolean(detail && detail.range.recordedRoomIntervals > 0);
+        return {
+          ok: true,
+          hasData,
+          roomId: res.match.id,
+          roomCode: res.match.roomCode,
+          name: res.match.name,
+          building: res.match.building,
+          period,
+          range: detail?.range ?? range,
+          actualKWh: detail?.totals?.actualKWh ?? null,
+          ratedMaxKWh: detail?.totals?.ratedMaxKWh ?? null,
+          ratedUtilizationPercent: detail?.totals?.ratedUtilizationPercent ?? null,
+          detail,
+        };
+      }
+      case 'compare_energy_periods': {
+        return executeCompareEnergyPeriodsTool({
+          args,
+          rooms,
+          settings,
+          memory,
+        });
+      }
+      case 'get_time_of_day_profile': {
+        const q = typeof args.period === 'string' && args.period.trim() ? args.period.trim() : 'last 7 days';
+        const rRange = resolveNaturalDateQuery(q);
+        const buildingFilter =
+          typeof args.building === 'string' && args.building.trim() ? args.building.trim() : null;
+        let roomIdFilter: string | null = null;
+        if (typeof args.roomQuery === 'string' && args.roomQuery.trim()) {
+          const res = resolveClassroomRobust(rooms, args.roomQuery, memory);
+          if (res.match) roomIdFilter = res.match.id;
+        }
+        const profile = energyHistoryService.getTimeOfDayProfile({
+          preset: rRange.preset,
+          startDate: rRange.startDate,
+          endDate: rRange.endDate,
+          building: buildingFilter,
+          roomId: roomIdFilter,
+          settings,
+        });
+        return {
+          ok: true,
+          range: profile.range,
+          schoolHoursWindow: profile.schoolHoursWindow,
+          summary: profile.summary,
+          notableHours: profile.hours.filter((h) => h.flag !== 'normal' || h.band === 'school_hours'),
+        };
+      }
+      case 'get_historical_anomalies': {
+        const q = typeof args.period === 'string' && args.period.trim() ? args.period.trim() : 'last 7 days';
+        const rRange = resolveNaturalDateQuery(q);
+        const buildingFilter =
+          typeof args.building === 'string' && args.building.trim() ? args.building.trim() : null;
+        let roomIdFilter: string | null = null;
+        if (typeof args.roomQuery === 'string' && args.roomQuery.trim()) {
+          const res = resolveClassroomRobust(rooms, args.roomQuery, memory);
+          if (res.match) roomIdFilter = res.match.id;
+        }
+        return {
+          ...energyHistoryService.getAnomalies({
+            preset: rRange.preset,
+            startDate: rRange.startDate,
+            endDate: rRange.endDate,
+            building: buildingFilter,
+            roomId: roomIdFilter,
+          }),
+          ok: true,
+        };
+      }
+      case 'investigate_energy_reason': {
+        const q =
+          typeof args.naturalQuery === 'string' && args.naturalQuery.trim()
+            ? args.naturalQuery.trim()
+            : typeof args.period === 'string' && args.period.trim()
+            ? args.period.trim()
+            : 'yesterday';
+        const buildingFilter =
+          typeof args.building === 'string' && args.building.trim() ? args.building.trim() : null;
+        let roomIdFilter: string | null = null;
+        let matchedRoom: Classroom | null = null;
+        if (typeof args.roomQuery === 'string' && args.roomQuery.trim()) {
+          const res = resolveClassroomRobust(rooms, args.roomQuery, memory);
+          if (res.match) {
+            roomIdFilter = res.match.id;
+            matchedRoom = res.match;
+          }
+        }
+        const investigation = energyHistoryService.investigatePeriod({
+          naturalQuery: q,
+          building: buildingFilter,
+          roomId: roomIdFilter,
+        });
+        return {
+          ...investigation,
+          ok: true,
+          roomId: matchedRoom?.id ?? null,
+          roomCode: matchedRoom?.roomCode ?? null,
+          roomName: matchedRoom?.name ?? null,
+          building: buildingFilter ?? matchedRoom?.building ?? null,
+        };
+      }
+      case 'explain_energy_trend': {
+        const topHeadroom = [...rooms]
+          .map((r) => {
+            const metrics = computeClassroomCanonicalMetrics(r, settings);
+            return {
+              roomCode: r.roomCode,
+              name: r.name,
+              availableHeadroomWatts: metrics.availableHeadroomWatts,
+              headroomPercent: metrics.headroomPercent,
+              daylightAlpha: r.calibration.learnedParameters.daylightPenetrationAlpha,
+              naturalDaylightLux: r.environment.naturalDaylightLux,
+            };
+          })
+          .sort((a, b) => b.availableHeadroomWatts - a.availableHeadroomWatts)
+          .slice(0, 5);
+        return {
+          ok: true,
+          campusRatedUtilizationPercent: summary.ratedUtilizationPercent,
+          campusHeadroomPercent: summary.headroomPercent,
+          learningMode: settings.learningMode,
+          topDaylightAndHeadroomRooms: topHeadroom,
+          highestCurrentConsumers: [...rooms]
+            .sort((a, b) => b.currentPowerWatts - a.currentPowerWatts)
+            .slice(0, 5)
+            .map((r) => ({
+              roomCode: r.roomCode,
+              name: r.name,
+              currentPowerWatts: r.currentPowerWatts,
+              type: r.type,
+            })),
+        };
+      }
+      case 'simulate_policy_what_if': {
+        const newTariff =
+          typeof args.proposedTariffPerKWhINR === 'number' && args.proposedTariffPerKWhINR > 0
+            ? args.proposedTariffPerKWhINR
+            : settings.tariffPerKWhINR;
+        const newCarbon =
+          typeof args.proposedCarbonFactor === 'number' && args.proposedCarbonFactor > 0
+            ? args.proposedCarbonFactor
+            : settings.gridCarbonFactorKgCO2PerKWh;
+        const extraPct =
+          typeof args.additionalSavingsPercent === 'number' && Number.isFinite(args.additionalSavingsPercent)
+            ? Math.max(0, Math.min(50, args.additionalSavingsPercent))
+            : 0;
+        const projectedActualKWh = Number((summary.dailyActualKWh * (1 - extraPct / 100)).toFixed(2));
+        const incrementalReductionKWh = Number(Math.max(0, summary.dailyActualKWh - projectedActualKWh).toFixed(2));
+        const projectedDailyBillINR = Number((projectedActualKWh * newTariff).toFixed(2));
+        return {
+          ok: true,
+          assumptions: {
+            currentTariffINR: settings.tariffPerKWhINR,
+            proposedTariffINR: newTariff,
+            proposedCarbonFactor: newCarbon,
+            additionalReductionPercent: extraPct,
+          },
+          daily: {
+            projectedActualKWh,
+            incrementalReductionKWh,
+            projectedDailyBillINR,
+          },
+          annualSchoolDays: {
+            schoolDaysPerYear: SCHOOL_DAYS_PER_YEAR,
+            projectedAnnualKWh: Number((projectedActualKWh * SCHOOL_DAYS_PER_YEAR).toFixed(0)),
+            projectedIncrementalReductionKWh: Number((incrementalReductionKWh * SCHOOL_DAYS_PER_YEAR).toFixed(0)),
+            projectedAnnualBillINR: Number((projectedDailyBillINR * SCHOOL_DAYS_PER_YEAR).toFixed(0)),
+            projectedAnnualCO2AvoidedKg: Number((incrementalReductionKWh * newCarbon * SCHOOL_DAYS_PER_YEAR).toFixed(0)),
+          },
+        };
       }
       case 'get_space_intelligence_summary': {
         const requestedDate =
@@ -4076,44 +4942,15 @@ export function createRoomwiseVoiceCommandExecutor(deps: VoiceLiveBridgeDeps) {
         };
       }
       case 'control_classroom_appliance': {
-        if (!adminIdentity) return { ok: false, authorized: false, error: 'Administrator login required.' };
-        const res = resolveClassroomRobust(rooms, String(args.roomQuery || ''), memory);
-        if (!res.match) return { ok: false, error: 'Classroom not found.' };
-        const room = res.match;
-        const targetType = String(args.targetType || 'lights_group');
-        const mode = String(args.mode || 'set');
-        const pct = typeof args.outputPercent === 'number' ? Math.max(0, Math.min(100, Math.round(args.outputPercent))) : 0;
-        const groupType =
-          targetType === 'fans_group' ? 'fan' : targetType === 'ac_group' ? 'ac' : targetType === 'all_group' ? 'all' : 'lights';
-        const cmdRes = deps.executeApplianceCommand({
-          roomId: room.id,
-          action: mode === 'restore_auto' ? 'restore_room_auto' : 'set_group',
-          type: groupType,
-          outputPercent: pct,
-          isVacant: room.occupancyStatus === 'Unoccupied',
-          admin: adminIdentity,
+        return executeClassroomApplianceControl({
+          args,
+          rooms,
+          settings,
+          adminIdentity,
+          memory,
+          deps,
+          emitMessage: emitClientMessage,
         });
-        if (cmdRes.ok && cmdRes.appliances) {
-          emitClientMessage({
-            type: 'appliance_state_updated',
-            payload: {
-              roomId: room.id,
-              roomCode: room.roomCode,
-              appliances: cmdRes.appliances,
-              totalPowerWatts: cmdRes.totalPowerWatts ?? 0,
-              summary: cmdRes.summary || `Updated ${room.roomCode}`,
-            },
-          });
-        }
-        return {
-          ok: cmdRes.ok,
-          roomId: room.id,
-          roomCode: room.roomCode,
-          name: room.name,
-          summary: cmdRes.summary,
-          newTotalPowerWatts: cmdRes.totalPowerWatts,
-          error: cmdRes.error,
-        };
       }
       case 'control_building_or_campus_appliances': {
         if (!adminIdentity) return { ok: false, authorized: false, error: 'Administrator login required.' };
@@ -4158,11 +4995,84 @@ export function createRoomwiseVoiceCommandExecutor(deps: VoiceLiveBridgeDeps) {
         }
         return { ok: optRes.ok, summary: optRes.summary, curtailedWatts: optRes.curtailedWatts, error: optRes.error };
       }
+      case 'resolve_audit_finding': {
+        if (!adminIdentity) return { ok: false, authorized: false, error: 'Administrator login required.' };
+        const res = resolveClassroomRobust(rooms, String(args.roomQuery || ''), memory);
+        if (!res.match) return { ok: false, error: 'Specify a classroom to resolve its audit finding.' };
+        const optRes = deps.executeCampusOptimization({
+          scope: 'room',
+          roomId: res.match.id,
+          sourceLabel: `Voice Audit Fix (${res.match.roomCode})`,
+          admin: adminIdentity,
+        });
+        if (optRes.ok) {
+          emitClientMessage({
+            type: 'campus_optimized',
+            payload: {
+              optimizedRooms: optRes.optimizedRooms,
+              resolvedFindingIds: [],
+              curtailedWatts: optRes.curtailedWatts,
+              summary: optRes.summary,
+            },
+          });
+        }
+        return { ok: optRes.ok, roomCode: res.match.roomCode, summary: optRes.summary, error: optRes.error };
+      }
+      case 'recalibrate_classroom': {
+        if (!adminIdentity) return { ok: false, authorized: false, error: 'Administrator login required.' };
+        const res = resolveClassroomRobust(rooms, String(args.roomQuery || ''), memory);
+        const targets = res.match ? [res.match] : rooms;
+        const summaryMsg =
+          targets.length === 1
+            ? `Recalibrated Bayesian α & β models for ${targets[0].roomCode} (${targets[0].name})`
+            : `Recalibrated Bayesian α & β models across ${targets.length} classroom nodes`;
+        emitClientMessage({ type: 'room_recalibrated', roomIds: targets.map((r) => r.id), summary: summaryMsg });
+        return { ok: true, recalibratedCount: targets.length, summary: summaryMsg };
+      }
+      case 'update_classroom_parameters': {
+        if (!adminIdentity) return { ok: false, authorized: false, error: 'Administrator login required.' };
+        const res = resolveClassroomRobust(rooms, String(args.roomQuery || ''), memory);
+        if (!res.match) return { ok: false, error: 'Specify a valid classroom to update parameters.' };
+        const patch: { targetLux?: number; maxFanSpeed?: number; autoEcoMode?: boolean; overtimeAllowed?: boolean } = {};
+        if (typeof args.targetLux === 'number') patch.targetLux = Math.max(100, Math.min(800, Math.round(args.targetLux)));
+        if (typeof args.maxFanSpeed === 'number') patch.maxFanSpeed = Math.max(1, Math.min(5, Math.round(args.maxFanSpeed)));
+        if (typeof args.autoEcoMode === 'boolean') patch.autoEcoMode = args.autoEcoMode;
+        if (typeof args.overtimeAllowed === 'boolean') patch.overtimeAllowed = args.overtimeAllowed;
+        const summaryMsg = `Updated calibration parameters for ${res.match.roomCode} (${res.match.name})`;
+        emitClientMessage({ type: 'room_params_updated', roomIds: [res.match.id], params: patch, summary: summaryMsg });
+        return { ok: true, roomCode: res.match.roomCode, params: patch, summary: summaryMsg };
+      }
       case 'update_campus_settings': {
         if (!adminIdentity) return { ok: false, authorized: false, error: 'Administrator login required.' };
         const patch: Partial<SchoolSettings> = {};
-        if (typeof args.tariffPerKWhINR === 'number' && args.tariffPerKWhINR > 0) {
+        if (typeof args.tariffPerKWhINR === 'number' && Number.isFinite(args.tariffPerKWhINR) && args.tariffPerKWhINR > 0) {
           patch.tariffPerKWhINR = Number(args.tariffPerKWhINR.toFixed(2));
+        }
+        if (
+          typeof args.gridCarbonFactorKgCO2PerKWh === 'number' &&
+          Number.isFinite(args.gridCarbonFactorKgCO2PerKWh) &&
+          args.gridCarbonFactorKgCO2PerKWh > 0
+        ) {
+          patch.gridCarbonFactorKgCO2PerKWh = Number(args.gridCarbonFactorKgCO2PerKWh.toFixed(3));
+        }
+        if (typeof args.standardClassroomTargetLux === 'number' && Number.isFinite(args.standardClassroomTargetLux)) {
+          patch.standardClassroomTargetLux = Math.max(100, Math.min(800, Math.round(args.standardClassroomTargetLux)));
+        }
+        if (typeof args.labTargetLux === 'number' && Number.isFinite(args.labTargetLux)) {
+          patch.labTargetLux = Math.max(100, Math.min(900, Math.round(args.labTargetLux)));
+        }
+        if (typeof args.defaultInactivityGraceMinutes === 'number' && Number.isFinite(args.defaultInactivityGraceMinutes)) {
+          patch.defaultInactivityGraceMinutes = Math.max(1, Math.min(60, Math.round(args.defaultInactivityGraceMinutes)));
+        }
+        if (
+          args.learningMode === 'Adaptive Active' ||
+          args.learningMode === 'Conservative' ||
+          args.learningMode === 'High Comfort'
+        ) {
+          patch.learningMode = args.learningMode;
+        }
+        if (typeof args.lowPowerMode === 'boolean') {
+          patch.lowPowerMode = args.lowPowerMode;
         }
         const summaryMsg = `Updated campus settings (${Object.keys(patch).join(', ') || 'policy'})`;
         emitClientMessage({ type: 'settings_updated', settings: patch, summary: summaryMsg });
@@ -4193,8 +5103,9 @@ export function createRoomwiseVoiceCommandExecutor(deps: VoiceLiveBridgeDeps) {
       classrooms?: Classroom[];
       resolvedFindingIds?: string[];
       adminIdentity: VoiceAdminIdentity | null;
+      geminiOptions?: GeminiOrchestrationOptions;
     }): Promise<InterpretedVoiceCommandResult> => {
-      const rooms = buildSnapshotRooms(params.classrooms);
+      const rooms = buildSnapshotRooms(params.sessionId, params.classrooms);
       const settings = params.settings || INITIAL_SCHOOL_SETTINGS;
       const memory = getOrCreateSession(
         params.sessionId,
@@ -4214,26 +5125,39 @@ export function createRoomwiseVoiceCommandExecutor(deps: VoiceLiveBridgeDeps) {
         timestamp: Date.now(),
       };
 
+      const mergedGeminiOptions: GeminiOrchestrationOptions = {
+        ...params.geminiOptions,
+        sessionId: params.geminiOptions?.sessionId ?? params.sessionId,
+      };
+
       const legacyEmits: VoiceServerMessage[] = [];
-      const result = await interpretAndExecuteVoiceCommand(params.text, registry, {
-        snapshot,
-        rooms,
-        settings,
-        adminIdentity: params.adminIdentity,
-        memory,
-        emitClientMessage: () => undefined,
-        delegateLegacyTool: (toolName, args) =>
-          executeLegacyTool(
-            toolName,
-            args,
-            rooms,
-            settings,
-            params.adminIdentity,
-            params.resolvedFindingIds || [],
-            memory,
-            (msg) => legacyEmits.push(msg)
-          ),
-      });
+      const result = await interpretAndExecuteVoiceCommand(
+        params.text,
+        registry,
+        {
+          snapshot,
+          rooms,
+          settings,
+          adminIdentity: params.adminIdentity,
+          memory,
+          emitClientMessage: () => undefined,
+          delegateLegacyTool: (toolName, args) =>
+            executeLegacyTool(
+              toolName,
+              args,
+              rooms,
+              settings,
+              params.adminIdentity,
+              params.resolvedFindingIds || [],
+              memory,
+              (msg) => {
+                legacyEmits.push(msg);
+                mergedGeminiOptions.onClientMessage?.(msg);
+              }
+            ),
+        },
+        mergedGeminiOptions
+      );
       if (legacyEmits.length > 0) {
         result.emittedMessages.push(...legacyEmits);
       }

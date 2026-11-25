@@ -32,6 +32,7 @@ import {
 } from '../../data/roomApplianceSpecs';
 import { ApplianceControlDrawer } from '../classrooms/ApplianceControlDrawer';
 import { AnimatedNumber } from '../common/MotionPrimitives';
+import { AcronymHint } from '../common/AcronymHint';
 import { ROOMWISE_EASE } from '../../utils/motion';
 
 interface Props {
@@ -180,10 +181,10 @@ export const ClassroomTelemetryView: React.FC<Props> = ({
   );
   const ratedWatts =
     room.ratedPowerWatts ?? computeAppliancesRatedPowerWatts(room.appliances);
-  const curtailedFromRatedWatts = Math.max(0, ratedWatts - room.currentPowerWatts);
+  const availableHeadroomWatts = Math.max(0, ratedWatts - room.currentPowerWatts);
   const ratedUtilPercent =
     ratedWatts > 0 ? Math.min(100, Math.round((room.currentPowerWatts / ratedWatts) * 100)) : 0;
-  const curtailedPercent = Math.max(0, 100 - ratedUtilPercent);
+  const headroomPercent = Math.max(0, 100 - ratedUtilPercent);
 
   const openDrawerFor = (section: 'lights' | 'fan' | null) => {
     setDrawerFocus(section);
@@ -437,8 +438,8 @@ export const ClassroomTelemetryView: React.FC<Props> = ({
               <span className="text-3xl font-black font-mono text-neutral-900">
                 <AnimatedNumber value={room.environment.temperature} decimals={1} suffix="°C" />
               </span>
-              <span className="text-xs font-semibold text-neutral-500 tabular-nums">
-                (HI: <strong className="text-neutral-800 font-mono">{room.environment.heatIndex}°C</strong>)
+              <span className="text-xs font-semibold text-neutral-600 tabular-nums">
+                (<AcronymHint term="HI" />: <strong className="text-neutral-800 font-mono">{room.environment.heatIndex}°C</strong>)
               </span>
             </div>
 
@@ -507,13 +508,13 @@ export const ClassroomTelemetryView: React.FC<Props> = ({
               </h2>
             </div>
             <span className="text-xs font-bold text-emerald-800 tabular-nums">
-              {ratedUtilPercent}% Rated Utilisation ({curtailedPercent}% curtailed vs {ratedWatts} W max)
+              {ratedUtilPercent}% Rated Utilisation ({headroomPercent}% headroom below {ratedWatts} W max)
             </span>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
             <div className="p-3 rounded-xl bg-neutral-50 border border-neutral-200/75">
-              <div className="text-[11px] text-neutral-500">Live Active Demand</div>
+              <div className="text-[11px] text-neutral-600">Live Active Demand</div>
               <div className="text-lg font-bold font-mono text-neutral-900 mt-0.5">
                 <AnimatedNumber value={room.currentPowerWatts} />{' '}
                 <span className="text-xs font-normal text-neutral-500">W</span>
@@ -521,30 +522,30 @@ export const ClassroomTelemetryView: React.FC<Props> = ({
             </div>
 
             <div className="p-3 rounded-xl bg-neutral-50 border border-neutral-200/75">
-              <div className="text-[11px] text-neutral-500">Installed Rated Max</div>
+              <div className="text-[11px] text-neutral-600">Installed Rated Max</div>
               <div className="text-lg font-bold font-mono text-neutral-900 mt-0.5 tabular-nums">
                 {ratedWatts} <span className="text-xs font-normal text-neutral-500">W</span>
               </div>
-              <div className="text-[10px] text-neutral-400 mt-0.5 tabular-nums">
-                Pre-Retrofit Ref: {room.baselinePowerWatts} W
+              <div className="text-[11px] text-neutral-600 mt-0.5 tabular-nums">
+                100% Connected Ceiling
               </div>
             </div>
 
             <div className="p-3 rounded-xl bg-emerald-50/75 border border-emerald-200/80">
-              <div className="text-[11px] text-emerald-800 font-medium">Curtailed vs Rated Max</div>
+              <div className="text-[11px] text-emerald-800 font-medium">Available Rated Headroom</div>
               <div className="text-lg font-bold font-mono text-emerald-900 mt-0.5">
-                <AnimatedNumber value={curtailedFromRatedWatts} />{' '}
+                <AnimatedNumber value={availableHeadroomWatts} />{' '}
                 <span className="text-xs font-normal text-emerald-700">W</span>
               </div>
             </div>
 
             <div className="p-3 rounded-xl bg-teal-50/75 border border-teal-200/80">
-              <div className="text-[11px] text-teal-800 font-medium">Est. Daily Diff vs Ref</div>
+              <div className="text-[11px] text-teal-800 font-medium">Est. Daily Consumption</div>
               <div className="text-lg font-bold font-mono text-teal-900 mt-0.5 tabular-nums">
-                {Math.max(0, room.dailyBaselineKWh - room.dailyActualKWh).toFixed(1)}{' '}
+                {room.dailyActualKWh.toFixed(2)}{' '}
                 <span className="text-xs font-normal text-teal-700">kWh</span>
               </div>
-              <div className="text-[10px] text-teal-700 mt-0.5 tabular-nums">
+              <div className="text-[11px] text-teal-800 mt-0.5 tabular-nums">
                 {roomOperatingHours.toFixed(1)} h/day room-weighted
               </div>
             </div>

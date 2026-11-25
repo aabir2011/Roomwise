@@ -23,8 +23,7 @@ export function clampPercent(value: number): number {
 
 /**
  * Formats wattage in kW while preserving exact 3rd-decimal precision when non-zero
- * (e.g. 18635 W -> "18.635", 13390 W -> "13.39", 5245 W -> "5.245") so the
- * Estimated Pre-Retrofit Reference Capacity (18.635 kW) is never rounded down to 18.63 kW.
+ * (e.g. 13390 W -> "13.39", 5890 W -> "5.89").
  */
 export function formatCapacityKW(watts: number): string {
   if (!Number.isFinite(watts)) return '0.00';

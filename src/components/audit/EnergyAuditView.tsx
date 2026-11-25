@@ -22,7 +22,9 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { AnimatedNumber } from '../common/MotionPrimitives';
 import { EmptyState, PageHeader, SegmentedControl } from '../common/DesignSystem';
+import { AcronymHint } from '../common/AcronymHint';
 import { computeEcbcCompliancePercent } from '../../utils/auditEngine';
+import { AnimatedList, FadeContent } from '../reactbits';
 import { ROOMWISE_EASE } from '../../utils/motion';
 
 export const EnergyAuditView: React.FC = () => {
@@ -249,6 +251,7 @@ export const EnergyAuditView: React.FC = () => {
       </AnimatePresence>
 
       {/* Audit KPI Cards */}
+      <FadeContent duration={0.2}>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <div className="p-3.5 sm:p-5 rounded-2xl glass-card">
           <div className="flex items-center justify-between gap-1.5 text-xs text-neutral-500">
@@ -292,7 +295,7 @@ export const EnergyAuditView: React.FC = () => {
             <AnimatedNumber value={totalMonthlyWasteINR} decimals={2} prefix="₹" />
           </div>
           <div className="text-xs text-emerald-800 font-semibold mt-1 tabular-nums">
-            At ₹{settings.tariffPerKWhINR.toFixed(2)}/kWh WBSEDCL HT-2 Rate
+            At ₹{settings.tariffPerKWhINR.toFixed(2)}/kWh <AcronymHint term="WBSEDCL" /> <AcronymHint term="HT-2" /> Rate
           </div>
         </div>
 
@@ -311,10 +314,11 @@ export const EnergyAuditView: React.FC = () => {
             />
           </div>
           <div className="text-xs text-neutral-500 mt-1">
-            ECBC alignment heuristic · Indicative
+            <AcronymHint term="ECBC" /> alignment heuristic · Indicative
           </div>
         </div>
       </div>
+      </FadeContent>
 
       {/* Filter Tabs */}
       <div className="flex items-center justify-between">
@@ -350,12 +354,14 @@ export const EnergyAuditView: React.FC = () => {
           onAction={filterSeverity !== 'all' ? () => setFilterSeverity('all') : undefined}
         />
       ) : (
-        <div className="space-y-3">
-          {filteredFindings.map((finding) => {
+        <AnimatedList
+          items={filteredFindings}
+          getKey={(finding) => finding.id}
+          className="space-y-3"
+          renderItem={(finding) => {
             const isResolving = resolvingFindingId === finding.id;
             return (
               <div
-                key={finding.id}
                 className={`p-4 sm:p-5 rounded-2xl border transition-all ${
                   finding.isResolved
                     ? 'bg-white/60 border-neutral-200/70 opacity-80'
@@ -463,14 +469,14 @@ export const EnergyAuditView: React.FC = () => {
                 </div>
               </div>
             );
-          })}
-        </div>
+          }}
+        />
       )}
 
       {/* ECBC & BEE Reference Alignment Card */}
       <div className="p-5 rounded-2xl rw-surface space-y-3">
         <h3 className="text-sm font-bold text-neutral-900">
-          BEE &amp; ECBC Design-Alignment Reference
+          <AcronymHint term="BEE" /> &amp; <AcronymHint term="ECBC" /> Design-Alignment Reference
         </h3>
         <p className="text-xs text-neutral-500">
           Control logic alignment targets for DAV Model School, IIT Kharagpur (25 monitored nodes). Formal BEE/ECBC certification requires on-site meter auditing.
@@ -490,7 +496,7 @@ export const EnergyAuditView: React.FC = () => {
           <div className="flex items-start gap-2.5 p-3 rounded-xl bg-neutral-50 border border-neutral-200/80">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
             <div>
-              <div className="font-semibold text-neutral-900">BEE Star Rating: BLDC Fan Inverters</div>
+              <div className="font-semibold text-neutral-900">BEE Star Rating: <AcronymHint term="BLDC" /> Fan Inverters</div>
               <div className="text-neutral-500 text-[11px] mt-0.5">
                 All 25 classrooms retrofitted with 28W-35W BLDC motors replacing conventional 75W induction units.
               </div>
@@ -500,7 +506,7 @@ export const EnergyAuditView: React.FC = () => {
           <div className="flex items-start gap-2.5 p-3 rounded-xl bg-neutral-50 border border-neutral-200/80">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
             <div>
-              <div className="font-semibold text-neutral-900">ASHRAE-55: Adaptive Thermal Comfort</div>
+              <div className="font-semibold text-neutral-900"><AcronymHint term="ASHRAE-55" />: Adaptive Thermal Comfort</div>
               <div className="text-neutral-500 text-[11px] mt-0.5">
                 Ceiling fan speeds dynamically regulated according to indoor heat index to maintain air velocities &ge; 1.2 m/s.
               </div>
@@ -510,7 +516,7 @@ export const EnergyAuditView: React.FC = () => {
           <div className="flex items-start gap-2.5 p-3 rounded-xl bg-neutral-50 border border-neutral-200/80">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
             <div>
-              <div className="font-semibold text-neutral-900">PIR Inactivity Verification Protocol</div>
+              <div className="font-semibold text-neutral-900"><AcronymHint term="PIR" /> Inactivity Verification Protocol</div>
               <div className="text-neutral-500 text-[11px] mt-0.5">
                 Avoids naive instant shutoff; applies calibrated 8-minute grace periods tailored to examination stillness.
               </div>

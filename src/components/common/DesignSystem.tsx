@@ -55,7 +55,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
 };
 
 interface SectionHeadingProps {
-  title: string;
+  title: React.ReactNode;
   subtitle?: React.ReactNode;
   meta?: React.ReactNode;
   action?: React.ReactNode;
@@ -197,7 +197,7 @@ export function SegmentedControl<T extends string>({
 }
 
 interface TelemetryReadoutProps {
-  label: string;
+  label: React.ReactNode;
   value: React.ReactNode;
   unit?: string;
   detail?: React.ReactNode;

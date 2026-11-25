@@ -86,7 +86,8 @@ function computeSpecWattsAtPct(
   const spec = specByRoomId.get(roomId);
   if (!spec) {
     const base = baseRoomById.get(roomId);
-    return base ? Math.round((base.baselinePowerWatts * (lightPct + fanPct)) / 200) : 200;
+    const rated = base?.ratedPowerWatts ?? 340;
+    return Math.round((rated * (lightPct + fanPct)) / 200);
   }
 
   let lightsW = 0;
@@ -1020,7 +1021,7 @@ class SpaceIntelligenceService {
         const spec = specByRoomId.get(room.id);
         const ratedWatts = spec
           ? spec.lights.totalWatts + spec.fans.totalWatts + (spec.aux?.powerRatingWatts || 0)
-          : room.baselinePowerWatts;
+          : room.ratedPowerWatts ?? 340;
         const estWatts = computeSpecWattsAtPct(
           room.id,
           computeAdaptiveTargetLightPercent(room),
@@ -1042,7 +1043,7 @@ class SpaceIntelligenceService {
           suit.isSpecialisedLab ? 1 : 0,
           suit.isRestricted ? 1 : 0,
           ratedWatts,
-          Math.max(95, estWatts || Math.round(room.baselinePowerWatts * 0.45)),
+          Math.max(95, estWatts || Math.round(ratedWatts * 0.45)),
           room.calibration.learnedParameters.daylightPenetrationAlpha,
           suit.notes,
           now
@@ -2483,7 +2484,7 @@ class SpaceIntelligenceService {
           primaryReason:
             allRejectedForSection.length > 0
               ? `Keeping ${section.sectionCode} in current schedule: no conflict-free alternate classroom meets both ${effectiveRequiredSeats}-seat capacity and minimum ${MIN_ACTIONABLE_SAVINGS_KWH} kWh savings threshold.`
-              : `Keeping ${section.sectionCode} in ${homeRoom.roomCode}: all periods require fixed practical facilities or already operate at optimal baseline.`,
+              : `Keeping ${section.sectionCode} in ${homeRoom.roomCode}: all periods require fixed practical facilities or already operate at an optimal point.`,
           rejectedAlternatives: allRejectedForSection,
         });
       }

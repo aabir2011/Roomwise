@@ -2340,36 +2340,18 @@ class SolarService {
         sum + spec.lights.totalWatts + spec.fans.totalWatts + (spec.aux?.powerRatingWatts ?? 0),
       0
     );
-    const preRetrofitWatts = INITIAL_CLASSROOMS.reduce(
-      (sum, room) => sum + (room.baselinePowerWatts || 0),
-      0
-    );
     const installedRatedMaxKw = round2(installedWatts / 1000); // 13.39 kW
-    const preRetrofitReferenceKw = Math.round(preRetrofitWatts) / 1000; // 18.635 kW
 
     try {
       const endDate = getIstDateString(new Date());
       const startDate = shiftIstDate(endDate, -89);
-      const overview = energyHistoryService.getOverview({
-        preset: 'custom',
-        startDate,
-        endDate,
-        settings,
-      });
+      const summary = energyHistoryService.getDemandSummaryRange(startDate, endDate);
 
-      const days = Math.max(1, overview.range.daysCount || 90);
-      const observedWindowKwh = round1(overview.kpis.totalActualKWh || 0);
-      const observedAvgDailyKwh = round2(overview.kpis.averageDailyKWh || observedWindowKwh / days);
+      const days = Math.max(1, summary.daysCount || 90);
+      const observedWindowKwh = round1(summary.totalActualKWh || 0);
+      const observedAvgDailyKwh = round2(summary.averageDailyKWh || observedWindowKwh / days);
       const annualizedEstimatedDemandKwh = round1(observedAvgDailyKwh * 365);
-
-      const monthlyObservedKwh: Record<number, number> = {};
-      for (const pt of overview.series || []) {
-        const mStr = String(pt.dateIst || '').slice(5, 7);
-        const mNum = Number(mStr);
-        if (mNum >= 1 && mNum <= 12) {
-          monthlyObservedKwh[mNum] = round1((monthlyObservedKwh[mNum] || 0) + (pt.actualKWh || 0));
-        }
-      }
+      const monthlyObservedKwh: Record<number, number> = summary.monthlyObservedKwh;
 
       return {
         provenance: 'roomwise_sqlite_history',
@@ -2379,7 +2361,6 @@ class SolarService {
         annualizedEstimatedDemandKwh,
         annualizedEstimateDisclosure: `Annualised campus demand (${annualizedEstimatedDemandKwh.toLocaleString()} kWh/yr) is extrapolated linearly from ${days} days of recorded ROOMWISE SQLite energy history (${observedWindowKwh.toLocaleString()} kWh observed) and does not account for unrecorded summer vacations or exam breaks.`,
         installedRatedMaxKw,
-        preRetrofitReferenceKw,
         currentTariffINR: settings.tariffPerKWhINR,
         gridCarbonFactorKgPerKwh: settings.gridCarbonFactorKgCO2PerKWh,
         monthlyObservedKwh,
@@ -2395,7 +2376,6 @@ class SolarService {
         annualizedEstimateDisclosure:
           'ROOMWISE 90-day SQLite history was temporarily unavailable; using provisional campus demand reference.',
         installedRatedMaxKw,
-        preRetrofitReferenceKw,
         currentTariffINR: settings.tariffPerKWhINR,
         gridCarbonFactorKgPerKwh: settings.gridCarbonFactorKgCO2PerKWh,
         monthlyObservedKwh: {},
@@ -2463,7 +2443,7 @@ class SolarService {
       disclaimers: [
         'Direct self-consumption is conservatively capped at 72% daytime coincidence on active school days (~62% of calendar days, ~225 CBSE working days/yr) without battery storage — rooftop PV does NOT automatically offset 100% of annual electricity demand.',
         'Surplus generation on Sundays, vacations, and midday peaks cannot reduce bills unless WBSEDCL / WBERC approves a net-metering or net-billing interconnection within the school’s sanctioned contract demand.',
-        'Connected power capacity (13.39 kW installed rated max across 25 monitored spaces; 18.635 kW estimated pre-retrofit reference) is distinct from annual electrical energy (kWh/yr).',
+        'Installed connected power capacity (13.39 kW across 25 monitored spaces) is distinct from annual electrical energy (kWh/yr) and whole-school utility demand.',
         'ROOMWISE intentionally does not fabricate export tariffs, installation capital cost, payback periods, subsidies, or formal carbon-credit claims.',
       ],
     };

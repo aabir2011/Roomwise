@@ -15,6 +15,7 @@ import {
   FileSpreadsheet,
   SlidersHorizontal,
   X,
+  LogIn,
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
@@ -99,7 +100,7 @@ export const Sidebar: React.FC = () => {
 
   const ratedUtilizationPct = Math.min(100, Math.round(campusSummary.ratedUtilizationPercent));
   const ratedMaxKW = (campusSummary.totalRatedPowerWatts / 1000).toFixed(2);
-  const curtailedFromRatedKW = (campusSummary.curtailedFromRatedWatts / 1000).toFixed(2);
+  const availableHeadroomKW = (campusSummary.availableHeadroomWatts / 1000).toFixed(2);
 
   const unresolvedAuditCount = auditFindings.filter((f) => !f.isResolved).length;
 
@@ -264,7 +265,7 @@ export const Sidebar: React.FC = () => {
             <div className="flex items-center justify-between text-[11px] mb-2">
               <span className="font-medium text-emerald-100/80">Campus Load</span>
               <span className="font-mono font-semibold text-emerald-300 tabular-nums">
-                {campusSummary.curtailedFromRatedWatts === 0
+                {campusSummary.availableHeadroomWatts === 0
                   ? '100% Rated'
                   : `${campusSummary.ratedUtilizationPercent}% Rated`}
               </span>
@@ -278,10 +279,10 @@ export const Sidebar: React.FC = () => {
                   suffix=" kW"
                 />
               </span>
-              <span className="font-mono text-[11px] text-emerald-200/80 tabular-nums">
-                {campusSummary.curtailedFromRatedWatts === 0
+              <span className="font-mono text-[11px] text-emerald-200/85 tabular-nums">
+                {campusSummary.availableHeadroomWatts === 0
                   ? `of ${ratedMaxKW} kW max`
-                  : `-${curtailedFromRatedKW} kW curtailed`}
+                  : `${availableHeadroomKW} kW headroom`}
               </span>
             </div>
 
@@ -358,7 +359,7 @@ export const Sidebar: React.FC = () => {
                   <div className="text-xs font-semibold text-[#111815] truncate">
                     {isAdminUnlocked ? currentStaff.name : 'Student Mode'}
                   </div>
-                  <div className="text-[10px] text-[#64726b] truncate">
+                  <div className="text-[11px] text-[#526059] truncate">
                     {isAdminUnlocked ? currentStaff.role : 'Read-only access'}
                   </div>
                 </div>
@@ -381,10 +382,11 @@ export const Sidebar: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => openAuthModal()}
-                  className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300/80 rounded-lg transition-colors shrink-0 text-[11px] font-semibold active:scale-[0.98]"
-                  title="Authorize Admin Overrides"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300/80 rounded-lg transition-colors shrink-0 text-[11px] font-semibold active:scale-[0.98]"
+                  title="Sign in with administrator passkey or credentials"
                 >
-                  Admin
+                  <LogIn className="w-3 h-3 shrink-0" />
+                  <span>Admin Login</span>
                 </button>
               )}
             </>

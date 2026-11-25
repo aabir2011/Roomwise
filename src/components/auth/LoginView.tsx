@@ -31,18 +31,19 @@ export const LoginView: React.FC<Props> = ({ targetRoomCode, onLoginSuccess }) =
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center p-4 bg-white relative overflow-hidden select-none">
-      {/* Minimal geometric grid */}
+    <div className="min-h-screen w-full flex items-center justify-center p-4 bg-app-ambient relative overflow-hidden select-none">
+      {/* Subtle static architectural emerald grid */}
       <div
-        className="pointer-events-none absolute inset-0 opacity-[0.03]"
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 opacity-[0.025]"
         style={{
           backgroundImage:
             'linear-gradient(to right, #065f46 1px, transparent 1px), linear-gradient(to bottom, #065f46 1px, transparent 1px)',
-          backgroundSize: '32px 32px',
+          backgroundSize: '36px 36px',
         }}
       />
 
-      <div className="w-full max-w-lg rounded-3xl border border-neutral-200 shadow-xl overflow-hidden relative z-10 bg-white">
+      <div className="w-full max-w-lg rounded-3xl border border-neutral-200/90 shadow-xl overflow-hidden relative z-10 bg-white/95 backdrop-blur-sm">
         {/* Role Selector Bar */}
         <div className="px-6 pt-5 pb-3 border-b border-neutral-100 flex items-center justify-between gap-4 bg-neutral-50/70">
           <RoomwiseLogo size="sm" showSubtitle={false} />

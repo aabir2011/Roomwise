@@ -35,6 +35,7 @@ import { useDeviceClassification } from '../../utils/deviceDetection';
 import { useToast } from '../../context/ToastContext';
 import { ToggleSwitch } from '../common/MotionPrimitives';
 import { PageHeader } from '../common/DesignSystem';
+import { AcronymHint } from '../common/AcronymHint';
 import { PasskeyCredentialSummary } from '../../types/auth';
 import {
   detectBiometricCapability,
@@ -534,7 +535,7 @@ export const SettingsView: React.FC = () => {
                 />
               </div>
               <span className="text-[11px] text-[#64726b] mt-1 block">
-                WBSEDCL HT-2 Educational schedule (base ₹7.40)
+                <AcronymHint term="WBSEDCL" /> <AcronymHint term="HT-2" /> Educational schedule (base ₹7.40)
               </span>
             </div>
 
@@ -558,7 +559,7 @@ export const SettingsView: React.FC = () => {
                 />
               </div>
               <span className="text-[11px] text-[#64726b] mt-1 block">
-                Central Electricity Authority (CEA) national average: 0.716
+                Central Electricity Authority (<AcronymHint term="CEA" />) national average: 0.716
               </span>
             </div>
           </div>
@@ -612,7 +613,7 @@ export const SettingsView: React.FC = () => {
 
             <div>
               <label className="block font-semibold text-[#4a5851]">
-                PIR Inactivity Grace Window (min)
+                <AcronymHint term="PIR" /> Inactivity Grace Window (min)
               </label>
               <input
                 type="number"
@@ -639,7 +640,7 @@ export const SettingsView: React.FC = () => {
                 {
                   id: 'Adaptive Active' as const,
                   label: 'Adaptive Active',
-                  desc: 'Continuous balancing of daylighting and BLDC fan speeds.',
+                  desc: <>Continuous balancing of daylighting and <AcronymHint term="BLDC" /> fan speeds.</>,
                 },
                 {
                   id: 'Conservative' as const,

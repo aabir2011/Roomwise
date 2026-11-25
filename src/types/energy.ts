@@ -118,9 +118,7 @@ export interface Classroom {
   appliances: Appliance[];
   currentPowerWatts: number;
   ratedPowerWatts?: number; // Sum of installed appliance nameplate power ratings in this room (100% max)
-  baselinePowerWatts: number; // Estimated pre-retrofit reference capacity (conventional induction fans & non-dimmable fixtures)
   dailyActualKWh: number;
-  dailyBaselineKWh: number;
   decision: AdaptiveDecision;
   qrCodeData: string;
   coordinates: {
@@ -187,15 +185,19 @@ export interface AuditFinding {
 export interface CampusEnergySummary {
   totalCurrentPowerWatts: number;
   totalRatedPowerWatts: number; // Canonical sum of all installed appliance ratings at 100% (13,390 W / 13.39 kW)
-  curtailedFromRatedWatts: number; // max(0, totalRatedPowerWatts - totalCurrentPowerWatts)
+  availableHeadroomWatts: number; // Unused installed nameplate capacity: max(0, totalRatedPowerWatts - totalCurrentPowerWatts)
   ratedUtilizationPercent: number; // (totalCurrentPowerWatts / totalRatedPowerWatts) * 100
-  totalBaselinePowerWatts: number; // Estimated pre-retrofit reference capacity (18,635 W / 18.635 kW)
-  powerSavedWatts: number;
+  headroomPercent: number; // (availableHeadroomWatts / totalRatedPowerWatts) * 100
   dailyActualKWh: number;
-  dailyBaselineKWh: number;
-  dailySavedKWh: number;
-  dailyCostSavedINR: number;
-  dailyEmissionsAvoidedKgCO2: number;
+  dailyRatedCeilingKWh: number; // Theoretical 100%-rated nameplate draw over room operating hours
+  dailyCostINR: number;
+  dailyEmissionsKgCO2: number;
+  monthlyActualKWh: number; // 22 school days
+  monthlyCostINR: number;
+  monthlyEmissionsTonnesCO2: number;
+  annualActualKWh: number; // 225 school days
+  annualCostINR: number;
+  annualEmissionsTonnesCO2: number;
   activeOccupancyCount: number;
   totalRoomsOccupied: number;
   totalRoomsCalibrated: number;

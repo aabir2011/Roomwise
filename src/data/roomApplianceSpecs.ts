@@ -186,49 +186,40 @@ export const SCHOOL_DAYS_PER_YEAR = 225; // Approximate active academic days/yea
 
 export interface RoomOperatingProfile {
   activeHoursPerSchoolDay: number;
-  baselineDutyFactor: number;
   scheduleNote: string;
 }
 
 const ROOM_OPERATING_PROFILES: Record<RoomType, RoomOperatingProfile> = {
   'General Classroom': {
     activeHoursPerSchoolDay: 5.8,
-    baselineDutyFactor: 0.84,
     scheduleNote: '07:30–14:00 day-school timetable excluding assembly, recess & transitions',
   },
   'Smart Classroom': {
     activeHoursPerSchoolDay: 5.8,
-    baselineDutyFactor: 0.84,
     scheduleNote: '07:30–14:00 scheduled interactive teaching periods',
   },
   'Science Lab': {
     activeHoursPerSchoolDay: 4.2,
-    baselineDutyFactor: 0.78,
     scheduleNote: 'Scheduled practical batches during mid-day periods (intermittent)',
   },
   'Computer Lab': {
     activeHoursPerSchoolDay: 5.2,
-    baselineDutyFactor: 0.82,
     scheduleNote: 'Scheduled ICT batches; designated AC space (only AC-equipped room in 25-node scope)',
   },
   'Pre-Primary Activity Room': {
     activeHoursPerSchoolDay: 4.5,
-    baselineDutyFactor: 0.82,
     scheduleNote: 'Shorter early-childhood morning day-school schedule (~08:00–12:30)',
   },
   'Staff Room': {
     activeHoursPerSchoolDay: 6.5,
-    baselineDutyFactor: 0.85,
     scheduleNote: 'Faculty occupancy across institutional hours including prep periods',
   },
   Library: {
     activeHoursPerSchoolDay: 6.0,
-    baselineDutyFactor: 0.8,
     scheduleNote: 'Continuous reading & reference hours across school day',
   },
   Auditorium: {
     activeHoursPerSchoolDay: 2.0,
-    baselineDutyFactor: 0.6,
     scheduleNote: 'Intermittent assembly, seminar & cultural event usage (not continuous daily load)',
   },
 };

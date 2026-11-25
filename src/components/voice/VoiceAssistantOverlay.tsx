@@ -62,12 +62,14 @@ export const VoiceAssistantOverlay: React.FC = () => {
     phase === 'permission_required' ||
     phase === 'unavailable';
 
+  const latestTranscriptText = transcripts[transcripts.length - 1]?.text ?? '';
+
   useEffect(() => {
     const el = transcriptContainerRef.current;
     if (el) {
       el.scrollTop = el.scrollHeight;
     }
-  }, [transcripts.length]);
+  }, [transcripts.length, latestTranscriptText]);
 
   useEffect(() => {
     if (!isOverlayOpen) return;

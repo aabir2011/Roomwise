@@ -21,6 +21,8 @@ import { BuildingName, Floor } from '../../types/energy';
 import { getRoomActivityState } from '../../utils/applianceUtils';
 import { computeAppliancesRatedPowerWatts } from '../../data/roomApplianceSpecs';
 import { EmptyState, PageHeader, SegmentedControl } from '../common/DesignSystem';
+import { AcronymHint } from '../common/AcronymHint';
+import { FadeContent, SpotlightCard } from '../reactbits';
 import { ROOMWISE_EASE } from '../../utils/motion';
 
 export const ClassroomsView: React.FC = () => {
@@ -84,7 +86,12 @@ export const ClassroomsView: React.FC = () => {
           </>
         }
         title="Classrooms & Laboratories Directory"
-        subtitle="Environmental telemetry, PIR motion tracking, and explainable lighting and BLDC fan automation."
+        subtitle={
+          <>
+            Environmental telemetry, <AcronymHint term="PIR" /> motion tracking, and explainable lighting and{' '}
+            <AcronymHint term="BLDC" /> fan automation.
+          </>
+        }
         action={
           <SegmentedControl<'grid' | 'table'>
             layoutId="classrooms-view-mode"
@@ -100,6 +107,7 @@ export const ClassroomsView: React.FC = () => {
       />
 
       {/* Filter & Search Bar */}
+      <FadeContent duration={0.2}>
       <div className="p-3.5 sm:p-4 glass-card rounded-2xl space-y-2.5">
         <div className="flex flex-col md:flex-row gap-2.5 text-xs">
           <div className="relative flex-1">
@@ -171,6 +179,7 @@ export const ClassroomsView: React.FC = () => {
           )}
         </div>
       </div>
+      </FadeContent>
 
       {/* Empty State or Populated Views */}
       {filteredRooms.length === 0 ? (
@@ -198,12 +207,18 @@ export const ClassroomsView: React.FC = () => {
                 const hasOverride = room.appliances.some((a) => a.isManualOverride);
                 const ratedWatts =
                   room.ratedPowerWatts ?? computeAppliancesRatedPowerWatts(room.appliances);
-                const curtailedWatts = Math.max(0, ratedWatts - room.currentPowerWatts);
+                const headroomWatts = Math.max(0, ratedWatts - room.currentPowerWatts);
+                const ratedUtilPct =
+                  ratedWatts > 0 ? Math.round((room.currentPowerWatts / ratedWatts) * 100) : 0;
 
                 return (
-                  <div
+                  <SpotlightCard
+                    as="div"
                     key={room.id}
-                    className="p-4 sm:p-5 rounded-2xl glass-card-interactive flex flex-col justify-between group relative overflow-hidden min-w-0"
+                    spotlightColor="rgba(16, 185, 129, 0.12)"
+                    spotlightRadius={230}
+                    className="p-4 sm:p-5 rounded-2xl glass-card-interactive flex flex-col group min-w-0"
+                    innerClassName="flex flex-col justify-between flex-1 w-full"
                   >
                     <div>
                       <div className="flex items-start justify-between gap-2">
@@ -271,14 +286,14 @@ export const ClassroomsView: React.FC = () => {
                           <div className="font-mono font-bold text-neutral-900 mt-0.5 tabular-nums truncate">
                             {room.environment.temperature}°C
                           </div>
-                          <div className="text-[10px] text-neutral-500 tabular-nums truncate">
-                            HI: {room.environment.heatIndex}°C
+                          <div className="text-[11px] text-neutral-600 tabular-nums truncate">
+                            <AcronymHint term="HI" />: {room.environment.heatIndex}°C
                           </div>
                         </div>
 
                         <div
                           className="p-2 sm:p-2.5 bg-emerald-50/60 rounded-xl border border-emerald-200/60 min-w-0"
-                          title={`Installed Rated Max: ${ratedWatts}W · Est. Pre-Retrofit Ref: ${room.baselinePowerWatts}W`}
+                          title={`Installed Rated Max: ${ratedWatts}W · Available Headroom: ${headroomWatts}W (${ratedUtilPct}% active)`}
                         >
                           <div className="text-[10px] text-emerald-800 font-medium flex items-center gap-1 whitespace-nowrap">
                             <Zap className="w-3 h-3 text-emerald-600 shrink-0" />
@@ -288,9 +303,9 @@ export const ClassroomsView: React.FC = () => {
                             {room.currentPowerWatts}W
                           </div>
                           <div className="text-[10px] text-emerald-700 font-semibold tabular-nums truncate">
-                            {curtailedWatts === 0
+                            {headroomWatts === 0
                               ? `/${ratedWatts}W (100%)`
-                              : `-${curtailedWatts}W`}
+                              : `${headroomWatts}W headroom`}
                           </div>
                         </div>
                       </div>
@@ -318,7 +333,7 @@ export const ClassroomsView: React.FC = () => {
                         <ChevronRight className="w-3 h-3" />
                       </button>
                     </div>
-                  </div>
+                  </SpotlightCard>
                 );
               })}
             </motion.div>
@@ -340,10 +355,10 @@ export const ClassroomsView: React.FC = () => {
                       <th className="py-3 px-4 whitespace-nowrap">Building & Floor</th>
                       <th className="py-3 px-4 whitespace-nowrap">Room Activity</th>
                       <th className="py-3 px-4 text-right whitespace-nowrap">Desk Lux</th>
-                      <th className="py-3 px-4 text-right whitespace-nowrap">Temp / HI</th>
+                      <th className="py-3 px-4 text-right whitespace-nowrap">Temp / <AcronymHint term="HI" /></th>
                       <th className="py-3 px-4 text-right whitespace-nowrap">Learned α</th>
                       <th className="py-3 px-4 text-right whitespace-nowrap">Power</th>
-                      <th className="py-3 px-4 text-right whitespace-nowrap">vs Max</th>
+                      <th className="py-3 px-4 text-right whitespace-nowrap">Headroom</th>
                       <th className="py-3 px-4 text-center whitespace-nowrap">Actions</th>
                     </tr>
                   </thead>
@@ -353,7 +368,7 @@ export const ClassroomsView: React.FC = () => {
                       const isMotionDetected = activityState === 'Motion detected';
                       const ratedWatts =
                         room.ratedPowerWatts ?? computeAppliancesRatedPowerWatts(room.appliances);
-                      const curtailedWatts = Math.max(0, ratedWatts - room.currentPowerWatts);
+                      const headroomWatts = Math.max(0, ratedWatts - room.currentPowerWatts);
 
                       return (
                         <tr key={room.id} className="hover:bg-neutral-50/90 transition-colors">
@@ -393,9 +408,9 @@ export const ClassroomsView: React.FC = () => {
                           </td>
                           <td
                             className="py-2.5 px-4 text-right font-mono font-bold text-emerald-700 tabular-nums whitespace-nowrap"
-                            title={`Installed Rated Max: ${ratedWatts}W · Est. Pre-Retrofit Ref: ${room.baselinePowerWatts}W`}
+                            title={`Installed Rated Max: ${ratedWatts}W · Available Headroom: ${headroomWatts}W`}
                           >
-                            {curtailedWatts === 0 ? '0 W (100%)' : `-${curtailedWatts} W`}
+                            {headroomWatts === 0 ? '0 W (100%)' : `${headroomWatts} W`}
                           </td>
                           <td className="py-2.5 px-4 text-center">
                             <div className="flex items-center justify-center gap-1.5">

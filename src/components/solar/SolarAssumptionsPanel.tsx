@@ -543,7 +543,7 @@ export const SolarAssumptionsPanel: React.FC<SolarAssumptionsPanelProps> = ({
             </a>
           </span>
         </div>
-        <span className="font-mono text-[10px] text-neutral-400">
+        <span className="font-mono text-[11px] text-neutral-600">
           Updated {workspace.generatedAtIst}
         </span>
       </div>

@@ -24,6 +24,7 @@ import {
   startMicCapture,
   type MicCaptureHandle,
 } from '../utils/pcmAudio';
+import { finalizeTranscriptText, mergeTranscriptChunk } from '../utils/voiceTranscript';
 import type {
   MicPermissionState,
   VoiceActionNotice,
@@ -151,10 +152,14 @@ export const VoiceAssistantProvider: React.FC<{ children: ReactNode }> = ({ chil
   const noticeTimersRef = useRef<Map<string, number>>(new Map());
   const resumeStandbyTimerRef = useRef<number | null>(null);
   const connectTimeoutRef = useRef<number | null>(null);
+  const turnWatchdogRef = useRef<number | null>(null);
+  const lastSnapshotSentAtRef = useRef<number>(0);
+  const lastStructuralSnapshotKeyRef = useRef<string>('');
   const preRollFramesRef = useRef<Array<{ data: string; rms: number }>>([]);
   const httpCommandSessionIdRef = useRef<string>(
     `rw_voice_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
   );
+  const lastHttpClassroomsFingerprintRef = useRef<string>('');
   const standbyCooldownUntilRef = useRef<number>(0);
   const phaseRef = useRef<VoiceAssistantPhase>(phase);
   phaseRef.current = phase;
@@ -188,6 +193,33 @@ export const VoiceAssistantProvider: React.FC<{ children: ReactNode }> = ({ chil
       connectTimeoutRef.current = null;
     }
   }, []);
+
+  const clearTurnWatchdog = useCallback(() => {
+    if (turnWatchdogRef.current !== null) {
+      window.clearTimeout(turnWatchdogRef.current);
+      turnWatchdogRef.current = null;
+    }
+  }, []);
+
+  const armTurnWatchdog = useCallback(() => {
+    clearTurnWatchdog();
+    turnWatchdogRef.current = window.setTimeout(() => {
+      turnWatchdogRef.current = null;
+      if (phaseRef.current === 'processing' || phaseRef.current === 'executing') {
+        setPhase(wsRef.current?.readyState === WebSocket.OPEN ? 'listening' : 'standby');
+        setActionNotices((prev) => [
+          {
+            id: `${Date.now()}-watchdog`,
+            kind: 'info',
+            title: 'Voice Turn Recovered',
+            detail: 'Assistant returned to listening after a delayed response.',
+            timestamp: Date.now(),
+          },
+          ...prev.slice(0, 4),
+        ]);
+      }
+    }, 30_000);
+  }, [clearTurnWatchdog]);
 
   // Keep fresh state snapshot ref for WebSocket context syncing
   const latestContextRef = useRef({
@@ -255,7 +287,7 @@ export const VoiceAssistantProvider: React.FC<{ children: ReactNode }> = ({ chil
       markFinal = false,
       mode: 'append' | 'replace' = 'append'
     ) => {
-      const clean = delta;
+      const clean = typeof delta === 'string' ? delta : '';
       if (!clean && !markFinal) return;
       setTranscripts((prev) => {
         const last = prev[prev.length - 1];
@@ -265,7 +297,10 @@ export const VoiceAssistantProvider: React.FC<{ children: ReactNode }> = ({ chil
           if (mode === 'replace') {
             nextText = clean.trimStart() || last.text;
           } else if (clean) {
-            nextText = `${last.text}${clean}`;
+            nextText = mergeTranscriptChunk(last.text, clean);
+          }
+          if (markFinal) {
+            nextText = finalizeTranscriptText(nextText);
           }
           updated[updated.length - 1] = {
             ...last,
@@ -275,13 +310,24 @@ export const VoiceAssistantProvider: React.FC<{ children: ReactNode }> = ({ chil
           };
           return updated.slice(-14);
         }
-        if (!clean.trim()) return prev;
+
+        // Starting a new bubble for a different speaker: finalize any previous open bubble cleanly
+        const normalizedPrev = prev.map((entry) =>
+          entry.final
+            ? entry
+            : { ...entry, text: finalizeTranscriptText(entry.text), final: true }
+        );
+
+        const initialText = markFinal
+          ? finalizeTranscriptText(clean)
+          : mergeTranscriptChunk('', clean);
+        if (!initialText) return normalizedPrev;
         return [
-          ...prev,
+          ...normalizedPrev,
           {
             id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
             speaker,
-            text: clean.trimStart(),
+            text: initialText,
             timestamp: Date.now(),
             final: markFinal,
           },
@@ -294,6 +340,8 @@ export const VoiceAssistantProvider: React.FC<{ children: ReactNode }> = ({ chil
   const sendContextSnapshotToWs = useCallback((ws: WebSocket | null) => {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     const snap = latestContextRef.current;
+    lastSnapshotSentAtRef.current = Date.now();
+    lastStructuralSnapshotKeyRef.current = `${snap.activeTab}|${snap.selectedRoomId || ''}|${snap.settings.tariffPerKWhINR}|${snap.settings.learningMode}|${snap.auditFindings.length}`;
     ws.send(
       JSON.stringify({
         type: 'context_snapshot',
@@ -309,14 +357,23 @@ export const VoiceAssistantProvider: React.FC<{ children: ReactNode }> = ({ chil
     );
   }, []);
 
-  // Push fresh campus context whenever view/data updates during an active Live session
+  // Push fresh campus context immediately on structural view/settings changes,
+  // and throttle routine live IoT simulation drift ticks to at most once every 8s
+  // to avoid serializing ~45 KB payloads over the Live WebSocket every tick.
   useEffect(() => {
+    const ws = wsRef.current;
     if (
-      wsRef.current &&
-      wsRef.current.readyState === WebSocket.OPEN &&
-      (phase === 'listening' || phase === 'processing' || phase === 'speaking')
+      !ws ||
+      ws.readyState !== WebSocket.OPEN ||
+      !(phase === 'listening' || phase === 'processing' || phase === 'executing' || phase === 'speaking')
     ) {
-      sendContextSnapshotToWs(wsRef.current);
+      return;
+    }
+    const structuralKey = `${activeTab}|${selectedRoom?.id || ''}|${settings.tariffPerKWhINR}|${settings.learningMode}|${auditFindings.length}`;
+    const isStructuralChange = structuralKey !== lastStructuralSnapshotKeyRef.current;
+    const elapsed = Date.now() - lastSnapshotSentAtRef.current;
+    if (isStructuralChange || elapsed >= 8000) {
+      sendContextSnapshotToWs(ws);
     }
   }, [activeTab, selectedRoom?.id, classrooms, settings, auditFindings, phase, sendContextSnapshotToWs]);
 
@@ -463,6 +520,7 @@ export const VoiceAssistantProvider: React.FC<{ children: ReactNode }> = ({ chil
     (restoreStandby = true) => {
       clearResumeStandbyTimer();
       clearConnectTimeout();
+      clearTurnWatchdog();
       preRollFramesRef.current = [];
       setPendingConfirmation(null);
 
@@ -514,13 +572,14 @@ export const VoiceAssistantProvider: React.FC<{ children: ReactNode }> = ({ chil
         }
       }
     },
-    [clearConnectTimeout, clearResumeStandbyTimer]
+    [clearConnectTimeout, clearResumeStandbyTimer, clearTurnWatchdog]
   );
 
   // Clean up Mic + Wake Engine completely
   const teardownAudioAndWake = useCallback(async () => {
     clearResumeStandbyTimer();
     clearConnectTimeout();
+    clearTurnWatchdog();
     stopLiveWebSocketOnly(false);
     if (micHandleRef.current) {
       await micHandleRef.current.stop().catch(() => undefined);
@@ -533,7 +592,7 @@ export const VoiceAssistantProvider: React.FC<{ children: ReactNode }> = ({ chil
     setIsWakeModelReady(false);
     setWakeLoadStage('idle');
     amplitudeRef.current = 0;
-  }, [clearConnectTimeout, clearResumeStandbyTimer, stopLiveWebSocketOnly]);
+  }, [clearConnectTimeout, clearResumeStandbyTimer, clearTurnWatchdog, stopLiveWebSocketOnly]);
 
   // Ref for openLiveSession so wake callback always accesses the latest closure cleanly
   const openLiveSessionRef = useRef<(reason: 'wake' | 'manual' | 'auth_refresh') => Promise<void>>(async () => {});
@@ -607,10 +666,10 @@ export const VoiceAssistantProvider: React.FC<{ children: ReactNode }> = ({ chil
               activePhase === 'speaking')
           ) {
             const player = playerRef.current;
-            const isPlayingOut = Boolean(player?.isPlaying());
+            const isPlayingOut = Boolean(player?.isPlaying()) || activePhase === 'speaking';
             const inEchoTail =
               !isPlayingOut &&
-              Boolean(player && Date.now() - player.getLastPlaybackEndedAt() < 220);
+              Boolean(player && Date.now() - player.getLastPlaybackEndedAt() < 420);
             const isRecentlyScrolling = Date.now() - lastScrollActivityAtRef.current < 800;
 
             // Natural conversational barge-in (0.065 RMS sustained for 3 frames)
@@ -625,8 +684,8 @@ export const VoiceAssistantProvider: React.FC<{ children: ReactNode }> = ({ chil
               bargeInFramesRef.current = 0;
             }
 
-            // While AI audio is genuinely playing (running AudioContext) or in 220ms echo tail,
-            // suppress speaker bleed while allowing natural barge-in speech through.
+            // While AI audio is genuinely playing or inside the 420ms acoustic echo tail,
+            // suppress speaker bleed while allowing intentional barge-in speech through.
             let b64: string;
             let effectiveRms = amp;
             if (isPlayingOut || inEchoTail) {
@@ -694,37 +753,48 @@ export const VoiceAssistantProvider: React.FC<{ children: ReactNode }> = ({ chil
           break;
         }
         case 'audio_out': {
-          player?.enqueueBase64Pcm(msg.data);
-          setPhase('speaking');
+          clearTurnWatchdog();
+          const isRunning = player?.enqueueBase64Pcm(msg.data);
+          if (isRunning) {
+            setPhase('speaking');
+          }
           break;
         }
         case 'input_transcript': {
-          if (msg.text?.trim()) {
-            appendOrUpdateTranscript(
-              'user',
-              msg.text,
-              Boolean(msg.final ?? msg.isFinal),
-              msg.mode || 'append'
-            );
+          const isFinal = Boolean(msg.final ?? msg.isFinal);
+          if ((typeof msg.text === 'string' && msg.text.length > 0) || isFinal) {
+            appendOrUpdateTranscript('user', msg.text || '', isFinal, msg.mode || 'append');
           }
           break;
         }
         case 'output_transcript': {
-          if (msg.text?.trim()) {
-            appendOrUpdateTranscript('assistant', msg.text, Boolean(msg.final ?? msg.isFinal), 'append');
+          clearTurnWatchdog();
+          const isFinal = Boolean(msg.final ?? msg.isFinal);
+          if ((typeof msg.text === 'string' && msg.text.length > 0) || isFinal) {
+            appendOrUpdateTranscript('assistant', msg.text || '', isFinal, 'append');
           }
           break;
         }
         case 'turn_complete': {
-          setTranscripts((prev) => prev.map((t) => (t.final ? t : { ...t, final: true })));
+          clearTurnWatchdog();
+          setTranscripts((prev) =>
+            prev.map((t) =>
+              t.final ? t : { ...t, text: finalizeTranscriptText(t.text), final: true }
+            )
+          );
           if (!player?.isPlaying() && phaseRef.current !== 'error') {
             setPhase('listening');
           }
           break;
         }
         case 'interrupted': {
+          clearTurnWatchdog();
           player?.stopAll();
-          setTranscripts((prev) => prev.map((t) => (t.final ? t : { ...t, final: true })));
+          setTranscripts((prev) =>
+            prev.map((t) =>
+              t.final ? t : { ...t, text: finalizeTranscriptText(t.text), final: true }
+            )
+          );
           setPhase('listening');
           break;
         }
@@ -741,7 +811,10 @@ export const VoiceAssistantProvider: React.FC<{ children: ReactNode }> = ({ chil
         }
         case 'tool_status': {
           if (msg.status === 'running') {
-            if (!player?.isPlaying()) setPhase('executing');
+            if (!player?.isPlaying()) {
+              setPhase('executing');
+              armTurnWatchdog();
+            }
           } else if (msg.status === 'denied') {
             pushNotice({
               kind: 'auth_required',
@@ -784,13 +857,22 @@ export const VoiceAssistantProvider: React.FC<{ children: ReactNode }> = ({ chil
           break;
         }
         case 'settings_updated': {
-          updateSettings(msg.settings);
-          pushNotice({
-            kind: 'info',
-            title: 'Campus Policy Updated',
-            detail: msg.summary,
+          void updateSettings(msg.settings).then((res) => {
+            if (res && !res.ok) {
+              pushNotice({
+                kind: 'error',
+                title: 'Settings Update Failed',
+                detail: res.error || 'Unable to save updated campus settings.',
+              });
+              return;
+            }
+            pushNotice({
+              kind: 'info',
+              title: 'Campus Policy Updated',
+              detail: msg.summary,
+            });
+            toast.success('Campus settings updated', msg.summary);
           });
-          toast.success('Campus settings updated', msg.summary);
           break;
         }
         case 'room_recalibrated': {
@@ -910,6 +992,7 @@ export const VoiceAssistantProvider: React.FC<{ children: ReactNode }> = ({ chil
         }
         case 'error': {
           clearConnectTimeout();
+          clearTurnWatchdog();
           setLastError(msg.message);
           setPhase('error');
           pushNotice({
@@ -925,7 +1008,9 @@ export const VoiceAssistantProvider: React.FC<{ children: ReactNode }> = ({ chil
       appendOrUpdateTranscript,
       applyCampusOptimizationSync,
       applyServerRoomAppliances,
+      armTurnWatchdog,
       clearConnectTimeout,
+      clearTurnWatchdog,
       exportAnalyticsCsv,
       handleClientNavigation,
       logout,
@@ -965,18 +1050,19 @@ export const VoiceAssistantProvider: React.FC<{ children: ReactNode }> = ({ chil
       }
 
       const player = ensurePlayer();
-      await player.resume();
       if (reason === 'wake') {
-        // Play crisp local chime via the already-unlocked AudioContext (no competing wake_greeting turn!)
+        // Immediate local wake-word chime (<15ms feedback) without blocking WebSocket handshake
         player.playWakeChime();
+      } else {
+        void player.resume();
       }
 
-      // Use micPermissionRef (avoids stale closure right after permission grant)
+      // Resume mic capture IN PARALLEL with opening the Live WebSocket (eliminates 300-950ms serial startup stall)
       if (micPermissionRef.current !== 'denied' && micPermissionRef.current !== 'unsupported') {
         if (!micHandleRef.current) {
-          await ensureMicPipelineRunning();
+          void ensureMicPipelineRunning();
         } else if (micHandleRef.current.getContextState() === 'suspended') {
-          await micHandleRef.current.resumeContext();
+          void micHandleRef.current.resumeContext();
         }
       }
 
@@ -1015,6 +1101,7 @@ export const VoiceAssistantProvider: React.FC<{ children: ReactNode }> = ({ chil
       };
 
       ws.onmessage = (event) => {
+        if (wsRef.current !== ws) return;
         let msg: VoiceServerMessage;
         try {
           msg = JSON.parse(String(event.data)) as VoiceServerMessage;
@@ -1272,32 +1359,153 @@ export const VoiceAssistantProvider: React.FC<{ children: ReactNode }> = ({ chil
         const snap = latestContextRef.current;
         const headers: Record<string, string> = { 'Content-Type': 'application/json' };
         if (token) headers.Authorization = `Bearer ${token}`;
-        const res = await fetch('/api/voice/command', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            sessionId: httpCommandSessionIdRef.current,
-            text: clean,
-            activeTab: snap.activeTab,
-            selectedRoomId: snap.selectedRoomId,
-            settings: snap.settings,
-            classrooms: snap.classrooms,
-            resolvedFindingIds: snap.auditFindings.filter((f) => f.isResolved).map((f) => f.id),
-          }),
-        });
-        const data = await res.json();
-        if (Array.isArray(data?.emittedMessages)) {
-          for (const msg of data.emittedMessages as VoiceServerMessage[]) {
+
+        // Avoid re-transmitting ~45 KB of unchanged classroom state on every turn;
+        // the server caches the latest per-session snapshot and merges live appliance state.
+        const classroomsFingerprint = snap.classrooms
+          .map(
+            (c) =>
+              `${c.id}:${Math.round(c.currentPowerWatts)}:${c.occupancyStatus}:${Math.round(
+                c.environment.temperature
+              )}`
+          )
+          .join('|');
+        const shouldIncludeClassrooms =
+          classroomsFingerprint !== lastHttpClassroomsFingerprintRef.current;
+
+        const payload: Record<string, unknown> = {
+          sessionId: httpCommandSessionIdRef.current,
+          text: clean,
+          activeTab: snap.activeTab,
+          selectedRoomId: snap.selectedRoomId,
+          settings: snap.settings,
+          resolvedFindingIds: snap.auditFindings.filter((f) => f.isResolved).map((f) => f.id),
+        };
+        if (shouldIncludeClassrooms) {
+          payload.classrooms = snap.classrooms;
+        }
+        const bodyJson = JSON.stringify(payload);
+
+        let finalData: Record<string, unknown> | null = null;
+        let dispatchedImmediateCount = 0;
+        let receivedAnyStreamEvent = false;
+
+        try {
+          const streamRes = await fetch('/api/voice/command/stream', {
+            method: 'POST',
+            headers: {
+              ...headers,
+              Accept: 'text/event-stream',
+            },
+            body: bodyJson,
+          });
+
+          if (streamRes.ok && streamRes.body) {
+            if (shouldIncludeClassrooms) {
+              lastHttpClassroomsFingerprintRef.current = classroomsFingerprint;
+            }
+            const reader = streamRes.body.getReader();
+            const decoder = new TextDecoder();
+            let sseBuffer = '';
+
+            const processFrame = (rawFrame: string) => {
+              const lines = rawFrame.split(/\r?\n/);
+              let eventName = 'message';
+              const dataLines: string[] = [];
+              for (const line of lines) {
+                if (line.startsWith('event:')) {
+                  eventName = line.slice(6).trim();
+                } else if (line.startsWith('data:')) {
+                  dataLines.push(line.slice(5).trimStart());
+                }
+              }
+              if (dataLines.length === 0) return;
+              let parsed: unknown;
+              try {
+                parsed = JSON.parse(dataLines.join('\n'));
+              } catch {
+                return;
+              }
+              receivedAnyStreamEvent = true;
+
+              if (eventName === 'client_message' && parsed && typeof parsed === 'object') {
+                dispatchedImmediateCount += 1;
+                dispatchServerMessage(parsed as VoiceServerMessage, playerRef.current || undefined);
+              } else if (eventName === 'text_delta' && parsed && typeof parsed === 'object') {
+                const delta = (parsed as { delta?: unknown }).delta;
+                if (typeof delta === 'string' && delta.length > 0) {
+                  appendOrUpdateTranscript('assistant', delta, false, 'append');
+                }
+              } else if (eventName === 'tool_status') {
+                setPhase('executing');
+              } else if (eventName === 'done' && parsed && typeof parsed === 'object') {
+                finalData = parsed as Record<string, unknown>;
+              } else if (eventName === 'error' && parsed && typeof parsed === 'object') {
+                finalData = parsed as Record<string, unknown>;
+              }
+            };
+
+            while (true) {
+              const { value, done } = await reader.read();
+              if (done) break;
+              sseBuffer += decoder.decode(value, { stream: true });
+              const frames = sseBuffer.split(/\r?\n\r?\n/);
+              sseBuffer = frames.pop() || '';
+              for (const frame of frames) {
+                if (frame.trim()) processFrame(frame);
+              }
+            }
+            sseBuffer += decoder.decode();
+            if (sseBuffer.trim()) {
+              processFrame(sseBuffer);
+            }
+          }
+        } catch {
+          // If SSE failed before any streamed event arrived, cleanly fall back to JSON endpoint
+          if (receivedAnyStreamEvent) {
+            throw new Error('Voice response stream was interrupted. Please try again.');
+          }
+        }
+
+        if (!finalData) {
+          const res = await fetch('/api/voice/command', {
+            method: 'POST',
+            headers,
+            body: bodyJson,
+          });
+          if (res.ok && shouldIncludeClassrooms) {
+            lastHttpClassroomsFingerprintRef.current = classroomsFingerprint;
+          }
+          finalData = (await res.json()) as Record<string, unknown>;
+        }
+
+        if (dispatchedImmediateCount === 0 && Array.isArray(finalData?.emittedMessages)) {
+          for (const msg of finalData.emittedMessages as VoiceServerMessage[]) {
             dispatchServerMessage(msg, playerRef.current || undefined);
           }
         }
         const reply =
-          typeof data?.visualReply === 'string' && data.visualReply.trim()
-            ? data.visualReply
-            : typeof data?.error === 'string'
-            ? data.error
-            : 'Command processed.';
-        appendOrUpdateTranscript('assistant', reply, true);
+          typeof finalData?.visualReply === 'string' && finalData.visualReply.trim()
+            ? finalData.visualReply
+            : typeof finalData?.error === 'string'
+            ? finalData.error
+            : 'Unable to process your request right now. Please try again.';
+        appendOrUpdateTranscript('assistant', reply, true, 'replace');
+
+        const isLlmUnavailable =
+          finalData?.errorCode === 'GEMINI_UNAVAILABLE' || finalData?.errorCode === 'MISSING_API_KEY';
+        if (isLlmUnavailable) {
+          setLastError(reply);
+          pushNotice({
+            kind: 'error',
+            title:
+              finalData?.errorCode === 'MISSING_API_KEY'
+                ? 'AI Service Not Configured'
+                : 'AI Service Temporarily Unavailable',
+            detail: reply,
+          });
+        }
+
         setPhase(
           wsRef.current?.readyState === WebSocket.OPEN
             ? 'listening'
@@ -1310,12 +1518,13 @@ export const VoiceAssistantProvider: React.FC<{ children: ReactNode }> = ({ chil
             : 'disabled'
         );
       } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Unable to execute ROOMWISE command.';
+        const msg = err instanceof Error ? err.message : 'Unable to reach the ROOMWISE assistant service.';
         setLastError(msg);
+        appendOrUpdateTranscript('assistant', msg, true, 'replace');
         setPhase('error');
       }
     },
-    [appendOrUpdateTranscript, dispatchServerMessage]
+    [appendOrUpdateTranscript, dispatchServerMessage, pushNotice]
   );
 
   const confirmPendingAction = useCallback(
@@ -1388,6 +1597,7 @@ export const VoiceAssistantProvider: React.FC<{ children: ReactNode }> = ({ chil
   useEffect(() => {
     let cancelled = false;
     let idleTimerId: number | null = null;
+    let permissionStatusRef: PermissionStatus | null = null;
     const savedEnabled = readBoolPref(LS_ENABLED_KEY, false);
 
     // Pre-warm worker script (and model on fast unmetered connections when wake-word is enabled)
@@ -1408,9 +1618,12 @@ export const VoiceAssistantProvider: React.FC<{ children: ReactNode }> = ({ chil
             name: 'microphone' as PermissionName,
           });
           if (cancelled) return;
+          permissionStatusRef = status;
           setMicPermission(status.state as MicPermissionState);
           status.onchange = () => {
-            setMicPermission(status.state as MicPermissionState);
+            if (!cancelled) {
+              setMicPermission(status.state as MicPermissionState);
+            }
           };
 
           if (status.state === 'granted' && savedEnabled) {
@@ -1428,6 +1641,10 @@ export const VoiceAssistantProvider: React.FC<{ children: ReactNode }> = ({ chil
 
     return () => {
       cancelled = true;
+      if (permissionStatusRef) {
+        permissionStatusRef.onchange = null;
+        permissionStatusRef = null;
+      }
       if (idleTimerId !== null) {
         window.clearTimeout(idleTimerId);
       }
@@ -1448,14 +1665,17 @@ export const VoiceAssistantProvider: React.FC<{ children: ReactNode }> = ({ chil
     };
   }, [phase, resumeSuspendedAudio]);
 
-  // Pause wake detector automatically when browser tab is backgrounded
+  // Pause wake detector automatically when browser tab is backgrounded or any live turn is active
   useEffect(() => {
     const handleVisibility = () => {
       if (!wakeEngineRef.current) return;
       const hidden = document.visibilityState === 'hidden';
       const isLive =
+        phaseRef.current === 'wake_detected' ||
+        phaseRef.current === 'connecting' ||
         phaseRef.current === 'listening' ||
         phaseRef.current === 'processing' ||
+        phaseRef.current === 'executing' ||
         phaseRef.current === 'speaking';
       wakeEngineRef.current.setPaused(hidden || isMutedRef.current || isLive);
     };

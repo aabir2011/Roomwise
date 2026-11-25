@@ -27,13 +27,10 @@ import {
 } from '../../data/roomApplianceSpecs';
 import { formatCapacityKW } from '../../utils/applianceUtils';
 import { buildSchoolDayDemandProfile } from '../../utils/demandProfile';
-import { AnimatedNumber } from '../common/MotionPrimitives';
 import { PageHeader } from '../common/DesignSystem';
-import {
-  ROOMWISE_EASE,
-  staggerContainerVariants,
-  staggerItemVariants,
-} from '../../utils/motion';
+import { AcronymHint } from '../common/AcronymHint';
+import { CountUp, FadeContent, MagicBento, MagicBentoCard, StarBorder } from '../reactbits';
+import { ROOMWISE_EASE } from '../../utils/motion';
 
 export const DashboardView: React.FC = () => {
   const {
@@ -90,40 +87,28 @@ export const DashboardView: React.FC = () => {
       (acc, r) => acc + (r.ratedPowerWatts ?? computeAppliancesRatedPowerWatts(r.appliances)),
       0
     );
-    const base = rooms.reduce((acc, r) => acc + r.baselinePowerWatts, 0);
     const occupied = rooms.filter((r) => r.occupancyStatus === 'Occupied').length;
-    const curtailedPct =
+    const headroomPct =
       ratedWatts > 0 ? Math.max(0, Math.round(((ratedWatts - watts) / ratedWatts) * 100)) : 0;
     const utilPct = ratedWatts > 0 ? Math.min(100, Math.round((watts / ratedWatts) * 100)) : 0;
-    return { name, rooms, watts, ratedWatts, base, occupied, curtailedPct, utilPct };
+    return { name, rooms, watts, ratedWatts, occupied, headroomPct, utilPct };
   });
 
   const liveActualKW = Number((campusSummary.totalCurrentPowerWatts / 1000).toFixed(2));
+  const liveRatedKW = Number((campusSummary.totalRatedPowerWatts / 1000).toFixed(2));
   const liveRatedKWText = formatCapacityKW(campusSummary.totalRatedPowerWatts);
-  const liveBaseKW = Number((campusSummary.totalBaselinePowerWatts / 1000).toFixed(3));
-  const liveBaseKWText = formatCapacityKW(campusSummary.totalBaselinePowerWatts);
-  const curtailedFromRatedPct =
-    campusSummary.totalRatedPowerWatts > 0
-      ? Math.max(
-          0,
-          Math.round(
-            (campusSummary.curtailedFromRatedWatts / campusSummary.totalRatedPowerWatts) * 100
-          )
-        )
-      : 0;
-  const dailyReductionPct =
-    campusSummary.dailyBaselineKWh > 0
-      ? ((campusSummary.dailySavedKWh / campusSummary.dailyBaselineKWh) * 100).toFixed(1)
-      : '0.0';
 
   const demandProfile = buildSchoolDayDemandProfile({
     liveActualKW,
-    liveBaseKW,
+    installedRatedMaxKW: liveRatedKW,
     now: clockNow,
   });
   const hourlyData = demandProfile.slots;
 
-  const maxHourValue = Math.max(19, Math.ceil(liveBaseKW * 1.15));
+  const maxHourValue = Math.max(15, Math.ceil(liveRatedKW * 1.15));
+  const isAdaptiveAutomationActive = classrooms.some((room) =>
+    room.appliances.some((app) => app.operatingMode === 'AUTO')
+  );
 
   return (
     <div className="p-4 sm:p-6 md:p-8 space-y-5 sm:space-y-6 max-w-7xl mx-auto">
@@ -131,9 +116,20 @@ export const DashboardView: React.FC = () => {
       <PageHeader
         kicker={
           <>
-            <span className="whitespace-nowrap">Adaptive Automation Active</span>
+            <StarBorder active={isAdaptiveAutomationActive} innerClassName="text-[11px] font-bold">
+              <span
+                className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                  isAdaptiveAutomationActive ? 'bg-emerald-600' : 'bg-amber-600'
+                }`}
+              />
+              <span className="whitespace-nowrap">
+                {isAdaptiveAutomationActive ? 'Adaptive Automation Active' : 'Manual Override Active'}
+              </span>
+            </StarBorder>
             <span aria-hidden="true">·</span>
-            <span className="whitespace-nowrap">WBSEDCL Educational HT-2</span>
+            <span className="whitespace-nowrap">
+              <AcronymHint term="WBSEDCL" /> Educational <AcronymHint term="HT-2" />
+            </span>
           </>
         }
         title="Campus Energy Overview"
@@ -173,152 +169,253 @@ export const DashboardView: React.FC = () => {
             <div className="text-xs font-bold tracking-wide text-white">
               Autonomous Closed-Loop Energy Grid
             </div>
-            <div className="text-[11px] text-emerald-100/75">
-              Daylight Harvesting & BLDC Modulation across 25 Campus Nodes
+            <div className="text-[11px] text-emerald-100/80">
+              Daylight Harvesting &amp; <AcronymHint term="BLDC" /> Modulation across 25 Campus Nodes
             </div>
           </div>
         </div>
 
         <div className="flex items-center justify-between sm:justify-end gap-4 relative z-10 text-xs pt-2 sm:pt-0 border-t border-white/10 sm:border-0">
           <div className="text-left sm:text-right">
-            <div className="text-[10px] text-emerald-300 font-mono uppercase tracking-wider">
-              vs Installed Rated Max ({liveRatedKWText} kW)
+            <div className="text-[11px] text-emerald-300 font-mono uppercase tracking-wider">
+              Available Rated Headroom (vs {liveRatedKWText} kW Max)
             </div>
             <div className="font-mono font-bold text-sm text-white">
-              <AnimatedNumber
-                value={campusSummary.curtailedFromRatedWatts / 1000}
+              <CountUp
+                to={campusSummary.availableHeadroomWatts / 1000}
                 decimals={2}
-                suffix=" kW curtailed"
+                duration={0.75}
+                delay={0.05}
+                metricKey="overview-headroom"
+                suffix=" kW headroom"
               />{' '}
-              <span className="text-[11px] font-normal text-emerald-300 tabular-nums">
-                ({campusSummary.ratedUtilizationPercent}% utilised · Ref: {liveBaseKWText} kW)
+              <span className="text-[11px] font-normal text-emerald-200 tabular-nums">
+                ({campusSummary.ratedUtilizationPercent}% utilised · {campusSummary.headroomPercent}% unused)
               </span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* 4 Core Quantitative KPI Cards */}
-      <motion.div
-        variants={staggerContainerVariants}
-        initial="hidden"
-        animate="visible"
-        className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4"
+      {/* Asymmetric Editorial Magic Bento KPI Composition (5+7 / 7+5 staggered rhythm, zero dead space) */}
+      <MagicBento
+        spotlightRadius={280}
+        className="grid grid-cols-1 md:grid-cols-6 lg:grid-cols-12 gap-3.5 sm:gap-4"
       >
-        <motion.div
-          variants={staggerItemVariants}
-          className="p-3.5 sm:p-5 rounded-2xl glass-card-interactive relative overflow-hidden min-w-0"
+        {/* Top-Left Hero Tile: Live Campus Load */}
+        <MagicBentoCard
+          cardId="kpi-campus-load"
+          accentRimClassName="gradient-rim-emerald gradient-rim-static"
+          className="md:col-span-3 lg:col-span-5 p-4 sm:p-5"
         >
-          <div className="absolute top-0 left-0 right-0 h-1 gradient-rim-emerald" />
-          <div className="flex items-center justify-between text-xs text-neutral-500">
-            <span className="font-semibold text-neutral-700 truncate">Campus Load</span>
-            <span className="p-1.5 rounded-lg bg-emerald-50 border border-emerald-200/60 text-emerald-700 shrink-0">
-              <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <span className="text-xs font-bold text-neutral-800 tracking-tight">
+                Campus Load
+              </span>
+              <div className="text-[11px] text-neutral-500 mt-0.5">
+                Live Active Draw · 25 Nodes
+              </div>
+            </div>
+            <span className="p-2 rounded-xl bg-emerald-50 border border-emerald-200/70 text-emerald-700 shrink-0">
+              <Zap className="w-4 h-4" />
             </span>
           </div>
-          <div className="mt-2.5 sm:mt-3 flex items-baseline gap-1.5">
-            <span className="text-xl sm:text-3xl font-bold text-neutral-900 font-mono">
-              <AnimatedNumber value={campusSummary.totalCurrentPowerWatts / 1000} decimals={2} />
-            </span>
-            <span className="text-xs font-bold text-neutral-500">kW</span>
-          </div>
-          <div className="mt-1.5 text-[11px] sm:text-xs text-emerald-800 font-bold flex items-center gap-1 truncate tabular-nums">
-            <TrendingDown className="w-3 h-3 text-emerald-600 shrink-0" />
-            <span>
-              {campusSummary.curtailedFromRatedWatts === 0
-                ? '100% Rated Utilisation · 0% curtailed'
-                : `${campusSummary.ratedUtilizationPercent}% utilised · ${curtailedFromRatedPct}% curtailed`}
-            </span>
-          </div>
-          <div
-            className="text-[10px] sm:text-[11px] text-neutral-400 mt-0.5 font-mono truncate tabular-nums"
-            title={`Installed Rated Maximum across 25 nodes is ${liveRatedKWText} kW (${campusSummary.totalRatedPowerWatts} W). Comparative Estimated Pre-Retrofit Reference Capacity is ${liveBaseKWText} kW (${campusSummary.totalBaselinePowerWatts} W).`}
-          >
-            Installed Max: {liveRatedKWText} kW · Pre-Retrofit Ref: {liveBaseKWText} kW
-          </div>
-        </motion.div>
 
-        <motion.div
-          variants={staggerItemVariants}
-          className="p-3.5 sm:p-5 rounded-2xl glass-card-interactive relative overflow-hidden min-w-0"
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="text-2xl sm:text-3xl font-bold text-neutral-900 font-mono tracking-tight">
+              <CountUp
+                to={campusSummary.totalCurrentPowerWatts / 1000}
+                decimals={2}
+                duration={0.8}
+                delay={0.08}
+                metricKey="overview-load"
+              />
+            </span>
+            <span className="text-xs sm:text-sm font-bold text-neutral-500">kW</span>
+          </div>
+
+          <div className="mt-3.5 pt-3 border-t border-neutral-100 space-y-2">
+            <div>
+              <div className="flex items-center justify-between text-[11px] sm:text-xs font-bold text-emerald-800 tabular-nums mb-1.5">
+                <span className="flex items-center gap-1">
+                  <TrendingDown className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>
+                    {campusSummary.availableHeadroomWatts === 0
+                      ? '100% Rated Utilisation · 0% headroom'
+                      : `${campusSummary.ratedUtilizationPercent}% utilised · ${campusSummary.headroomPercent}% headroom`}
+                  </span>
+                </span>
+              </div>
+              <div className="w-full h-1.5 rounded-full bg-neutral-100 border border-neutral-200/60 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-emerald-600 transition-[width] duration-300"
+                  style={{
+                    width: `${Math.min(100, Math.max(4, campusSummary.ratedUtilizationPercent))}%`,
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-neutral-600 tabular-nums">
+              <span
+                className="font-mono truncate"
+                title={`Installed Rated Maximum across 25 nodes is ${liveRatedKWText} kW (${campusSummary.totalRatedPowerWatts} W). Unused capacity below nameplate max is Available Rated Headroom.`}
+              >
+                Installed Max: {liveRatedKWText} kW ({campusSummary.totalRatedPowerWatts.toLocaleString('en-IN')} W)
+              </span>
+              <span className="text-neutral-500 font-medium whitespace-nowrap">
+                {campusSummary.totalRoomsOccupied} / {classrooms.length} motion active
+              </span>
+            </div>
+          </div>
+        </MagicBentoCard>
+
+        {/* Top-Right Wide Tile: Daily Campus Energy */}
+        <MagicBentoCard
+          cardId="kpi-daily-energy"
+          accentRimClassName="gradient-rim-blue gradient-rim-static"
+          className="md:col-span-3 lg:col-span-7 p-4 sm:p-5"
         >
-          <div className="absolute top-0 left-0 right-0 h-1 gradient-rim-blue" />
           <div className="flex items-center justify-between text-xs text-neutral-500">
-            <span className="font-semibold text-neutral-700 truncate">Energy Conserved</span>
+            <span className="font-bold text-neutral-800 truncate">Daily Campus Energy</span>
             <span className="p-1.5 rounded-lg bg-sky-50 border border-sky-200/60 text-sky-700 shrink-0">
-              <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <Sun className="w-4 h-4" />
             </span>
           </div>
-          <div className="mt-2.5 sm:mt-3 flex items-baseline gap-1.5">
-            <span className="text-xl sm:text-3xl font-bold text-neutral-900 font-mono">
-              <AnimatedNumber value={campusSummary.dailySavedKWh} decimals={1} />
-            </span>
-            <span className="text-xs font-bold text-neutral-500">kWh</span>
-          </div>
-          <div className="mt-1.5 text-[11px] sm:text-xs text-neutral-600 font-medium truncate tabular-nums">
-            Actual:{' '}
-            <span className="font-mono font-bold text-neutral-900">
-              {campusSummary.dailyActualKWh}
-            </span>{' '}
-            kWh
-          </div>
-          <div className="text-[10px] sm:text-[11px] text-neutral-400 mt-0.5 truncate tabular-nums">
-            Est. Pre-Retrofit Ref: {campusSummary.dailyBaselineKWh} kWh (room-weighted)
-          </div>
-        </motion.div>
 
-        <motion.div
-          variants={staggerItemVariants}
-          className="p-3.5 sm:p-5 rounded-2xl glass-card-interactive relative overflow-hidden min-w-0"
+          <div className="mt-3 flex flex-col sm:flex-row sm:items-end justify-between gap-4 flex-1">
+            <div>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-2xl sm:text-3xl font-bold text-neutral-900 font-mono">
+                  <CountUp
+                    to={campusSummary.dailyActualKWh}
+                    decimals={1}
+                    duration={0.85}
+                    delay={0.11}
+                    metricKey="overview-energy"
+                  />
+                </span>
+                <span className="text-xs font-bold text-neutral-500">kWh</span>
+              </div>
+              <div className="mt-1.5 text-[11px] sm:text-xs text-neutral-700 font-medium tabular-nums">
+                Rated Ceiling:{' '}
+                <span className="font-mono font-bold text-neutral-900">
+                  {campusSummary.dailyRatedCeilingKWh}
+                </span>{' '}
+                kWh/day
+              </div>
+            </div>
+
+            <div className="sm:text-right sm:min-w-[210px] space-y-1.5">
+              {(() => {
+                const dailySharePct =
+                  campusSummary.dailyRatedCeilingKWh > 0
+                    ? Math.min(
+                        100,
+                        Math.round(
+                          (campusSummary.dailyActualKWh / campusSummary.dailyRatedCeilingKWh) * 100
+                        )
+                      )
+                    : 0;
+                return (
+                  <>
+                    <div className="flex items-center sm:justify-end justify-between gap-2 text-[11px] text-neutral-600 tabular-nums">
+                      <span>Daily Ceiling Ratio</span>
+                      <span className="font-mono font-bold text-sky-800">{dailySharePct}%</span>
+                    </div>
+                    <div className="w-full h-1.5 rounded-full bg-neutral-100 border border-neutral-200/60 overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-sky-600 transition-[width] duration-300"
+                        style={{ width: `${Math.max(4, dailySharePct)}%` }}
+                      />
+                    </div>
+                  </>
+                );
+              })()}
+              <div className="text-[11px] text-neutral-600 truncate tabular-nums">
+                Month ({SCHOOL_DAYS_PER_MONTH}d): {campusSummary.monthlyActualKWh} kWh (25-node scope)
+              </div>
+            </div>
+          </div>
+        </MagicBentoCard>
+
+        {/* Bottom-Left Wide Tile: Daily Cost Estimate */}
+        <MagicBentoCard
+          cardId="kpi-daily-cost"
+          accentRimClassName="gradient-rim-teal gradient-rim-static"
+          className="md:col-span-3 lg:col-span-7 p-4 sm:p-5"
         >
-          <div className="absolute top-0 left-0 right-0 h-1 gradient-rim-teal" />
           <div className="flex items-center justify-between text-xs text-neutral-500">
-            <span className="font-semibold text-neutral-700 truncate">Cost Saved Today</span>
+            <span className="font-bold text-neutral-800 truncate">Daily Cost Estimate</span>
             <span className="p-1.5 rounded-lg bg-teal-50 border border-teal-200/60 text-teal-700 shrink-0">
-              <IndianRupee className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <IndianRupee className="w-4 h-4" />
             </span>
           </div>
-          <div className="mt-2.5 sm:mt-3 flex items-baseline gap-1">
-            <span className="text-xs sm:text-sm font-bold text-neutral-500">₹</span>
-            <span className="text-xl sm:text-3xl font-bold text-neutral-900 font-mono">
-              <AnimatedNumber value={campusSummary.dailyCostSavedINR} decimals={0} />
-            </span>
+          <div className="mt-3 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+            <div className="flex items-baseline gap-1">
+              <span className="text-xs sm:text-sm font-bold text-neutral-500">₹</span>
+              <span className="text-2xl sm:text-3xl font-bold text-neutral-900 font-mono">
+                <CountUp
+                  to={campusSummary.dailyCostINR}
+                  decimals={0}
+                  locale="en-IN"
+                  duration={0.88}
+                  delay={0.14}
+                  metricKey="overview-cost"
+                />
+              </span>
+            </div>
+            <div className="sm:text-right">
+              <div className="text-[11px] sm:text-xs text-emerald-800 font-bold truncate tabular-nums">
+                <AcronymHint term="HT-2" /> Rate: ₹{settings.tariffPerKWhINR.toFixed(2)}/kWh
+              </div>
+              <div className="text-[11px] text-neutral-600 mt-0.5 truncate tabular-nums">
+                Month est ({SCHOOL_DAYS_PER_MONTH}d): ₹{campusSummary.monthlyCostINR.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+              </div>
+            </div>
           </div>
-          <div className="mt-1.5 text-[11px] sm:text-xs text-emerald-800 font-bold truncate tabular-nums">
-            Rate: ₹{settings.tariffPerKWhINR.toFixed(2)}/kWh
-          </div>
-          <div className="text-[10px] sm:text-[11px] text-neutral-400 mt-0.5 truncate tabular-nums">
-            Month est ({SCHOOL_DAYS_PER_MONTH}d): ₹{(campusSummary.dailyCostSavedINR * SCHOOL_DAYS_PER_MONTH).toFixed(0)}
-          </div>
-        </motion.div>
+        </MagicBentoCard>
 
-        <motion.div
-          variants={staggerItemVariants}
-          className="p-3.5 sm:p-5 rounded-2xl glass-card-interactive relative overflow-hidden min-w-0"
+        {/* Bottom-Right Tile: Daily Grid CO2 */}
+        <MagicBentoCard
+          cardId="kpi-daily-co2"
+          accentRimClassName="gradient-rim-emerald gradient-rim-static"
+          className="md:col-span-3 lg:col-span-5 p-4 sm:p-5"
         >
-          <div className="absolute top-0 left-0 right-0 h-1 gradient-rim-emerald" />
           <div className="flex items-center justify-between text-xs text-neutral-500">
-            <span className="font-semibold text-neutral-700 truncate">CO₂ Abated</span>
+            <span className="font-bold text-neutral-800 truncate">Daily Grid CO₂</span>
             <span className="p-1.5 rounded-lg bg-emerald-50 border border-emerald-200/60 text-emerald-700 shrink-0">
-              <Leaf className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <Leaf className="w-4 h-4" />
             </span>
           </div>
-          <div className="mt-2.5 sm:mt-3 flex items-baseline gap-1.5">
-            <span className="text-xl sm:text-3xl font-bold text-neutral-900 font-mono">
-              <AnimatedNumber value={campusSummary.dailyEmissionsAvoidedKgCO2} decimals={1} />
-            </span>
-            <span className="text-xs font-bold text-neutral-500">kg</span>
+          <div className="mt-3 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-2xl sm:text-3xl font-bold text-neutral-900 font-mono">
+                <CountUp
+                  to={campusSummary.dailyEmissionsKgCO2}
+                  decimals={1}
+                  duration={0.84}
+                  delay={0.17}
+                  metricKey="overview-co2"
+                />
+              </span>
+              <span className="text-xs font-bold text-neutral-500">kg</span>
+            </div>
+            <div className="sm:text-right">
+              <div className="text-[11px] sm:text-xs text-teal-900 font-bold truncate tabular-nums">
+                <AcronymHint term="CEA" /> Factor: {settings.gridCarbonFactorKgCO2PerKWh} kg/kWh
+              </div>
+              <div className="text-[11px] text-neutral-600 mt-0.5 truncate tabular-nums">
+                Month ({SCHOOL_DAYS_PER_MONTH}d): {campusSummary.monthlyEmissionsTonnesCO2} t CO₂
+              </div>
+            </div>
           </div>
-          <div className="mt-1.5 text-[11px] sm:text-xs text-teal-900 font-bold truncate tabular-nums">
-            CEA Factor: {settings.gridCarbonFactorKgCO2PerKWh}
-          </div>
-          <div className="text-[10px] sm:text-[11px] text-neutral-400 mt-0.5 truncate">
-            Avoided grid emissions
-          </div>
-        </motion.div>
-      </motion.div>
+        </MagicBentoCard>
+      </MagicBento>
 
       {/* Main Grid: Load Profile & 5 Buildings Distribution */}
+      <FadeContent delay={0.05} duration={0.22}>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 sm:gap-6">
         <div className="lg:col-span-2 p-4 sm:p-6 rounded-2xl glass-card rw-card-alive relative overflow-hidden min-w-0">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
@@ -326,10 +423,10 @@ export const DashboardView: React.FC = () => {
               <h3 className="text-sm font-bold text-neutral-900">
                 School-Day Electrical Demand Profile (25 Nodes)
               </h3>
-              <p className="text-xs text-neutral-500">
+              <p className="text-xs text-neutral-600">
                 {demandProfile.isWithinSchoolHours
-                  ? `Modelled day-school load curve (${demandProfile.activeLabel} reflects active node state) vs Pre-Retrofit Reference (Installed Max: ${liveRatedKWText} kW · Ref: ${liveBaseKWText} kW)`
-                  : `Modelled day-school curve (07:30–14:30) + live active node state at ${demandProfile.currentTimeIst} vs Pre-Retrofit Reference (Installed Max: ${liveRatedKWText} kW · Ref: ${liveBaseKWText} kW)`}
+                  ? `Modelled day-school load curve (${demandProfile.activeLabel} reflects active node state) vs Installed Rated Max (${liveRatedKWText} kW)`
+                  : `Modelled day-school curve (07:30–14:30) + live active node state at ${demandProfile.currentTimeIst} vs Installed Rated Max (${liveRatedKWText} kW)`}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3 text-xs font-semibold shrink-0">
@@ -339,7 +436,7 @@ export const DashboardView: React.FC = () => {
               </div>
               <div className="flex items-center gap-1.5 whitespace-nowrap">
                 <span className="w-3 h-2 rounded-xs bg-neutral-200 border border-neutral-300 inline-block shrink-0" />
-                <span className="text-neutral-500 font-normal">Pre-Retrofit Ref</span>
+                <span className="text-neutral-600 font-normal">Installed Rated Max</span>
               </div>
             </div>
           </div>
@@ -347,7 +444,7 @@ export const DashboardView: React.FC = () => {
           <div className="h-56 flex items-end gap-2 sm:gap-3 pt-8 pb-2 border-b border-neutral-200/80 overflow-x-auto">
             {hourlyData.map((d, i) => {
               const actualHeightPercent = Math.min(100, (d.actual / maxHourValue) * 100);
-              const baselineHeightPercent = Math.min(100, (d.baseline / maxHourValue) * 100);
+              const ratedHeightPercent = Math.min(100, (d.ratedMaxKW / maxHourValue) * 100);
               const isCurrent = d.isCurrent;
 
               return (
@@ -359,7 +456,7 @@ export const DashboardView: React.FC = () => {
                 >
                   <div className="absolute top-0 opacity-0 -translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-150 bg-neutral-900 text-white text-[10px] py-1 px-2 rounded-lg pointer-events-none whitespace-nowrap z-20 font-mono tabular-nums shadow-md">
                     {d.hour}
-                    {isCurrent ? ' IST (Active Sim)' : ' (Illustrative)'} · {d.actual} kW / {d.baseline} kW ref
+                    {isCurrent ? ' IST (Live Node State)' : ' (School Schedule)'} · {d.actual} kW / {d.ratedMaxKW} kW max
                   </div>
 
                   <div className="w-full flex items-end justify-center gap-1 h-full">
@@ -368,7 +465,7 @@ export const DashboardView: React.FC = () => {
                       animate={{ scaleY: 1 }}
                       transition={{ duration: 0.36, delay: i * 0.03, ease: ROOMWISE_EASE }}
                       className="w-2.5 sm:w-3.5 bg-neutral-200/90 rounded-t origin-bottom"
-                      style={{ height: `${baselineHeightPercent}%` }}
+                      style={{ height: `${ratedHeightPercent}%` }}
                     />
                     <motion.div
                       initial={{ scaleY: 0 }}
@@ -387,8 +484,8 @@ export const DashboardView: React.FC = () => {
                     />
                   </div>
                   <span
-                    className={`text-[10px] mt-2 font-mono tabular-nums whitespace-nowrap ${
-                      isCurrent ? 'font-bold text-emerald-800' : 'text-neutral-500'
+                    className={`text-[11px] mt-2 font-mono tabular-nums whitespace-nowrap ${
+                      isCurrent ? 'font-bold text-emerald-800' : 'text-neutral-600'
                     }`}
                   >
                     {d.isAfterHoursLive ? `${d.hour}*` : d.hour}
@@ -398,10 +495,10 @@ export const DashboardView: React.FC = () => {
             })}
           </div>
 
-          <div className="mt-3 flex flex-wrap items-center justify-between text-[11px] text-neutral-500 gap-2">
+          <div className="mt-3 flex flex-wrap items-center justify-between text-[11px] text-neutral-600 gap-2">
             <span>Peak Daylighting: 09:30 – 13:00 (Perimeter banks dimmed)</span>
             <span className="font-bold text-emerald-800 tabular-nums">
-              Est. Daily Diff vs Pre-Retrofit Ref: {dailyReductionPct}% (room-weighted schedule)
+              Rated Utilisation: {campusSummary.ratedUtilizationPercent}% ({campusSummary.headroomPercent}% unused headroom)
             </span>
           </div>
         </div>
@@ -422,22 +519,22 @@ export const DashboardView: React.FC = () => {
                 <div
                   key={b.name}
                   className="py-2.5 first:pt-1 last:pb-1"
-                  title={`Installed Rated Max: ${formatCapacityKW(b.ratedWatts)} kW · Pre-Retrofit Ref: ${formatCapacityKW(b.base)} kW`}
+                  title={`Installed Rated Max: ${formatCapacityKW(b.ratedWatts)} kW · Available Headroom: ${formatCapacityKW(Math.max(0, b.ratedWatts - b.watts))} kW (${b.headroomPct}%)`}
                 >
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-bold text-neutral-900">{b.name}</span>
                     <span className="text-[11px] font-mono font-bold text-emerald-800 tabular-nums">
-                      {b.curtailedPct === 0 ? '100% max' : `-${b.curtailedPct}%`}
+                      {b.utilPct}% rated
                     </span>
                   </div>
 
                   <div className="mt-0.5 flex items-baseline justify-between text-[11px]">
-                    <span className="text-neutral-500">
+                    <span className="text-neutral-600">
                       {b.rooms.length} Rooms · {b.occupied} motion
                     </span>
                     <span className="font-mono font-bold text-neutral-900 tabular-nums">
                       {(b.watts / 1000).toFixed(2)}{' '}
-                      <span className="font-normal text-neutral-400">
+                      <span className="font-normal text-neutral-600">
                         / {(b.ratedWatts / 1000).toFixed(2)} kW
                       </span>
                     </span>
@@ -468,9 +565,11 @@ export const DashboardView: React.FC = () => {
           </div>
         </div>
       </div>
+      </FadeContent>
 
       {/* Compact 7-Day Historical Summary Strip */}
       {historySnap && historySnap.series.length > 0 && (
+        <FadeContent delay={0.08} duration={0.22}>
         <div className="p-4 sm:p-5 rounded-2xl glass-card flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1 min-w-0">
             <div className="flex items-center gap-2 text-xs font-bold text-neutral-900">
@@ -534,9 +633,11 @@ export const DashboardView: React.FC = () => {
             </button>
           </div>
         </div>
+        </FadeContent>
       )}
 
       {/* 25-Classroom Spatial Matrix */}
+      <FadeContent delay={0.1} duration={0.22}>
       <div className="p-4 sm:p-6 rounded-2xl glass-card">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
           <div className="min-w-0">
@@ -619,6 +720,7 @@ export const DashboardView: React.FC = () => {
           })}
         </div>
       </div>
+      </FadeContent>
     </div>
   );
 };

@@ -21,8 +21,10 @@ import { useEnergy } from '../../context/EnergyContext';
 import { BuildingName, Floor } from '../../types/energy';
 import { formatCapacityKW, getRoomActivityState } from '../../utils/applianceUtils';
 import { computeAppliancesRatedPowerWatts } from '../../data/roomApplianceSpecs';
+import { computeClassroomCanonicalMetrics } from '../../utils/canonicalEnergy';
 import { AnimatedNumber } from '../common/MotionPrimitives';
 import { EmptyState, PageHeader } from '../common/DesignSystem';
+import { FadeContent, SpotlightCard } from '../reactbits';
 import { ROOMWISE_EASE, SPRING_SNAPPY } from '../../utils/motion';
 
 type HeatmapMode = 'power' | 'lux' | 'thermal' | 'occupancy' | 'calibration';
@@ -54,16 +56,17 @@ export const DigitalTwinView: React.FC = () => {
     (acc, r) => acc + (r.ratedPowerWatts ?? computeAppliancesRatedPowerWatts(r.appliances)),
     0
   );
-  const totalBase = displayedRooms.reduce((acc, r) => acc + r.baselinePowerWatts, 0);
-  const displayedDailySavedKWh = displayedRooms.reduce(
-    (acc, r) => acc + Math.max(0, r.dailyBaselineKWh - r.dailyActualKWh),
+  const displayedDailyCostINR = displayedRooms.reduce(
+    (acc, r) => acc + computeClassroomCanonicalMetrics(r, settings).dailyCostINR,
     0
   );
   const totalRegisteredSeats = displayedRooms.reduce((acc, r) => acc + r.capacity, 0);
   const roomsWithMotion = displayedRooms.filter((r) => getRoomActivityState(r) === 'Motion detected').length;
-  const curtailedFromRatedPct =
-    totalRated > 0 ? Math.max(0, Math.round(((totalRated - totalPower) / totalRated) * 100)) : 0;
-  const savingsPct = totalBase > 0 ? Math.round(((totalBase - totalPower) / totalBase) * 100) : 0;
+  const availableHeadroomWatts = Math.max(0, totalRated - totalPower);
+  const headroomPct =
+    totalRated > 0 ? Math.max(0, Math.round((availableHeadroomWatts / totalRated) * 100)) : 0;
+  const ratedUtilPct =
+    totalRated > 0 ? Math.min(100, Math.round((totalPower / totalRated) * 100)) : 0;
 
   const getRoomHeatmapStyle = (room: (typeof classrooms)[0]) => {
     switch (heatmapMode) {
@@ -155,6 +158,7 @@ export const DigitalTwinView: React.FC = () => {
       />
 
       {/* Building & Floor Selectors */}
+      <FadeContent duration={0.2}>
       <div className="p-4 rw-surface rounded-2xl space-y-3">
         <div>
           <div className="text-[11px] font-bold text-[#4a5851] uppercase tracking-wider mb-2 flex items-center gap-1.5">
@@ -233,6 +237,7 @@ export const DigitalTwinView: React.FC = () => {
           </div>
         </div>
       </div>
+      </FadeContent>
 
       {/* Heatmap Overlay Selector Bar */}
       <div className="p-3.5 rw-surface rounded-2xl flex flex-wrap items-center justify-between gap-3 text-xs">
@@ -273,6 +278,7 @@ export const DigitalTwinView: React.FC = () => {
       </div>
 
       {/* Main Floor Plan & Room Matrix Viewport */}
+      <FadeContent delay={0.05} duration={0.22}>
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-5 sm:gap-6">
         <div className="lg:col-span-3 p-4 sm:p-6 rounded-2xl glass-card space-y-5 sm:space-y-6 min-w-0">
           <div className="flex items-center justify-between border-b border-neutral-200/80 pb-3 flex-wrap gap-2">
@@ -286,11 +292,11 @@ export const DigitalTwinView: React.FC = () => {
             </div>
             <span
               className="text-xs font-mono font-bold text-emerald-800 tabular-nums whitespace-nowrap"
-              title={`Estimated Pre-Retrofit Reference: ${formatCapacityKW(totalBase)} kW (${savingsPct}% vs ref)`}
+              title={`Available Rated Headroom: ${formatCapacityKW(availableHeadroomWatts)} kW (${headroomPct}% below ${formatCapacityKW(totalRated)} kW Installed Rated Max)`}
             >
               {totalRated > 0 && totalPower >= totalRated
                 ? '100% of Installed Rated Max'
-                : `-${curtailedFromRatedPct}% vs Installed Rated Max`}
+                : `${ratedUtilPct}% Rated · ${headroomPct}% headroom`}
             </span>
           </div>
 
@@ -325,15 +331,16 @@ export const DigitalTwinView: React.FC = () => {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                     {bldgRooms.map((room) => (
-                      <motion.button
+                      <SpotlightCard
                         key={room.id}
-                        type="button"
                         layout
                         transition={{ duration: 0.2, ease: ROOMWISE_EASE }}
-                        whileHover={{ y: -1.5 }}
+                        whileHover={{ y: -1 }}
                         whileTap={{ scale: 0.99 }}
+                        spotlightColor="rgba(16, 185, 129, 0.12)"
+                        spotlightRadius={210}
                         onClick={() => setSelectedRoomId(room.id)}
-                        className={`p-4 rounded-2xl border text-left transition-colors relative ${getRoomHeatmapStyle(
+                        className={`p-4 rounded-2xl border text-left transition-colors ${getRoomHeatmapStyle(
                           room
                         )}`}
                       >
@@ -368,7 +375,7 @@ export const DigitalTwinView: React.FC = () => {
                             <ChevronRight className="w-3 h-3" />
                           </span>
                         </div>
-                      </motion.button>
+                      </SpotlightCard>
                     ))}
                   </div>
 
@@ -398,36 +405,36 @@ export const DigitalTwinView: React.FC = () => {
 
           <div className="space-y-3 text-xs">
             <div className="p-3.5 bg-neutral-50/85 rounded-xl border border-neutral-200/80">
-              <div className="text-neutral-500 font-medium">Filtered Electrical Demand</div>
+              <div className="text-neutral-600 font-medium">Filtered Electrical Demand</div>
               <div className="text-xl font-bold font-mono text-neutral-900 mt-1">
                 <AnimatedNumber value={totalPower / 1000} decimals={2} suffix=" kW" />
               </div>
-              <div className="text-[11px] text-neutral-400 mt-0.5 tabular-nums">
-                Installed Max: {formatCapacityKW(totalRated)} kW · Pre-Retrofit Ref: {formatCapacityKW(totalBase)} kW
+              <div className="text-[11px] text-neutral-600 mt-0.5 tabular-nums">
+                Installed Max: {formatCapacityKW(totalRated)} kW · Headroom: {formatCapacityKW(availableHeadroomWatts)} kW
               </div>
             </div>
 
             <div className="p-3.5 bg-neutral-50/85 rounded-xl border border-neutral-200/80">
-              <div className="text-neutral-500 font-medium">PIR Room Activity</div>
+              <div className="text-neutral-600 font-medium">PIR Room Activity</div>
               <div className="text-xl font-bold font-mono text-neutral-900 mt-1">
                 <AnimatedNumber value={roomsWithMotion} suffix={` / ${displayedRooms.length} Motion`} />
               </div>
-              <div className="text-[11px] text-neutral-400 mt-0.5 tabular-nums">
+              <div className="text-[11px] text-neutral-600 mt-0.5 tabular-nums">
                 Configured seating: {totalRegisteredSeats} seats (PIR detects movement only)
               </div>
             </div>
 
             <div className="p-3.5 bg-emerald-50/75 rounded-xl border border-emerald-200/80">
-              <div className="text-emerald-800 font-semibold">Est. Daily Diff vs Pre-Retrofit Ref</div>
+              <div className="text-emerald-800 font-semibold">Est. Daily Operating Cost</div>
               <div className="text-xl font-bold font-mono text-emerald-900 mt-1">
                 <AnimatedNumber
-                  value={displayedDailySavedKWh * settings.tariffPerKWhINR}
+                  value={displayedDailyCostINR}
                   decimals={2}
                   prefix="₹"
                 />
               </div>
-              <div className="text-[11px] text-emerald-700 mt-0.5">
-                Room-weighted schedule · WBSEDCL educational tariff
+              <div className="text-[11px] text-emerald-800 mt-0.5">
+                Room-weighted schedule · WBSEDCL HT-2 tariff
               </div>
             </div>
           </div>
@@ -445,6 +452,7 @@ export const DigitalTwinView: React.FC = () => {
           </div>
         </div>
       </div>
+      </FadeContent>
     </div>
   );
 };

@@ -26,13 +26,11 @@ import {
   INITIAL_CLASSROOMS,
   INITIAL_SCHOOL_SETTINGS,
   STAFF_PROFILES,
-  computeHeatIndex,
 } from '../data/initialClassrooms';
 import {
   buildExpandedAppliancesFromSpec,
   computeAppliancesRatedPowerWatts,
   getRoomApplianceSpec,
-  getRoomOperatingProfile,
 } from '../data/roomApplianceSpecs';
 import {
   expandClassroomAppliances,
@@ -42,6 +40,14 @@ import {
   computeAdaptiveTargetFanPercent,
   summarizeApplianceGroup,
 } from '../utils/applianceUtils';
+import {
+  computeArtificialDeskLux,
+  computeCampusCanonicalSummary,
+  computeClassroomCanonicalMetrics,
+  computeDailyKWhFromWatts,
+  computeHeatIndexCelsius,
+  computeIndoorNaturalDaylightLux,
+} from '../utils/canonicalEnergy';
 import { evaluateLiveAuditFindings } from '../utils/auditEngine';
 import { ensureDemoResetOnPageLoad } from '../utils/demoReset';
 import { getPathForTab, parseRouteFromUrl, VALID_WORKSPACE_TABS } from '../utils/routing';
@@ -150,14 +156,126 @@ const EnergyContext = createContext<EnergyContextType | undefined>(undefined);
 
 const VALID_TABS = VALID_WORKSPACE_TABS;
 
-function computeDailyKWhFromWatts(watts: number, roomType?: Classroom['type']): number {
-  const { activeHoursPerSchoolDay } = getRoomOperatingProfile(roomType);
-  return Number(((watts * activeHoursPerSchoolDay) / 1000).toFixed(2));
+interface OutdoorWeatherSnapshot {
+  temperatureC: number | null;
+  relativeHumidityPercent: number | null;
+  ghiWm2: number | null;
+  cloudCoverPercent: number | null;
 }
 
-function computeDailyBaselineKWhFromWatts(watts: number, roomType?: Classroom['type']): number {
-  const { activeHoursPerSchoolDay, baselineDutyFactor } = getRoomOperatingProfile(roomType);
-  return Number(((watts * activeHoursPerSchoolDay * baselineDutyFactor) / 1000).toFixed(2));
+function getFloorDaylightMultiplier(floor: Classroom['floor']): number {
+  if (floor === '3rd Floor') return 1.1;
+  if (floor === '2nd Floor') return 1.05;
+  if (floor === '1st Floor') return 1.0;
+  return 0.94;
+}
+
+function applyOutdoorCouplingToRoom(
+  room: Classroom,
+  outdoor: OutdoorWeatherSnapshot | null,
+  jitterMode: boolean
+): Classroom {
+  const isVacant = room.occupancyStatus === 'Unoccupied' || room.currentOccupants === 0;
+  const alpha = room.calibration.learnedParameters.daylightPenetrationAlpha;
+
+  let newNaturalLux = room.environment.naturalDaylightLux;
+  if (outdoor && outdoor.ghiWm2 !== null) {
+    newNaturalLux = computeIndoorNaturalDaylightLux({
+      ghiWm2: outdoor.ghiWm2,
+      cloudCoverPercent: outdoor.cloudCoverPercent,
+      daylightPenetrationAlpha: alpha,
+      floorMultiplier: getFloorDaylightMultiplier(room.floor),
+    });
+  } else if (jitterMode) {
+    const luxDrift = Math.round((Math.random() - 0.48) * 4);
+    newNaturalLux = Math.max(0, Math.min(480, room.environment.naturalDaylightLux + luxDrift));
+  }
+
+  const acActive = room.appliances.some((a) => a.type === 'ac' && a.currentPowerWatts > 100);
+  let newTemp = room.environment.temperature;
+  let newHumidity = room.environment.humidity;
+
+  if (outdoor && outdoor.temperatureC !== null) {
+    const occupancyGain = isVacant ? 0.3 : room.type === 'Computer Lab' ? 1.8 : 1.1;
+    const coolingOffset = acActive ? 4.2 : 0;
+    const targetTemp = Math.max(22.0, Math.min(35.5, outdoor.temperatureC + occupancyGain - coolingOffset));
+    const jitter = jitterMode ? (Math.random() - 0.5) * 0.1 : 0;
+    newTemp = Number((targetTemp + jitter).toFixed(1));
+  } else if (jitterMode) {
+    const tempDrift = Number(((Math.random() - 0.5) * 0.1).toFixed(1));
+    newTemp = Number(Math.max(22, Math.min(35, room.environment.temperature + tempDrift)).toFixed(1));
+  }
+
+  if (outdoor && outdoor.relativeHumidityPercent !== null) {
+    const occHumidityOffset = isVacant ? 1 : 4;
+    const acDehumidify = acActive ? -8 : 0;
+    const targetHum = Math.max(
+      32,
+      Math.min(96, Math.round(outdoor.relativeHumidityPercent + occHumidityOffset + acDehumidify))
+    );
+    newHumidity = targetHum;
+  }
+
+  const newHeatIndex = computeHeatIndexCelsius(newTemp, newHumidity);
+
+  const nextEnvRoom: Classroom = {
+    ...room,
+    environment: {
+      ...room.environment,
+      naturalDaylightLux: newNaturalLux,
+      temperature: newTemp,
+      humidity: newHumidity,
+      heatIndex: newHeatIndex,
+    },
+  };
+
+  const targetLightPct = computeAdaptiveTargetLightPercent(nextEnvRoom);
+  const targetFanPct = computeAdaptiveTargetFanPercent(nextEnvRoom);
+
+  const updatedAppliances = room.appliances.map((app) => {
+    if (app.operatingMode === 'MANUAL' || app.isManualOverride) {
+      return app;
+    }
+    if (app.type === 'lights') {
+      return applyApplianceState(app, targetLightPct, 'AUTO', {
+        isVacant,
+        timestamp: app.lastUpdatedAt,
+        sourceNote: 'Simulated Node',
+      });
+    }
+    if (app.type === 'fan') {
+      return applyApplianceState(app, targetFanPct, 'AUTO', {
+        isVacant,
+        timestamp: app.lastUpdatedAt,
+        sourceNote: 'Simulated Node',
+      });
+    }
+    if (isVacant && (app.outputPercent ?? 0) > 0) {
+      return applyApplianceState(app, 0, 'AUTO', {
+        isVacant: true,
+        timestamp: app.lastUpdatedAt,
+        sourceNote: 'Simulated Node',
+      });
+    }
+    return app;
+  });
+
+  const lightSummary = summarizeApplianceGroup(updatedAppliances, 'lights');
+  const artificialLux = computeArtificialDeskLux(lightSummary.avgPercent);
+  const naturalContribution = Math.round(newNaturalLux * alpha);
+  const currentPowerWatts = updatedAppliances.reduce((acc, a) => acc + a.currentPowerWatts, 0);
+
+  return {
+    ...nextEnvRoom,
+    environment: {
+      ...nextEnvRoom.environment,
+      ambientLux: naturalContribution + artificialLux,
+    },
+    appliances: updatedAppliances,
+    currentPowerWatts,
+    ratedPowerWatts: computeAppliancesRatedPowerWatts(updatedAppliances),
+    dailyActualKWh: computeDailyKWhFromWatts(currentPowerWatts, nextEnvRoom.type),
+  };
 }
 
 function createInitialExpandedClassrooms(): Classroom[] {
@@ -168,7 +286,6 @@ function createInitialExpandedClassrooms(): Classroom[] {
       return {
         ...expanded,
         dailyActualKWh: computeDailyKWhFromWatts(expanded.currentPowerWatts, expanded.type),
-        dailyBaselineKWh: computeDailyBaselineKWhFromWatts(expanded.baselinePowerWatts, expanded.type),
       };
     }
     const appliances = buildExpandedAppliancesFromSpec(spec);
@@ -180,7 +297,6 @@ function createInitialExpandedClassrooms(): Classroom[] {
       currentPowerWatts,
       ratedPowerWatts,
       dailyActualKWh: computeDailyKWhFromWatts(currentPowerWatts, room.type),
-      dailyBaselineKWh: computeDailyBaselineKWhFromWatts(room.baselinePowerWatts, room.type),
     };
   });
 }
@@ -272,6 +388,7 @@ export const EnergyProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [settings, setSettings] = useState<SchoolSettings>(INITIAL_SCHOOL_SETTINGS);
   const settingsRef = useRef<SchoolSettings>(settings);
   settingsRef.current = settings;
+  const outdoorEnvRef = useRef<OutdoorWeatherSnapshot | null>(null);
   const [staffList] = useState<StaffProfile[]>(STAFF_PROFILES);
   const [currentStaffId, setCurrentStaffId] = useState<string>(STAFF_PROFILES[0].id);
   const [resolvedAuditSnapshots, setResolvedAuditSnapshots] = useState<Record<string, AuditFinding>>({});
@@ -442,6 +559,35 @@ export const EnergyProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       await ensureDemoResetOnPageLoad();
       if (cancelled) return;
 
+      const syncOutdoorEnv = async () => {
+        try {
+          const res = await authFetch('/api/environment/overview');
+          if (!res.ok) return;
+          const envData = await res.json().catch(() => null);
+          if (cancelled || !envData?.ok || !envData.current) return;
+          const nextOutdoor: OutdoorWeatherSnapshot = {
+            temperatureC:
+              typeof envData.current.temperatureC === 'number' ? envData.current.temperatureC : null,
+            relativeHumidityPercent:
+              typeof envData.current.relativeHumidityPercent === 'number'
+                ? envData.current.relativeHumidityPercent
+                : null,
+            ghiWm2:
+              typeof envData.current.shortwaveRadiationWm2 === 'number'
+                ? envData.current.shortwaveRadiationWm2
+                : null,
+            cloudCoverPercent:
+              typeof envData.current.cloudCoverPercent === 'number'
+                ? envData.current.cloudCoverPercent
+                : null,
+          };
+          outdoorEnvRef.current = nextOutdoor;
+          setClassrooms((prev) => prev.map((room) => applyOutdoorCouplingToRoom(room, nextOutdoor, false)));
+        } catch {
+          // ignore transient offline environmental sync failure
+        }
+      };
+
       await Promise.all([
         syncAppliancesFromServer(),
         authFetch('/api/settings')
@@ -467,13 +613,42 @@ export const EnergyProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             );
           })
           .catch(() => {}),
+        syncOutdoorEnv(),
       ]);
     };
 
     void hydrateAfterReset();
 
+    const envTimer = window.setInterval(async () => {
+      try {
+        const res = await authFetch('/api/environment/overview');
+        if (!res.ok) return;
+        const envData = await res.json().catch(() => null);
+        if (cancelled || !envData?.ok || !envData.current) return;
+        outdoorEnvRef.current = {
+          temperatureC:
+            typeof envData.current.temperatureC === 'number' ? envData.current.temperatureC : null,
+          relativeHumidityPercent:
+            typeof envData.current.relativeHumidityPercent === 'number'
+              ? envData.current.relativeHumidityPercent
+              : null,
+          ghiWm2:
+            typeof envData.current.shortwaveRadiationWm2 === 'number'
+              ? envData.current.shortwaveRadiationWm2
+              : null,
+          cloudCoverPercent:
+            typeof envData.current.cloudCoverPercent === 'number'
+              ? envData.current.cloudCoverPercent
+              : null,
+        };
+      } catch {
+        // retain last known outdoor snapshot
+      }
+    }, 5 * 60 * 1000);
+
     return () => {
       cancelled = true;
+      window.clearInterval(envTimer);
     };
   }, [syncAppliancesFromServer]);
 
@@ -580,140 +755,16 @@ export const EnergyProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   }, [classrooms, selectedRoomId]);
 
   const campusSummary = useMemo<CampusEnergySummary>(() => {
-    let totalCurrentPowerWatts = 0;
-    let totalRatedPowerWatts = 0;
-    let totalBaselinePowerWatts = 0;
-    let dailyActualKWh = 0;
-    let dailyBaselineKWh = 0;
-    let activeOccupancyCount = 0;
-    let totalRoomsOccupied = 0;
-    let totalRoomsCalibrated = 0;
-
-    classrooms.forEach((room) => {
-      totalCurrentPowerWatts += room.currentPowerWatts;
-      totalRatedPowerWatts +=
-        room.ratedPowerWatts ?? computeAppliancesRatedPowerWatts(room.appliances);
-      totalBaselinePowerWatts += room.baselinePowerWatts;
-      dailyActualKWh += room.dailyActualKWh;
-      dailyBaselineKWh += room.dailyBaselineKWh;
-      activeOccupancyCount += room.currentOccupants;
-      if (room.occupancyStatus === 'Occupied') totalRoomsOccupied++;
-      if (room.calibration.isCalibrated) totalRoomsCalibrated++;
-    });
-
-    const curtailedFromRatedWatts = Math.max(0, totalRatedPowerWatts - totalCurrentPowerWatts);
-    const ratedUtilizationPercent =
-      totalRatedPowerWatts > 0
-        ? Number(((totalCurrentPowerWatts / totalRatedPowerWatts) * 100).toFixed(1))
-        : 0;
-    const powerSavedWatts = Math.max(0, totalBaselinePowerWatts - totalCurrentPowerWatts);
-    const dailySavedKWh = Math.max(0, dailyBaselineKWh - dailyActualKWh);
-    const dailyCostSavedINR = Number((dailySavedKWh * settings.tariffPerKWhINR).toFixed(2));
-    const dailyEmissionsAvoidedKgCO2 = Number(
-      (dailySavedKWh * settings.gridCarbonFactorKgCO2PerKWh).toFixed(2)
-    );
-
-    return {
-      totalCurrentPowerWatts,
-      totalRatedPowerWatts,
-      curtailedFromRatedWatts,
-      ratedUtilizationPercent,
-      totalBaselinePowerWatts,
-      powerSavedWatts,
-      dailyActualKWh: Number(dailyActualKWh.toFixed(2)),
-      dailyBaselineKWh: Number(dailyBaselineKWh.toFixed(2)),
-      dailySavedKWh: Number(dailySavedKWh.toFixed(2)),
-      dailyCostSavedINR,
-      dailyEmissionsAvoidedKgCO2,
-      activeOccupancyCount,
-      totalRoomsOccupied,
-      totalRoomsCalibrated,
-    };
+    return computeCampusCanonicalSummary(classrooms, settings);
   }, [classrooms, settings]);
 
-  // Real-time environmental drift simulation (respects per-unit MANUAL vs AUTO independently)
+  // Real-time environmental drift simulation (coupled to Open-Meteo outdoor GHI & thermal conditions)
   useEffect(() => {
     if (!isSimulating) return;
 
     const interval = setInterval(() => {
       setClassrooms((prevRooms) =>
-        prevRooms.map((room) => {
-          const luxDrift = Math.round((Math.random() - 0.48) * 4);
-          const newNaturalLux = Math.max(
-            40,
-            Math.min(480, room.environment.naturalDaylightLux + luxDrift)
-          );
-          const tempDrift = Number(((Math.random() - 0.5) * 0.1).toFixed(1));
-          const newTemp = Number(
-            Math.max(22, Math.min(35, room.environment.temperature + tempDrift)).toFixed(1)
-          );
-          const newHeatIndex = computeHeatIndex(newTemp, room.environment.humidity);
-
-          const nextEnvRoom: Classroom = {
-            ...room,
-            environment: {
-              ...room.environment,
-              naturalDaylightLux: newNaturalLux,
-              temperature: newTemp,
-              heatIndex: newHeatIndex,
-            },
-          };
-
-          const isVacant =
-            nextEnvRoom.occupancyStatus === 'Unoccupied' || nextEnvRoom.currentOccupants === 0;
-          const alpha = nextEnvRoom.calibration.learnedParameters.daylightPenetrationAlpha;
-          const naturalContribution = Math.round(newNaturalLux * alpha);
-          const targetLightPct = computeAdaptiveTargetLightPercent(nextEnvRoom);
-          const targetFanPct = computeAdaptiveTargetFanPercent(nextEnvRoom);
-
-          const updatedAppliances = room.appliances.map((app) => {
-            // Never overwrite an explicit MANUAL override during periodic automation ticks
-            if (app.operatingMode === 'MANUAL' || app.isManualOverride) {
-              return app;
-            }
-            if (app.type === 'lights') {
-              return applyApplianceState(app, targetLightPct, 'AUTO', {
-                isVacant,
-                timestamp: app.lastUpdatedAt,
-                sourceNote: 'Simulated Node',
-              });
-            }
-            if (app.type === 'fan') {
-              return applyApplianceState(app, targetFanPct, 'AUTO', {
-                isVacant,
-                timestamp: app.lastUpdatedAt,
-                sourceNote: 'Simulated Node',
-              });
-            }
-            if (isVacant && (app.outputPercent ?? 0) > 0) {
-              return applyApplianceState(app, 0, 'AUTO', {
-                isVacant: true,
-                timestamp: app.lastUpdatedAt,
-                sourceNote: 'Simulated Node',
-              });
-            }
-            return app;
-          });
-
-          const lightSummary = summarizeApplianceGroup(updatedAppliances, 'lights');
-          const artificialLux = Math.round((lightSummary.avgPercent / 100) * 240);
-          const currentPowerWatts = updatedAppliances.reduce(
-            (acc, a) => acc + a.currentPowerWatts,
-            0
-          );
-
-          return {
-            ...nextEnvRoom,
-            environment: {
-              ...nextEnvRoom.environment,
-              ambientLux: naturalContribution + artificialLux,
-            },
-            appliances: updatedAppliances,
-            currentPowerWatts,
-            ratedPowerWatts: computeAppliancesRatedPowerWatts(updatedAppliances),
-            dailyActualKWh: computeDailyKWhFromWatts(currentPowerWatts, nextEnvRoom.type),
-          };
-        })
+        prevRooms.map((room) => applyOutdoorCouplingToRoom(room, outdoorEnvRef.current, true))
       );
     }, settings.lowPowerMode ? 16000 : 9000);
 
@@ -1022,21 +1073,18 @@ export const EnergyProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       'Occupancy Status',
       'Current Power (W)',
       'Installed Rated Max (W)',
-      'Curtailed vs Rated Max (W)',
-      'Estimated Pre-Retrofit Reference Capacity (W)',
-      'Est. Diff vs Pre-Retrofit Ref (W)',
-      'Daily Actual (kWh)',
-      'Daily Pre-Retrofit Ref Est (kWh)',
-      'Daily Est. Diff vs Ref (kWh)',
-      'Daily Est. Cost Diff vs Ref (INR)',
+      'Available Rated Headroom (W)',
+      'Rated Utilisation (%)',
+      'Daily Modelled Energy (kWh)',
+      'Daily Rated Ceiling (kWh)',
+      'Daily Est. Cost (INR)',
+      'Daily Est. CO2 (kg)',
       'Daylight Alpha',
       'Thermal Beta',
     ];
 
     const rows = roomsSnapshot.map((r) => {
-      const ratedWatts = r.ratedPowerWatts ?? computeAppliancesRatedPowerWatts(r.appliances);
-      const savedKWh = Math.max(0, r.dailyBaselineKWh - r.dailyActualKWh);
-      const costSaved = (savedKWh * activeSettings.tariffPerKWhINR).toFixed(2);
+      const m = computeClassroomCanonicalMetrics(r, activeSettings);
       return [
         r.roomCode,
         `"${r.name}"`,
@@ -1044,15 +1092,14 @@ export const EnergyProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         `"${r.floor}"`,
         r.type,
         r.occupancyStatus,
-        r.currentPowerWatts,
-        ratedWatts,
-        Math.max(0, ratedWatts - r.currentPowerWatts),
-        r.baselinePowerWatts,
-        Math.max(0, r.baselinePowerWatts - r.currentPowerWatts),
-        r.dailyActualKWh,
-        r.dailyBaselineKWh,
-        savedKWh.toFixed(2),
-        costSaved,
+        m.currentPowerWatts,
+        m.ratedPowerWatts,
+        m.availableHeadroomWatts,
+        m.ratedUtilizationPercent.toFixed(1),
+        m.dailyActualKWh.toFixed(2),
+        m.dailyRatedCeilingKWh.toFixed(2),
+        m.dailyCostINR.toFixed(2),
+        m.dailyEmissionsKgCO2.toFixed(2),
         r.calibration.learnedParameters.daylightPenetrationAlpha,
         r.calibration.learnedParameters.thermalDissipationBeta,
       ];
