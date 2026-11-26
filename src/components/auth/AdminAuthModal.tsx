@@ -9,6 +9,7 @@ import { X } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { TeacherLoginPanel } from './TeacherLoginPanel';
 import { backdropVariants, modalVariants } from '../../utils/motion';
+import { IconButton } from '../common/DesignSystem';
 
 export const AdminAuthModal: React.FC = () => {
   const { isAuthModalOpen, closeAuthModal } = useAuth();
@@ -43,16 +44,17 @@ export const AdminAuthModal: React.FC = () => {
         >
           <motion.div
             variants={modalVariants}
-            className="relative w-full max-w-md rounded-3xl overflow-hidden rw-glass-float"
+            className="relative w-full max-w-md rounded-xl overflow-hidden bg-white border border-[#111916]/15 shadow-2xl"
           >
-            <button
-              type="button"
+            <IconButton
+              variant="dark-ghost"
+              size="xs"
+              label="Close sign-in window"
               onClick={closeAuthModal}
-              className="absolute top-3.5 right-3.5 z-20 p-2 text-neutral-400 hover:text-neutral-800 rounded-xl hover:bg-neutral-100 transition-colors cursor-pointer"
-              aria-label="Close sign-in window"
+              className="!absolute top-3.5 right-3.5 z-20"
             >
               <X className="w-4 h-4" />
-            </button>
+            </IconButton>
 
             <TeacherLoginPanel
               onSuccess={() => {

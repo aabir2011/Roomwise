@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { extractChallengeParams, ParsedQRChallengeParams } from '../../utils/qrChallengeParser';
 import { ROOMWISE_EASE } from '../../utils/motion';
+import { ActionButton, IconButton } from '../common/DesignSystem';
 
 interface BarcodeDetectorInstance {
   detect: (source: ImageBitmapSource) => Promise<Array<{ rawValue?: string }>>;
@@ -306,14 +307,15 @@ export const PhoneQRScanner: React.FC<Props> = ({
     >
       {/* Top Bar */}
       <header className="relative z-20 flex items-center justify-between px-4 py-3.5 bg-neutral-950/85 backdrop-blur-md border-b border-white/10">
-        <button
-          type="button"
+        <ActionButton
+          variant="dark-ghost"
+          size="sm"
           onClick={handleClose}
-          className="inline-flex items-center gap-1.5 min-h-[44px] px-3 py-2 rounded-xl text-xs font-semibold text-white/90 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+          icon={<ArrowLeft className="w-4 h-4" />}
+          className="min-h-[40px]"
         >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Back</span>
-        </button>
+          Back
+        </ActionButton>
 
         <div className="text-center">
           <div className="text-xs font-bold tracking-tight text-white">
@@ -324,14 +326,14 @@ export const PhoneQRScanner: React.FC<Props> = ({
           </div>
         </div>
 
-        <button
-          type="button"
+        <IconButton
+          variant="dark-ghost"
+          size="md"
+          label="Close QR scanner"
           onClick={handleClose}
-          className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-          aria-label="Close QR scanner"
         >
           <X className="w-4.5 h-4.5" />
-        </button>
+        </IconButton>
       </header>
 
       {/* Primary Camera Viewport */}
@@ -447,21 +449,23 @@ export const PhoneQRScanner: React.FC<Props> = ({
               )}
 
               <div className="flex items-center gap-2.5">
-                <button
-                  type="button"
+                <ActionButton
+                  variant="forest"
+                  size="lg"
                   onClick={startScanner}
-                  className="flex-1 min-h-[44px] px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                  icon={<RefreshCw className="w-3.5 h-3.5" />}
+                  className="flex-1 min-h-[44px]"
                 >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  <span>Retry Camera</span>
-                </button>
-                <button
-                  type="button"
+                  Retry Camera
+                </ActionButton>
+                <ActionButton
+                  variant="secondary"
+                  size="lg"
                   onClick={handleClose}
-                  className="min-h-[44px] px-4 py-2.5 rounded-xl border border-neutral-300 bg-white hover:bg-neutral-50 text-neutral-700 text-xs font-semibold transition-colors cursor-pointer"
+                  className="min-h-[44px]"
                 >
                   Close
-                </button>
+                </ActionButton>
               </div>
 
               {allowManualCode && onManualCodeSubmit && (
@@ -487,13 +491,15 @@ export const PhoneQRScanner: React.FC<Props> = ({
                       placeholder="A7K9M2"
                       className="flex-1 min-h-[42px] px-3 py-2 border border-neutral-300 rounded-xl font-mono text-xs uppercase tracking-widest text-neutral-900 focus:ring-2 focus:ring-emerald-600 focus:outline-none"
                     />
-                    <button
+                    <ActionButton
                       type="submit"
+                      variant="primary"
+                      size="lg"
                       disabled={!manualCode.trim() || isProcessing}
-                      className="min-h-[42px] px-4 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
+                      className="min-h-[42px]"
                     >
                       Verify
-                    </button>
+                    </ActionButton>
                   </div>
                 </form>
               )}
@@ -518,8 +524,9 @@ export const PhoneQRScanner: React.FC<Props> = ({
                 <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
                 <span>{displayError}</span>
               </div>
-              <button
-                type="button"
+              <ActionButton
+                variant="dark-ghost"
+                size="xs"
                 onClick={() => {
                   detectedLockRef.current = false;
                   setInvalidQrBanner(null);
@@ -528,10 +535,9 @@ export const PhoneQRScanner: React.FC<Props> = ({
                     startScanner();
                   }
                 }}
-                className="text-[11px] font-bold text-white bg-white/15 hover:bg-white/25 px-2.5 py-1 rounded-lg shrink-0 cursor-pointer"
               >
                 Retry
-              </button>
+              </ActionButton>
             </motion.div>
           ) : (
             <motion.div

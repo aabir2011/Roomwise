@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { ROOMWISE_EASE, SPRING_SWITCH } from '../../utils/motion';
 
@@ -146,7 +147,7 @@ export const ToggleSwitch: React.FC<ToggleSwitchProps> = ({
 interface TooltipProps {
   content: React.ReactNode;
   children: React.ReactNode;
-  side?: 'top' | 'bottom';
+  side?: 'top' | 'bottom' | 'right';
   className?: string;
 }
 
@@ -156,10 +157,104 @@ export const Tooltip: React.FC<TooltipProps> = ({
   side = 'bottom',
   className = '',
 }) => {
+  const prefersReducedMotion = useReducedMotion();
+  const triggerRef = useRef<HTMLDivElement | null>(null);
+  const tooltipRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
+  const [coords, setCoords] = useState<{ top: number; left: number; transform: string }>({
+    top: 0,
+    left: 0,
+    transform: 'translate(-50%, 0)',
+  });
+
+  useLayoutEffect(() => {
+    if (!open || !triggerRef.current || typeof window === 'undefined') return;
+
+    const updatePosition = () => {
+      const el = triggerRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const gap = 8;
+      const vw = window.innerWidth;
+      const tipWidth = tooltipRef.current?.offsetWidth ?? 0;
+
+      if (side === 'right') {
+        setCoords({
+          top: rect.top + rect.height / 2,
+          left: Math.min(vw - 12, rect.right + gap),
+          transform: 'translate(0, -50%)',
+        });
+        return;
+      }
+
+      const rawCenter = rect.left + rect.width / 2;
+      const half = tipWidth > 0 ? tipWidth / 2 : 80;
+      const clampedCenter = Math.max(half + 10, Math.min(vw - half - 10, rawCenter));
+
+      if (side === 'top') {
+        setCoords({
+          top: Math.max(10, rect.top - gap),
+          left: clampedCenter,
+          transform: 'translate(-50%, -100%)',
+        });
+      } else {
+        setCoords({
+          top: rect.bottom + gap,
+          left: clampedCenter,
+          transform: 'translate(-50%, 0)',
+        });
+      }
+    };
+
+    updatePosition();
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [open, side, content]);
+
+  const motionOffset =
+    prefersReducedMotion
+      ? {}
+      : side === 'right'
+      ? { x: -4 }
+      : side === 'top'
+      ? { y: 3 }
+      : { y: -3 };
+
+  const tooltipNode =
+    typeof document !== 'undefined'
+      ? createPortal(
+          <AnimatePresence>
+            {open && (
+              <motion.div
+                ref={tooltipRef}
+                initial={{ opacity: 0, scale: 0.97, ...motionOffset }}
+                animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
+                exit={{ opacity: 0, scale: 0.97, ...motionOffset }}
+                transition={{ duration: 0.14, ease: ROOMWISE_EASE }}
+                role="tooltip"
+                style={{
+                  position: 'fixed',
+                  top: coords.top,
+                  left: coords.left,
+                  transform: coords.transform,
+                }}
+                className="pointer-events-none z-[90] px-2.5 py-1.5 rounded-lg bg-[#0b1713] text-[#f4f6f4] text-[11px] font-medium whitespace-nowrap shadow-xl border border-white/15"
+              >
+                {content}
+              </motion.div>
+            )}
+          </AnimatePresence>,
+          document.body
+        )
+      : null;
 
   return (
     <div
+      ref={triggerRef}
       className={`relative inline-flex ${className}`}
       onMouseEnter={() => setOpen(true)}
       onMouseLeave={() => setOpen(false)}
@@ -167,22 +262,7 @@ export const Tooltip: React.FC<TooltipProps> = ({
       onBlur={() => setOpen(false)}
     >
       {children}
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y: side === 'top' ? 3 : -3, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: side === 'top' ? 3 : -3, scale: 0.97 }}
-            transition={{ duration: 0.14, ease: ROOMWISE_EASE }}
-            role="tooltip"
-            className={`pointer-events-none absolute left-1/2 -translate-x-1/2 z-50 px-2.5 py-1.5 rounded-lg bg-neutral-900 text-white text-[11px] font-medium whitespace-nowrap shadow-lg border border-white/10 ${
-              side === 'top' ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
-            }`}
-          >
-            {content}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {tooltipNode}
     </div>
   );
 };

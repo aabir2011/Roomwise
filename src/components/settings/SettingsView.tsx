@@ -34,7 +34,8 @@ import { useVoiceAssistant } from '../../context/VoiceAssistantContext';
 import { useDeviceClassification } from '../../utils/deviceDetection';
 import { useToast } from '../../context/ToastContext';
 import { ToggleSwitch } from '../common/MotionPrimitives';
-import { PageHeader } from '../common/DesignSystem';
+import { ActionButton, PageHeader } from '../common/DesignSystem';
+import { SpotlightCard } from '../reactbits/SpotlightCard';
 import { AcronymHint } from '../common/AcronymHint';
 import { PasskeyCredentialSummary } from '../../types/auth';
 import {
@@ -356,7 +357,7 @@ export const SettingsView: React.FC = () => {
   };
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 space-y-6 max-w-5xl mx-auto select-none">
+    <div className="px-4 pt-5 pb-7 sm:px-6 sm:pt-6 sm:pb-8 lg:px-8 lg:pt-7 lg:pb-10 space-y-5 sm:space-y-6 max-w-[1440px] mx-auto select-none">
       <PageHeader
         kicker="Campus Energy Parameters · DAV Model School, IIT Kharagpur"
         title="System Configuration & Energy Tariffs"
@@ -371,10 +372,10 @@ export const SettingsView: React.FC = () => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.18, ease: ROOMWISE_EASE }}
-            className="p-4 rounded-2xl bg-amber-50/90 border border-amber-300/80 text-xs text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+            className="p-3.5 sm:p-4 rounded-xl bg-amber-50/90 border border-amber-300/80 text-xs text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
           >
             <div className="flex items-center gap-2.5">
-              <Lock className="w-4 h-4 text-amber-800 shrink-0" />
+              <Lock className="w-4 h-4 text-[#b45309] shrink-0" />
               <div>
                 <div className="font-semibold text-amber-950">Read-Only Viewer Mode</div>
                 <div className="text-[11px] text-amber-900/90 mt-0.5">
@@ -382,14 +383,15 @@ export const SettingsView: React.FC = () => {
                 </div>
               </div>
             </div>
-            <button
-              type="button"
+            <ActionButton
+              variant="primary"
+              size="md"
               onClick={() => openAuthModal()}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-[#111815] hover:bg-[#0b2e22] text-white rounded-xl font-semibold text-xs transition-colors shrink-0 whitespace-nowrap cursor-pointer"
+              icon={<KeyRound className="w-3.5 h-3.5 text-[#34d399]" />}
+              className="w-full sm:w-auto"
             >
-              <KeyRound className="w-3.5 h-3.5 text-emerald-300" />
-              <span>Unlock Admin</span>
-            </button>
+              Unlock Admin
+            </ActionButton>
           </motion.div>
         )}
       </AnimatePresence>
@@ -403,7 +405,7 @@ export const SettingsView: React.FC = () => {
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.18, ease: ROOMWISE_EASE }}
             role="alert"
-            className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-xs font-medium text-rose-950 flex items-center gap-2"
+            className="p-3.5 sm:p-4 rounded-xl bg-rose-50 border border-rose-200 text-xs font-medium text-rose-950 flex items-center gap-2"
           >
             <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
             <span>{saveError}</span>
@@ -418,7 +420,7 @@ export const SettingsView: React.FC = () => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.18, ease: ROOMWISE_EASE }}
-            className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-medium text-emerald-950 flex items-center gap-2"
+            className="p-3.5 sm:p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-medium text-emerald-950 flex items-center gap-2"
           >
             <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
             <span>
@@ -428,12 +430,15 @@ export const SettingsView: React.FC = () => {
         )}
       </AnimatePresence>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
         {/* Section 1: Institution Details */}
-        <div className="p-5 sm:p-6 rounded-2xl rw-surface space-y-4">
-          <div className="flex items-center gap-2 text-xs font-semibold text-[#111815] border-b border-neutral-200/70 pb-3">
-            <Building className="w-4 h-4 text-emerald-700" />
-            <span>School Identification</span>
+        <div className="p-4 sm:p-6 rounded-xl border border-[#111916]/12 bg-white space-y-4">
+          <div className="flex items-center justify-between gap-2 border-b border-[#111916]/10 pb-3">
+            <div className="flex items-center gap-2">
+              <Building className="w-4 h-4 text-[#0b6e4f]" />
+              <h2 className="font-display text-sm font-semibold text-[#111916]">School Identification</h2>
+            </div>
+            <span className="text-[10px] font-mono uppercase tracking-[0.12em] text-[#5c6862]">Section 01</span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
@@ -510,10 +515,13 @@ export const SettingsView: React.FC = () => {
         </div>
 
         {/* Section 2: Tariffs & Carbon Parameters */}
-        <div className="p-5 sm:p-6 rounded-2xl rw-surface space-y-4">
-          <div className="flex items-center gap-2 text-xs font-semibold text-[#111815] border-b border-neutral-200/70 pb-3">
-            <IndianRupee className="w-4 h-4 text-emerald-700" />
-            <span>Tariff Rates &amp; Grid Carbon Factors</span>
+        <div className="p-5 sm:p-6 rounded-xl border border-[#111916]/12 bg-white space-y-4">
+          <div className="flex items-center justify-between gap-2 border-b border-[#111916]/10 pb-3">
+            <div className="flex items-center gap-2">
+              <IndianRupee className="w-4 h-4 text-[#0b6e4f]" />
+              <h2 className="font-display text-sm font-semibold text-[#111916]">Tariff Rates &amp; Grid Carbon Factors</h2>
+            </div>
+            <span className="text-[10px] font-mono uppercase tracking-[0.12em] text-[#5c6862]">Section 02</span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
@@ -566,10 +574,13 @@ export const SettingsView: React.FC = () => {
         </div>
 
         {/* Section 3: Visual & Thermal Norms */}
-        <div className="p-5 sm:p-6 rounded-2xl rw-surface space-y-4">
-          <div className="flex items-center gap-2 text-xs font-semibold text-[#111815] border-b border-neutral-200/70 pb-3">
-            <Sun className="w-4 h-4 text-emerald-700" />
-            <span>National Building Code (NBC) Illumination &amp; Inactivity Norms</span>
+        <div className="p-5 sm:p-6 rounded-xl border border-[#111916]/12 bg-white space-y-4">
+          <div className="flex items-center justify-between gap-2 border-b border-[#111916]/10 pb-3">
+            <div className="flex items-center gap-2">
+              <Sun className="w-4 h-4 text-[#0b6e4f]" />
+              <h2 className="font-display text-sm font-semibold text-[#111916]">National Building Code (NBC) Illumination &amp; Inactivity Norms</h2>
+            </div>
+            <span className="text-[10px] font-mono uppercase tracking-[0.12em] text-[#5c6862]">Section 03</span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
@@ -652,30 +663,47 @@ export const SettingsView: React.FC = () => {
                   label: 'Comfort Priority',
                   desc: 'Higher lux targets and silent acoustic priority.',
                 },
-              ].map((opt) => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => handlePolicySelect(opt.id)}
-                  className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
-                    learningMode === opt.id
-                      ? 'border-emerald-700 bg-[#eef3f0]'
-                      : 'border-neutral-200/85 bg-[#fafbfb] hover:bg-white'
-                  }`}
-                >
-                  <div className="font-semibold text-[#111815]">{opt.label}</div>
-                  <div className="text-[11px] text-[#64726b] mt-0.5 leading-relaxed">{opt.desc}</div>
-                </button>
-              ))}
+              ].map((opt) => {
+                const selected = learningMode === opt.id;
+                return (
+                  <SpotlightCard
+                    key={opt.id}
+                    as="button"
+                    aria-pressed={selected}
+                    whileTap={{ scale: 0.99 }}
+                    onClick={() => handlePolicySelect(opt.id)}
+                    spotlightColor="rgba(11, 110, 79, 0.12)"
+                    className={`p-3.5 rounded-xl border text-left transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0b6e4f] focus-visible:ring-offset-1 ${
+                      selected
+                        ? 'bg-[#eef6f2] border-[#0b6e4f]/45 shadow-[0_4px_12px_-8px_rgba(11,110,79,0.22)]'
+                        : 'bg-white border-[#111916]/12 hover:border-[#0b6e4f]/38 hover:bg-[#fafcfb]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold text-[#111815]">{opt.label}</span>
+                      <span
+                        className={`w-2 h-2 rounded-full shrink-0 transition-colors ${
+                          selected ? 'bg-[#0b6e4f]' : 'bg-[#111916]/15'
+                        }`}
+                        aria-hidden="true"
+                      />
+                    </div>
+                    <div className="text-[11px] text-[#64726b] mt-0.5 leading-relaxed">{opt.desc}</div>
+                  </SpotlightCard>
+                );
+              })}
             </div>
           </div>
         </div>
 
         {/* Section 4: Device Optimization & Low-Power Mode */}
-        <div className="p-5 sm:p-6 rounded-2xl rw-surface space-y-4">
-          <div className="flex items-center gap-2 text-xs font-semibold text-[#111815] border-b border-neutral-200/70 pb-3">
-            <Zap className="w-4 h-4 text-emerald-700" />
-            <span>Device Optimization &amp; Low-Power Mode</span>
+        <div className="p-5 sm:p-6 rounded-xl border border-[#111916]/12 bg-white space-y-4">
+          <div className="flex items-center justify-between gap-2 border-b border-[#111916]/10 pb-3">
+            <div className="flex items-center gap-2">
+              <Zap className="w-4 h-4 text-[#0b6e4f]" />
+              <h2 className="font-display text-sm font-semibold text-[#111916]">Device Optimization &amp; Low-Power Mode</h2>
+            </div>
+            <span className="text-[10px] font-mono uppercase tracking-[0.12em] text-[#5c6862]">Section 04</span>
           </div>
 
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
@@ -699,62 +727,57 @@ export const SettingsView: React.FC = () => {
         {/* Save Button / Reset Unsaved / Admin Unlock */}
         <div className="flex flex-wrap items-center justify-end gap-2.5">
           {!isAdminUnlocked ? (
-            <motion.button
-              type="button"
-              whileTap={{ scale: 0.985 }}
+            <ActionButton
+              variant="primary"
+              size="lg"
               onClick={() => openAuthModal()}
-              className="flex items-center gap-2 px-5 py-2.5 bg-[#111815] hover:bg-[#0b2e22] text-white text-xs font-semibold rounded-xl transition-colors cursor-pointer"
+              icon={<Lock className="w-4 h-4 text-[#34d399]" />}
             >
-              <Lock className="w-4 h-4 text-emerald-300" />
-              <span>Unlock Admin to Edit Parameters</span>
-            </motion.button>
+              Unlock Admin to Edit Parameters
+            </ActionButton>
           ) : (
             <>
               {hasUnsavedChanges && (
-                <button
-                  type="button"
+                <ActionButton
+                  variant="secondary"
+                  size="lg"
                   onClick={handleResetUnsaved}
                   disabled={isPropagating}
-                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-neutral-200 bg-white hover:bg-[#f3f5f4] text-[#4a5851] hover:text-[#111815] text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                  icon={<RotateCcw className="w-3.5 h-3.5" />}
                 >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Reset Unsaved</span>
-                </button>
+                  Reset Unsaved
+                </ActionButton>
               )}
-              <motion.button
+              <ActionButton
                 type="submit"
-                whileTap={isPropagating ? undefined : { scale: 0.985 }}
-                disabled={isPropagating}
-                className="flex items-center gap-2 px-5 py-2.5 bg-[#0b2e22] hover:bg-[#114231] text-white text-xs font-semibold rounded-xl transition-colors cursor-pointer disabled:opacity-60"
+                variant="primary"
+                size="lg"
+                loading={isPropagating}
+                icon={
+                  savedSuccess ? (
+                    <CheckCircle2 className="w-4 h-4 text-[#34d399]" />
+                  ) : (
+                    <Save className="w-4 h-4 text-[#34d399]" />
+                  )
+                }
               >
-                {isPropagating ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin text-emerald-300" />
-                    <span>Saving Parameters...</span>
-                  </>
-                ) : savedSuccess ? (
-                  <>
-                    <CheckCircle2 className="w-4 h-4 text-emerald-300" />
-                    <span>Parameters Propagated</span>
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-4 h-4 text-emerald-300" />
-                    <span>Apply &amp; Propagate Parameters</span>
-                  </>
-                )}
-              </motion.button>
+                {isPropagating
+                  ? 'Saving Parameters...'
+                  : savedSuccess
+                  ? 'Parameters Propagated'
+                  : 'Apply & Propagate Parameters'}
+              </ActionButton>
             </>
           )}
         </div>
       </form>
 
       {/* Voice Assistant & Wake-Word Controls */}
-      <div className="p-4 sm:p-6 rounded-2xl rw-surface space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-neutral-200/70 pb-3">
-          <div className="flex items-center gap-2 text-xs font-semibold text-[#111815]">
-            <Mic className="w-4 h-4 text-emerald-700 shrink-0" />
-            <span>Voice Assistant &amp; &ldquo;Hey ROOMWISE&rdquo; Standby</span>
+      <div className="p-5 sm:p-6 rounded-xl border border-[#111916]/12 bg-white space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-[#111916]/10 pb-3">
+          <div className="flex items-center gap-2">
+            <Mic className="w-4 h-4 text-[#0b6e4f] shrink-0" />
+            <h2 className="font-display text-sm font-semibold text-[#111916]">Voice Assistant &amp; &ldquo;Hey ROOMWISE&rdquo; Standby</h2>
           </div>
 
           <div className="text-[11px] font-mono text-[#64726b] whitespace-nowrap">
@@ -806,47 +829,40 @@ export const SettingsView: React.FC = () => {
 
           <div className="flex flex-wrap items-center gap-2 shrink-0">
             {voicePhase === 'audio_suspended' && (
-              <button
-                type="button"
+              <ActionButton
+                variant="amber"
+                size="md"
                 onClick={() => void resumeSuspendedAudio()}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-950 text-xs font-semibold transition-colors whitespace-nowrap"
+                icon={<Mic className="w-3.5 h-3.5 text-amber-700" />}
               >
-                <Mic className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-                <span>Resume Audio</span>
-              </button>
+                Resume Audio
+              </ActionButton>
             )}
 
-            <button
-              type="button"
+            <ActionButton
+              variant="secondary"
+              size="md"
               onClick={() => void startManualSession()}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-neutral-200 bg-white hover:bg-[#f3f5f4] text-[#111815] text-xs font-semibold transition-colors whitespace-nowrap"
+              icon={<Mic className="w-3.5 h-3.5 text-[#0b6e4f]" />}
             >
-              <Mic className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
-              <span>Ask Manually</span>
-            </button>
+              Ask Manually
+            </ActionButton>
 
             {isWakeWordEnabled && (
-              <button
-                type="button"
+              <ActionButton
+                variant={isVoiceMuted ? 'amber' : 'secondary'}
+                size="md"
                 onClick={toggleVoiceMute}
-                className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-semibold transition-colors whitespace-nowrap ${
-                  isVoiceMuted
-                    ? 'border-amber-300 bg-amber-50 text-amber-900'
-                    : 'border-neutral-200 bg-white hover:bg-[#f3f5f4] text-[#111815]'
-                }`}
+                icon={
+                  isVoiceMuted ? (
+                    <MicOff className="w-3.5 h-3.5 text-amber-800" />
+                  ) : (
+                    <Mic className="w-3.5 h-3.5 text-[#0b6e4f]" />
+                  )
+                }
               >
-                {isVoiceMuted ? (
-                  <>
-                    <MicOff className="w-3.5 h-3.5 shrink-0" />
-                    <span>Muted</span>
-                  </>
-                ) : (
-                  <>
-                    <Mic className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
-                    <span>Mute Standby</span>
-                  </>
-                )}
-              </button>
+                {isVoiceMuted ? 'Muted' : 'Mute Standby'}
+              </ActionButton>
             )}
 
             <ToggleSwitch
@@ -864,51 +880,49 @@ export const SettingsView: React.FC = () => {
         </div>
       </div>
 
-      {/* Account Security: Biometric & Registered Devices */}
-      <div className="p-5 sm:p-6 rounded-2xl rw-surface space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-200/70 pb-3">
-          <div className="flex items-center gap-2 text-xs font-semibold text-[#111815]">
+      {/* Account Security: Biometric & Registered Devices — Obsidian-Pine Security Masthead */}
+      <div className="rounded-xl border border-[#111916]/12 bg-white overflow-hidden">
+        <div className="px-5 sm:px-6 py-4 rw-obsidian-panel border-none rounded-none shadow-none text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
             {prefersFaceLabel ? (
-              <ScanFace className="w-4 h-4 text-emerald-700" />
+              <ScanFace className="w-4 h-4 text-[#34d399]" />
             ) : (
-              <Fingerprint className="w-4 h-4 text-emerald-700" />
+              <Fingerprint className="w-4 h-4 text-[#34d399]" />
             )}
-            <span>Biometric &amp; Registered Devices</span>
+            <div>
+              <h2 className="font-display text-sm font-semibold text-white">Biometric &amp; Registered Devices</h2>
+              <div className="text-[10px] font-mono uppercase tracking-[0.12em] text-emerald-300/75">
+                WebAuthn Hardware Passkeys · Digital Access Control
+              </div>
+            </div>
           </div>
 
           {isAdminUnlocked && authenticatedAdmin && (
             <div className="flex flex-wrap items-center gap-2">
               {device.isPhone && (
-                <button
-                  type="button"
+                <ActionButton
+                  variant="dark-ghost"
+                  size="md"
                   onClick={openPhoneQrModal}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-950 text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap"
+                  icon={<QrCode className="w-3.5 h-3.5 text-[#34d399]" />}
                 >
-                  <QrCode className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
-                  <span>Scan Computer QR</span>
-                </button>
+                  Scan Computer QR
+                </ActionButton>
               )}
-              <button
-                type="button"
+              <ActionButton
+                variant="forest"
+                size="md"
+                loading={isEnrollingPasskey}
                 onClick={handleEnrollCurrentDevice}
-                disabled={isEnrollingPasskey}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#0b2e22] hover:bg-[#114231] text-white text-xs font-semibold transition-colors cursor-pointer disabled:opacity-60 whitespace-nowrap"
+                icon={<Shield className="w-3.5 h-3.5 text-emerald-200" />}
               >
-                {isEnrollingPasskey ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
-                    <span>Waiting for device...</span>
-                  </>
-                ) : (
-                  <>
-                    <Shield className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
-                    <span>Set Up Biometric Passkey</span>
-                  </>
-                )}
-              </button>
+                {isEnrollingPasskey ? 'Waiting for device...' : 'Set Up Biometric Passkey'}
+              </ActionButton>
             </div>
           )}
         </div>
+
+        <div className="p-5 sm:p-6 space-y-4">
 
         <AnimatePresence>
           {passkeyMessage && (
@@ -938,14 +952,14 @@ export const SettingsView: React.FC = () => {
             <span>
               Sign in as a teacher to register or revoke biometric passkeys on your devices.
             </span>
-            <button
-              type="button"
+            <ActionButton
+              variant="secondary"
+              size="md"
               onClick={() => openAuthModal()}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-neutral-200 bg-white hover:bg-[#f3f5f4] text-[#111815] text-xs font-semibold cursor-pointer shrink-0"
+              icon={<KeyRound className="w-3.5 h-3.5 text-[#0b6e4f]" />}
             >
-              <KeyRound className="w-3.5 h-3.5 text-emerald-700" />
-              <span>Teacher Sign-In</span>
-            </button>
+              Teacher Sign-In
+            </ActionButton>
           </div>
         ) : isCredsLoading ? (
           <div className="text-xs text-[#64726b] flex items-center gap-2 py-2">
@@ -995,27 +1009,31 @@ export const SettingsView: React.FC = () => {
                 </div>
 
                 {!cred.revoked && (
-                  <button
-                    type="button"
-                    disabled={revokingId === cred.id}
+                  <ActionButton
+                    variant="danger"
+                    size="xs"
+                    loading={revokingId === cred.id}
                     onClick={() => handleRevokeCredential(cred.id)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-800 text-[11px] font-semibold transition-colors cursor-pointer shrink-0 disabled:opacity-50"
+                    icon={<Trash2 className="w-3.5 h-3.5" />}
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>{revokingId === cred.id ? 'Revoking...' : 'Revoke'}</span>
-                  </button>
+                    {revokingId === cred.id ? 'Revoking...' : 'Revoke'}
+                  </ActionButton>
                 )}
               </div>
             ))}
           </div>
         )}
+        </div>
       </div>
 
       {/* Staff Directory Reference */}
-      <div className="p-5 sm:p-6 rounded-2xl rw-surface space-y-4">
-        <div className="flex items-center gap-2 text-xs font-semibold text-[#111815] border-b border-neutral-200/70 pb-3">
-          <Users className="w-4 h-4 text-emerald-700" />
-          <span>Campus Energy Management Committee ({settings.institutionName})</span>
+      <div className="p-5 sm:p-6 rounded-xl border border-[#111916]/12 bg-white space-y-4">
+        <div className="flex items-center justify-between gap-2 border-b border-[#111916]/10 pb-3">
+          <div className="flex items-center gap-2">
+            <Users className="w-4 h-4 text-[#0b6e4f]" />
+            <h2 className="font-display text-sm font-semibold text-[#111916]">Campus Energy Management Committee ({settings.institutionName})</h2>
+          </div>
+          <span className="text-[10px] font-mono uppercase tracking-[0.12em] text-[#5c6862]">{staffDirectory.length} Authorised</span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
@@ -1024,34 +1042,34 @@ export const SettingsView: React.FC = () => {
             return (
               <div
                 key={st.id}
-                className={`p-3.5 rounded-xl border flex items-center justify-between gap-3 transition-all ${
+                className={`p-3.5 rounded-lg border flex items-center justify-between gap-3 transition-all ${
                   isCurrent
-                    ? 'bg-[#eef3f0] border-emerald-700/35'
-                    : 'bg-[#fafbfb] border-neutral-200/80'
+                    ? 'bg-[#eef4f1] border-[#0b6e4f]/35'
+                    : 'bg-[#f4f5f3]/65 border-[#111916]/10'
                 }`}
               >
                 <div className="flex items-center gap-3 overflow-hidden">
                   <div
-                    className={`w-9 h-9 rounded-xl font-semibold flex items-center justify-center shrink-0 text-xs ${
-                      isCurrent ? 'bg-[#0b2e22] text-emerald-200' : 'bg-[#111815] text-white'
+                    className={`w-9 h-9 rounded-lg font-mono font-semibold flex items-center justify-center shrink-0 text-xs ${
+                      isCurrent ? 'bg-[#0b1713] text-[#34d399]' : 'bg-[#111916] text-white'
                     }`}
                   >
                     {st.avatarInitials}
                   </div>
                   <div className="overflow-hidden">
-                    <div className="font-semibold text-[#111815] truncate flex items-center gap-1.5">
+                    <div className="font-semibold text-[#111916] truncate flex items-center gap-1.5">
                       <span className="truncate">{st.name}</span>
                       {isCurrent && (
-                        <span className="text-[10px] text-emerald-800 font-semibold shrink-0">
+                        <span className="text-[10px] font-mono text-[#0b6e4f] font-semibold shrink-0">
                           · Signed In
                         </span>
                       )}
                     </div>
-                    <div className="text-[11px] text-[#4a5851] truncate">{st.role}</div>
-                    <div className="text-[11px] text-emerald-800 font-medium truncate mt-0.5">
+                    <div className="text-[11px] text-[#47534d] truncate">{st.role}</div>
+                    <div className="text-[11px] text-[#0b6e4f] font-medium truncate mt-0.5">
                       {st.assignedBuilding}
                     </div>
-                    <div className="text-[10px] text-[#64726b] font-mono mt-0.5">
+                    <div className="text-[10px] text-[#5c6862] font-mono mt-0.5">
                       {st.hasPasskey ? 'Passkey Enrolled · Ready' : 'Password / QR Sign-In'}
                     </div>
                   </div>

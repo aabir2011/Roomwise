@@ -185,19 +185,29 @@ export interface AuditFinding {
 export interface CampusEnergySummary {
   totalCurrentPowerWatts: number;
   totalRatedPowerWatts: number; // Canonical sum of all installed appliance ratings at 100% (13,390 W / 13.39 kW)
+  totalRosPowerWatts: number; // Canonical Reference Operating Scenario (ROS) power without adaptive automation
   availableHeadroomWatts: number; // Unused installed nameplate capacity: max(0, totalRatedPowerWatts - totalCurrentPowerWatts)
   ratedUtilizationPercent: number; // (totalCurrentPowerWatts / totalRatedPowerWatts) * 100
   headroomPercent: number; // (availableHeadroomWatts / totalRatedPowerWatts) * 100
   dailyActualKWh: number;
   dailyRatedCeilingKWh: number; // Theoretical 100%-rated nameplate draw over room operating hours
+  dailyRosKWh: number; // Reference Operating Scenario (ROS) daily energy under comparable schedule & occupancy
+  dailyAvoidedKWh: number; // Modelled Energy Avoided vs ROS (unclamped: dailyRosKWh - dailyActualKWh)
   dailyCostINR: number;
+  dailyCostAvoidedINR: number; // Modelled Cost Avoided vs ROS at canonical HT-2 tariff (unclamped)
   dailyEmissionsKgCO2: number;
   monthlyActualKWh: number; // 22 school days
+  monthlyRosKWh: number;
+  monthlyAvoidedKWh: number;
   monthlyCostINR: number;
+  monthlyCostAvoidedINR: number;
   monthlyEmissionsTonnesCO2: number;
   annualActualKWh: number; // 225 school days
+  annualAvoidedKWh: number;
   annualCostINR: number;
+  annualCostAvoidedINR: number;
   annualEmissionsTonnesCO2: number;
+  rosSavingsPercent: number; // ((dailyRosKWh - dailyActualKWh) / dailyRosKWh) * 100 (unclamped)
   activeOccupancyCount: number;
   totalRoomsOccupied: number;
   totalRoomsCalibrated: number;

@@ -24,6 +24,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { clampPercent, summarizeApplianceGroup } from '../../utils/applianceUtils';
 import { AnimatedNumber, ToggleSwitch, Tooltip } from '../common/MotionPrimitives';
+import { ActionButton, IconButton, InlineActionLink } from '../common/DesignSystem';
 import { ROOMWISE_EASE, backdropVariants } from '../../utils/motion';
 
 interface Props {
@@ -264,20 +265,23 @@ const ApplianceUnitRow: React.FC<UnitRowProps> = ({
         <div className="flex items-center gap-2.5 shrink-0">
           <AnimatePresence initial={false}>
             {isManual && (
-              <motion.button
+              <motion.div
                 initial={{ opacity: 0, scale: 0.92 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.92 }}
                 transition={{ duration: 0.14, ease: ROOMWISE_EASE }}
-                type="button"
-                disabled={disabled || isPending}
-                onClick={onRestoreAuto}
-                title={`Restore ${appliance.unitCode || appliance.name} to AUTO`}
-                className="px-2 py-1 min-h-[28px] rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 text-[11px] font-semibold text-neutral-700 flex items-center gap-1 transition-colors disabled:opacity-45"
               >
-                <RotateCcw className="w-3 h-3 text-emerald-600" />
-                <span>Auto</span>
-              </motion.button>
+                <ActionButton
+                  variant="soft"
+                  size="xs"
+                  disabled={disabled || isPending}
+                  onClick={onRestoreAuto}
+                  title={`Restore ${appliance.unitCode || appliance.name} to AUTO`}
+                  icon={<RotateCcw className="w-3 h-3 text-emerald-700" />}
+                >
+                  Auto
+                </ActionButton>
+              </motion.div>
             )}
           </AnimatePresence>
 
@@ -461,78 +465,78 @@ export const ApplianceControlDrawer: React.FC<Props> = ({
             className="w-full md:w-[470px] lg:w-[500px] rw-glass-float md:h-full max-h-[90vh] md:max-h-full rounded-t-3xl md:rounded-none md:border-l border-neutral-200/80 shadow-2xl flex flex-col overflow-hidden"
           >
             {/* Mobile Sheet Handle */}
-            <div className="md:hidden pt-2.5 pb-1 flex justify-center bg-[#fafbfb] border-b border-neutral-100">
-              <div className="w-10 h-1 rounded-full bg-neutral-300" />
+            <div className="md:hidden pt-2.5 pb-1 flex justify-center bg-[#0b1713] border-b border-white/10">
+              <div className="w-10 h-1 rounded-full bg-white/25" />
             </div>
 
-            {/* Drawer Header */}
-            <div className="px-5 py-4 border-b border-neutral-200/80 bg-[#fafbfb] flex items-start justify-between gap-3">
+            {/* Obsidian-Pine Drawer Header */}
+            <div className="px-5 py-4 border-b border-white/10 bg-[#0b1713] text-[#f4f6f4] flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-mono text-xs font-semibold bg-[#0b2e22] text-white px-2.5 py-0.5 rounded-lg">
+                  <span className="font-mono text-xs font-semibold bg-[#132922] text-[#34d399] border border-[#34d399]/30 px-2 py-0.5 rounded">
                     {room.roomCode}
                   </span>
-                  <h2 className="text-base font-semibold text-[#111815] tracking-tight truncate">
+                  <h2 className="font-display text-base font-semibold text-white tracking-tight truncate">
                     {room.name}
                   </h2>
                 </div>
 
-                <div className="mt-1.5 flex items-center gap-2 text-[11px] text-neutral-500 flex-wrap">
+                <div className="mt-1.5 flex items-center gap-2 text-[11px] text-[#9cb0a7] flex-wrap">
                   <Tooltip content="Modelled classroom controller synced with server validation">
-                    <span className="inline-flex items-center gap-1 text-emerald-800 font-semibold">
-                      <Radio className="w-3 h-3 text-emerald-600" />
+                    <span className="inline-flex items-center gap-1 text-[#34d399] font-medium">
+                      <Radio className="w-3 h-3" />
                       <span>Node · Server Synced</span>
                     </span>
                   </Tooltip>
                   <span aria-hidden="true">·</span>
-                  <span className="font-mono font-bold text-neutral-900">
+                  <span className="font-mono font-semibold text-white">
                     <AnimatedNumber value={room.currentPowerWatts} suffix="W live" />
                   </span>
                   {isVacant && (
                     <>
                       <span aria-hidden="true">·</span>
-                      <span className="text-neutral-600 font-medium">No recent motion</span>
+                      <span className="text-[#c5d4ce] font-medium">No recent motion</span>
                     </>
                   )}
                 </div>
               </div>
 
-              <button
-                type="button"
+              <IconButton
+                variant="dark-ghost"
+                size="md"
+                label="Close appliance panel"
                 onClick={onClose}
-                className="p-2 min-w-[40px] min-h-[40px] flex items-center justify-center rounded-xl text-neutral-500 hover:text-neutral-900 hover:bg-neutral-200/60 transition-colors"
-                aria-label="Close appliance panel"
               >
                 <X className="w-5 h-5" />
-              </button>
+              </IconButton>
             </div>
 
             {/* Authorization & Restoration Ribbon */}
-            <div className="px-5 py-3 border-b border-neutral-200/80 bg-white space-y-2.5">
+            <div className="px-5 py-3 border-b border-[rgba(17,25,22,0.1)] bg-white space-y-2.5">
               {!isAdminUnlocked ? (
-                <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-neutral-50 border border-neutral-200">
+                <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-[#fafbf9] border border-[rgba(17,25,22,0.1)]">
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <Lock className="w-4 h-4 text-neutral-600 shrink-0" />
+                    <Lock className="w-4 h-4 text-[#5c6a64] shrink-0" />
                     <div className="text-xs min-w-0">
-                      <div className="font-bold text-neutral-900">Student Read-Only View</div>
-                      <div className="text-[11px] text-neutral-500 truncate">
+                      <div className="font-semibold text-[#111916]">Student Read-Only View</div>
+                      <div className="text-[11px] text-[#5c6a64] truncate">
                         Sign in as authorized staff to adjust classroom units.
                       </div>
                     </div>
                   </div>
-                  <button
-                    type="button"
+                  <ActionButton
+                    variant="forest"
+                    size="md"
                     onClick={() => openAuthModal()}
-                    className="shrink-0 px-3 py-2 min-h-[38px] rounded-xl bg-[#0b2e22] hover:bg-[#114231] text-white text-xs font-semibold flex items-center gap-1.5 transition-all active:scale-[0.98]"
+                    icon={<KeyRound className="w-3.5 h-3.5" />}
                   >
-                    <KeyRound className="w-3.5 h-3.5" />
-                    <span>Teacher Sign-In</span>
-                  </button>
+                    Teacher Sign-In
+                  </ActionButton>
                 </div>
               ) : (
                 <div className="flex items-center justify-between gap-2 text-xs">
-                  <div className="flex items-center gap-2 text-neutral-600 min-w-0">
-                    <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <div className="flex items-center gap-2 text-[#4a5851] min-w-0">
+                    <Check className="w-4 h-4 text-[#0b6e4f] shrink-0" />
                     <span className="truncate">
                       {hasAnyManual
                         ? `${room.appliances.filter((a) => a.operatingMode === 'MANUAL' || a.isManualOverride).length} manual override(s) active`
@@ -541,19 +545,16 @@ export const ApplianceControlDrawer: React.FC<Props> = ({
                         : 'All units in autonomous closed-loop AUTO'}
                     </span>
                   </div>
-                  <button
-                    type="button"
+                  <ActionButton
+                    variant={hasAnyManual ? 'forest' : 'secondary'}
+                    size="sm"
                     disabled={!hasAnyManual || isRoomPending}
+                    loading={isRoomPending}
                     onClick={() => void handleRestoreAllAuto()}
-                    className={`shrink-0 px-3 py-1.5 min-h-[36px] rounded-xl text-xs font-bold flex items-center gap-1.5 border transition-all active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed ${
-                      hasAnyManual
-                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-700'
-                        : 'bg-neutral-50 text-neutral-500 border-neutral-200'
-                    }`}
+                    icon={<RotateCcw className="w-3.5 h-3.5" />}
                   >
-                    <RotateCcw className={`w-3.5 h-3.5 ${isRoomPending ? 'animate-spin' : ''}`} />
-                    <span>Restore All AUTO</span>
-                  </button>
+                    Restore All AUTO
+                  </ActionButton>
                 </div>
               )}
 
@@ -563,19 +564,19 @@ export const ApplianceControlDrawer: React.FC<Props> = ({
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
-                    className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-900 flex items-center justify-between gap-2 overflow-hidden"
+                    className="p-2.5 rounded-lg bg-[#fef2f2] border border-[#b91c1c]/25 text-xs text-[#991b1b] flex items-center justify-between gap-2 overflow-hidden"
                   >
                     <div className="flex items-center gap-2">
-                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                      <AlertCircle className="w-4 h-4 text-[#b91c1c] shrink-0" />
                       <span>{applianceControlError}</span>
                     </div>
-                    <button
-                      type="button"
+                    <InlineActionLink
+                      tone="rose"
                       onClick={clearApplianceControlError}
-                      className="text-rose-700 font-semibold hover:underline shrink-0"
+                      className="shrink-0"
                     >
                       Dismiss
-                    </button>
+                    </InlineActionLink>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -584,19 +585,19 @@ export const ApplianceControlDrawer: React.FC<Props> = ({
             {/* Scrollable Sections Body */}
             <div
               ref={scrollContainerRef}
-              className="flex-1 overflow-y-auto px-5 py-4 space-y-6 bg-neutral-50/45"
+              className="flex-1 overflow-y-auto px-5 py-4 space-y-6 bg-[#f4f5f3]"
             >
               {/* SECTION 1: LIGHTING */}
               <section
                 id="drawer-section-lights"
-                className={`space-y-2.5 rounded-2xl transition-all duration-300 ${
-                  highlightedSection === 'lights' ? 'ring-2 ring-amber-400/50 bg-amber-50/20 p-2 -m-2' : ''
+                className={`space-y-2.5 rounded-xl transition-all duration-300 ${
+                  highlightedSection === 'lights' ? 'ring-2 ring-[#b45309]/40 bg-[#fffbeb]/40 p-2 -m-2' : ''
                 }`}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Lightbulb className="w-4 h-4 text-amber-600" />
-                    <h3 className="text-xs font-extrabold uppercase tracking-wider text-neutral-900">
+                    <Lightbulb className="w-4 h-4 text-[#b45309]" />
+                    <h3 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#111916]">
                       Lighting ({lights.length} Units)
                     </h3>
                   </div>
@@ -627,18 +628,14 @@ export const ApplianceControlDrawer: React.FC<Props> = ({
                           Applies to all {lights.length} lights; refine individual units below
                         </div>
                       </div>
-                      <button
-                        type="button"
+                      <ActionButton
+                        variant={lightSummary.activeCount > 0 ? 'primary' : 'amber'}
+                        size="sm"
                         disabled={controlsDisabled || Boolean(pendingAppliances[`${room.id}:group:lights`])}
                         onClick={toggleAllLights}
-                        className={`px-3 py-1.5 min-h-[34px] rounded-lg text-xs font-semibold border transition-all active:scale-[0.98] shrink-0 disabled:opacity-45 ${
-                          lightSummary.activeCount > 0
-                            ? 'bg-[#111815] text-white border-[#111815] hover:bg-[#0b2e22]'
-                            : 'bg-amber-600 text-white border-amber-700 hover:bg-amber-700'
-                        }`}
                       >
                         {lightSummary.activeCount > 0 ? 'All Lights OFF' : 'All Lights ON'}
-                      </button>
+                      </ActionButton>
                     </div>
                     <ContinuousSlider
                       value={lightSummary.avgPercent}
@@ -705,18 +702,14 @@ export const ApplianceControlDrawer: React.FC<Props> = ({
                           Applies to all {fans.length} sectors; tune sectors independently below
                         </div>
                       </div>
-                      <button
-                        type="button"
+                      <ActionButton
+                        variant={fanSummary.activeCount > 0 ? 'primary' : 'forest'}
+                        size="sm"
                         disabled={controlsDisabled || Boolean(pendingAppliances[`${room.id}:group:fan`])}
                         onClick={toggleAllFans}
-                        className={`px-3 py-1.5 min-h-[34px] rounded-lg text-xs font-semibold border transition-all active:scale-[0.98] shrink-0 disabled:opacity-45 ${
-                          fanSummary.activeCount > 0
-                            ? 'bg-[#111815] text-white border-[#111815] hover:bg-[#0b2e22]'
-                            : 'bg-[#0b2e22] text-white border-[#0b2e22] hover:bg-[#114231]'
-                        }`}
                       >
                         {fanSummary.activeCount > 0 ? 'All Fans OFF' : 'All Fans ON'}
-                      </button>
+                      </ActionButton>
                     </div>
                     <ContinuousSlider
                       value={fanSummary.avgPercent}

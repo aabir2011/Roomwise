@@ -92,6 +92,10 @@ export const ACRONYM_GLOSSARY: Record<string, { short: string; full: string }> =
     short: 'RCEM',
     full: 'ROOMWISE Counterfactual Energy Model (time-integrated power difference framework)',
   },
+  ROS: {
+    short: 'ROS',
+    full: 'Reference Operating Scenario — conventional non-adaptive operation under comparable occupancy, schedule, and ambient conditions',
+  },
 };
 
 export function getAcronymTitle(code: string): string {
@@ -111,25 +115,72 @@ export function computeDailyKWhFromWatts(watts: number, roomType?: Classroom['ty
 export interface RoomCanonicalMetrics {
   currentPowerWatts: number;
   ratedPowerWatts: number;
+  rosPowerWatts: number;
   availableHeadroomWatts: number;
   ratedUtilizationPercent: number;
   headroomPercent: number;
   activeHoursPerSchoolDay: number;
   dailyActualKWh: number;
   dailyRatedCeilingKWh: number;
+  dailyRosKWh: number;
+  dailyAvoidedKWh: number;
   dailyCostINR: number;
+  dailyCostAvoidedINR: number;
   monthlyActualKWh: number;
+  monthlyRosKWh: number;
+  monthlyAvoidedKWh: number;
   monthlyCostINR: number;
+  monthlyCostAvoidedINR: number;
   dailyEmissionsKgCO2: number;
 }
 
+/**
+ * Computes Reference Operating Scenario (ROS) power draw in watts for a classroom.
+ * Models conventional non-adaptive classroom operation (no daylight harvesting,
+ * fixed manual fan regulator steps, and partial unmonitored vacancy carry-over)
+ * under comparable occupancy, curriculum schedule, and ambient heat index.
+ * Strictly separate from installed nameplate maximum (13,390 W).
+ */
+export function computeClassroomReferenceOperatingWatts(
+  room: Pick<Classroom, 'appliances' | 'occupancyStatus' | 'currentOccupants' | 'environment' | 'type'>
+): number {
+  const isOccupied = room.occupancyStatus === 'Occupied' && room.currentOccupants > 0;
+  const heatIndex = room.environment?.heatIndex ?? 28;
+  const fanRefFactor = heatIndex >= 31 ? 1.0 : 0.8;
+  const vacantCarryOverFactor = room.type === 'Auditorium' ? 0.1 : 0.35;
+
+  let rosWatts = 0;
+  for (const app of room.appliances) {
+    const rated = Math.max(0, app.powerRatingWatts);
+    if (isOccupied) {
+      if (app.type === 'lights') {
+        rosWatts += rated;
+      } else if (app.type === 'fan') {
+        rosWatts += rated * fanRefFactor;
+      } else if (app.type === 'ac') {
+        rosWatts += Math.max(app.currentPowerWatts, rated * 0.75);
+      } else {
+        rosWatts += app.currentPowerWatts;
+      }
+    } else if (app.type === 'lights' || app.type === 'fan') {
+      rosWatts += rated * vacantCarryOverFactor;
+    }
+  }
+
+  return Math.max(0, Math.round(rosWatts));
+}
+
 export function computeClassroomCanonicalMetrics(
-  room: Pick<Classroom, 'currentPowerWatts' | 'ratedPowerWatts' | 'appliances' | 'type'>,
+  room: Pick<
+    Classroom,
+    'currentPowerWatts' | 'ratedPowerWatts' | 'appliances' | 'type' | 'occupancyStatus' | 'currentOccupants' | 'environment'
+  >,
   settings: Pick<SchoolSettings, 'tariffPerKWhINR' | 'gridCarbonFactorKgCO2PerKWh'>
 ): RoomCanonicalMetrics {
   const ratedPowerWatts =
     room.ratedPowerWatts ?? computeAppliancesRatedPowerWatts(room.appliances);
   const currentPowerWatts = Math.max(0, Math.round(room.currentPowerWatts));
+  const rosPowerWatts = computeClassroomReferenceOperatingWatts(room);
   const availableHeadroomWatts = Math.max(0, ratedPowerWatts - currentPowerWatts);
   const ratedUtilizationPercent =
     ratedPowerWatts > 0 ? roundTo((currentPowerWatts / ratedPowerWatts) * 100, 1) : 0;
@@ -139,27 +190,41 @@ export function computeClassroomCanonicalMetrics(
   const { activeHoursPerSchoolDay } = getRoomOperatingProfile(room.type);
   const dailyActualKWh = roundTo((currentPowerWatts * activeHoursPerSchoolDay) / 1000, 2);
   const dailyRatedCeilingKWh = roundTo((ratedPowerWatts * activeHoursPerSchoolDay) / 1000, 2);
+  const dailyRosKWh = roundTo((rosPowerWatts * activeHoursPerSchoolDay) / 1000, 2);
+  // Intentionally unclamped: negative values indicate ROOMWISE drew more than ROS.
+  const dailyAvoidedKWh = roundTo(dailyRosKWh - dailyActualKWh, 2);
 
   const tariff = settings.tariffPerKWhINR;
   const carbon = settings.gridCarbonFactorKgCO2PerKWh;
 
   const dailyCostINR = roundTo(dailyActualKWh * tariff, 2);
+  const dailyCostAvoidedINR = roundTo(dailyAvoidedKWh * tariff, 2);
   const monthlyActualKWh = roundTo(dailyActualKWh * SCHOOL_DAYS_PER_MONTH, 1);
+  const monthlyRosKWh = roundTo(dailyRosKWh * SCHOOL_DAYS_PER_MONTH, 1);
+  const monthlyAvoidedKWh = roundTo(dailyAvoidedKWh * SCHOOL_DAYS_PER_MONTH, 1);
   const monthlyCostINR = roundTo(monthlyActualKWh * tariff, 2);
+  const monthlyCostAvoidedINR = roundTo(monthlyAvoidedKWh * tariff, 2);
   const dailyEmissionsKgCO2 = roundTo(dailyActualKWh * carbon, 2);
 
   return {
     currentPowerWatts,
     ratedPowerWatts,
+    rosPowerWatts,
     availableHeadroomWatts,
     ratedUtilizationPercent,
     headroomPercent,
     activeHoursPerSchoolDay,
     dailyActualKWh,
     dailyRatedCeilingKWh,
+    dailyRosKWh,
+    dailyAvoidedKWh,
     dailyCostINR,
+    dailyCostAvoidedINR,
     monthlyActualKWh,
+    monthlyRosKWh,
+    monthlyAvoidedKWh,
     monthlyCostINR,
+    monthlyCostAvoidedINR,
     dailyEmissionsKgCO2,
   };
 }
@@ -170,8 +235,10 @@ export function computeCampusCanonicalSummary(
 ): CampusEnergySummary {
   let totalCurrentPowerWatts = 0;
   let totalRatedPowerWatts = 0;
+  let totalRosPowerWatts = 0;
   let rawDailyActualKWh = 0;
   let rawDailyRatedCeilingKWh = 0;
+  let rawDailyRosKWh = 0;
   let activeOccupancyCount = 0;
   let totalRoomsOccupied = 0;
   let totalRoomsCalibrated = 0;
@@ -180,8 +247,10 @@ export function computeCampusCanonicalSummary(
     const metrics = computeClassroomCanonicalMetrics(room, settings);
     totalCurrentPowerWatts += metrics.currentPowerWatts;
     totalRatedPowerWatts += metrics.ratedPowerWatts;
+    totalRosPowerWatts += metrics.rosPowerWatts;
     rawDailyActualKWh += metrics.dailyActualKWh;
     rawDailyRatedCeilingKWh += metrics.dailyRatedCeilingKWh;
+    rawDailyRosKWh += metrics.dailyRosKWh;
     activeOccupancyCount += room.currentOccupants;
     if (room.occupancyStatus === 'Occupied') totalRoomsOccupied += 1;
     if (room.calibration.isCalibrated) totalRoomsCalibrated += 1;
@@ -197,37 +266,57 @@ export function computeCampusCanonicalSummary(
 
   const dailyActualKWh = roundTo(rawDailyActualKWh, 2);
   const dailyRatedCeilingKWh = roundTo(rawDailyRatedCeilingKWh, 2);
+  const dailyRosKWh = roundTo(rawDailyRosKWh, 2);
+  const dailyAvoidedKWh = roundTo(dailyRosKWh - dailyActualKWh, 2);
+  const rosSavingsPercent =
+    dailyRosKWh > 0 ? roundTo((dailyAvoidedKWh / dailyRosKWh) * 100, 1) : 0;
 
   const tariff = settings.tariffPerKWhINR;
   const carbon = settings.gridCarbonFactorKgCO2PerKWh;
 
   const dailyCostINR = roundTo(dailyActualKWh * tariff, 2);
+  const dailyCostAvoidedINR = roundTo(dailyAvoidedKWh * tariff, 2);
   const dailyEmissionsKgCO2 = roundTo(dailyActualKWh * carbon, 2);
 
   const monthlyActualKWh = roundTo(dailyActualKWh * SCHOOL_DAYS_PER_MONTH, 1);
+  const monthlyRosKWh = roundTo(dailyRosKWh * SCHOOL_DAYS_PER_MONTH, 1);
+  const monthlyAvoidedKWh = roundTo(dailyAvoidedKWh * SCHOOL_DAYS_PER_MONTH, 1);
   const monthlyCostINR = roundTo(monthlyActualKWh * tariff, 2);
+  const monthlyCostAvoidedINR = roundTo(monthlyAvoidedKWh * tariff, 2);
   const monthlyEmissionsTonnesCO2 = roundTo((monthlyActualKWh * carbon) / 1000, 2);
 
   const annualActualKWh = roundTo(dailyActualKWh * SCHOOL_DAYS_PER_YEAR, 1);
+  const annualAvoidedKWh = roundTo(dailyAvoidedKWh * SCHOOL_DAYS_PER_YEAR, 1);
   const annualCostINR = roundTo(annualActualKWh * tariff, 2);
+  const annualCostAvoidedINR = roundTo(annualAvoidedKWh * tariff, 2);
   const annualEmissionsTonnesCO2 = roundTo((annualActualKWh * carbon) / 1000, 2);
 
   return {
     totalCurrentPowerWatts,
     totalRatedPowerWatts,
+    totalRosPowerWatts,
     availableHeadroomWatts,
     ratedUtilizationPercent,
     headroomPercent,
     dailyActualKWh,
     dailyRatedCeilingKWh,
+    dailyRosKWh,
+    dailyAvoidedKWh,
     dailyCostINR,
+    dailyCostAvoidedINR,
     dailyEmissionsKgCO2,
     monthlyActualKWh,
+    monthlyRosKWh,
+    monthlyAvoidedKWh,
     monthlyCostINR,
+    monthlyCostAvoidedINR,
     monthlyEmissionsTonnesCO2,
     annualActualKWh,
+    annualAvoidedKWh,
     annualCostINR,
+    annualCostAvoidedINR,
     annualEmissionsTonnesCO2,
+    rosSavingsPercent,
     activeOccupancyCount,
     totalRoomsOccupied,
     totalRoomsCalibrated,

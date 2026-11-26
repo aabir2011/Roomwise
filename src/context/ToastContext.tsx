@@ -14,6 +14,7 @@ import React, {
 } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CheckCircle2, AlertTriangle, Info, AlertCircle, X } from 'lucide-react';
+import { IconButton } from '../components/common/DesignSystem';
 import { ROOMWISE_EASE } from '../utils/motion';
 
 export type ToastTone = 'success' | 'info' | 'warning' | 'error';
@@ -173,14 +174,15 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                   )}
                 </div>
 
-                <button
-                  type="button"
+                <IconButton
+                  variant="ghost"
+                  size="xs"
+                  label="Dismiss notification"
                   onClick={() => dismissToast(t.id)}
-                  className="p-1 rounded-lg text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-colors cursor-pointer shrink-0"
-                  aria-label="Dismiss notification"
+                  className="!w-6 !h-6 text-neutral-400 hover:text-neutral-700"
                 >
                   <X className="w-3.5 h-3.5" />
-                </button>
+                </IconButton>
               </motion.div>
             );
           })}

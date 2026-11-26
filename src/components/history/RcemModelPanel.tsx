@@ -8,10 +8,10 @@ import { Sigma } from 'lucide-react';
 import { MathText } from '../common/MathText';
 
 const DISCRETE_EQUATION_TEX =
-  '\\boxed{E_{\\mathrm{RCEM}}=\\frac{1}{1000}\\sum_{i=1}^{N}(P_{\\mathrm{B},i}-P_{\\mathrm{RW},i})\\Delta t_i}';
+  '\\boxed{E_{\\mathrm{RCEM}}=\\frac{1}{1000}\\sum_{i=1}^{N}(P_{\\mathrm{ROS},i}-P_{\\mathrm{RW},i})\\Delta t_i}';
 
 const CONTINUOUS_EQUATION_TEX =
-  '\\boxed{E_{\\mathrm{RCEM}}=\\frac{1}{1000}\\int_{t_0}^{t_1}\\left[P_{\\mathrm{B}}(t)-P_{\\mathrm{RW}}(t)\\right]dt}';
+  '\\boxed{E_{\\mathrm{RCEM}}=\\frac{1}{1000}\\int_{t_0}^{t_1}\\left[P_{\\mathrm{ROS}}(t)-P_{\\mathrm{RW}}(t)\\right]dt}';
 
 interface VariableDefinition {
   tex: string;
@@ -24,19 +24,20 @@ const VARIABLE_DEFINITIONS: VariableDefinition[] = [
   {
     tex: 'E_{\\mathrm{RCEM}}',
     ariaLabel: 'E sub RCEM',
-    description: 'Energy difference calculated by RCEM',
+    description: 'Modelled energy difference calculated by RCEM',
     unit: 'kWh',
   },
   {
-    tex: 'P_{\\mathrm{B},i}',
-    ariaLabel: 'P sub B comma i',
-    description: 'Aggregate room power under the defined baseline condition during discrete interval i',
+    tex: 'P_{\\mathrm{ROS},i}',
+    ariaLabel: 'P sub ROS comma i',
+    description:
+      'Aggregate room power under the Reference Operating Scenario (ROS) during discrete interval i',
     unit: 'W',
   },
   {
     tex: 'P_{\\mathrm{RW},i}',
     ariaLabel: 'P sub RW comma i',
-    description: 'Aggregate room power under ROOMWISE operation during the corresponding interval',
+    description: 'Aggregate room power under ROOMWISE Adaptive Operation during the matching interval',
     unit: 'W',
   },
   {
@@ -52,15 +53,15 @@ const VARIABLE_DEFINITIONS: VariableDefinition[] = [
     unit: 'count',
   },
   {
-    tex: 'P_{\\mathrm{B}}(t)',
-    ariaLabel: 'P sub B of t',
-    description: 'Time-varying aggregate baseline power',
+    tex: 'P_{\\mathrm{ROS}}(t)',
+    ariaLabel: 'P sub ROS of t',
+    description: 'Time-varying Reference Operating Scenario (ROS) aggregate power',
     unit: 'W',
   },
   {
     tex: 'P_{\\mathrm{RW}}(t)',
     ariaLabel: 'P sub RW of t',
-    description: 'Time-varying aggregate ROOMWISE power',
+    description: 'Time-varying ROOMWISE Adaptive Operation aggregate power',
     unit: 'W',
   },
   {
@@ -82,28 +83,29 @@ const SIGN_INTERPRETATIONS = [
     tex: 'E_{\\mathrm{RCEM}} > 0',
     ariaLabel: 'E sub RCEM greater than zero',
     label: 'Positive result',
-    meaning: 'Energy avoided relative to the defined baseline.',
+    meaning: 'Energy avoided relative to the Reference Operating Scenario (ROS).',
     tone: 'text-emerald-800',
   },
   {
     tex: 'E_{\\mathrm{RCEM}} = 0',
     ariaLabel: 'E sub RCEM equals zero',
     label: 'Zero result',
-    meaning: 'No energy difference between baseline and ROOMWISE operation.',
+    meaning: 'No energy difference between ROS and ROOMWISE Adaptive Operation.',
     tone: 'text-[#4a5851]',
   },
   {
     tex: 'E_{\\mathrm{RCEM}} < 0',
     ariaLabel: 'E sub RCEM less than zero',
     label: 'Negative result',
-    meaning: 'ROOMWISE consumed more energy than the baseline (retained without clamping to zero).',
+    meaning:
+      'ROOMWISE Adaptive Operation consumed more energy than ROS (retained without clamping to zero).',
     tone: 'text-rose-800',
   },
 ];
 
 const FUTURE_PROVENANCE_REQUIREMENTS: React.ReactNode[] = [
-  'Meter-measured baseline power vs. meter-measured ROOMWISE power.',
-  'Explicit separation from model-estimated power and scenario-assumed power (including the separate 70-classroom survey estimate).',
+  'Meter-measured Reference Operating Scenario (ROS) power vs. meter-measured ROOMWISE Adaptive Operation power.',
+  'Explicit separation from simulation-modelled ROS estimates and the separate 70-classroom survey-based potential savings estimate.',
   'Discrete measurement intervals or continuous time-series records with non-overlapping bounds.',
   <>
     Measurement duration, explicit units (watts and hours, or seconds with{' '}
@@ -117,52 +119,53 @@ export const RcemModelPanel: React.FC = () => {
     <section
       id="rcem-model-panel"
       aria-labelledby="rcem-panel-heading"
-      className="rw-surface rounded-2xl p-5 sm:p-7 space-y-6 scroll-mt-6"
+      className="rounded-xl border border-[rgba(17,25,22,0.12)] bg-white overflow-hidden scroll-mt-6"
     >
-      {/* Panel Header */}
-      <div className="flex flex-col md:flex-row md:items-start justify-between gap-3 pb-4 border-b border-neutral-200/80">
+      {/* Obsidian-Pine Mathematical Specification Masthead */}
+      <div className="rw-obsidian-panel border-x-0 border-t-0 rounded-none shadow-none text-[#f4f6f4] px-5 py-5 sm:px-7 sm:py-6 flex flex-col md:flex-row md:items-start justify-between gap-4 border-b border-white/10">
         <div className="space-y-1.5 min-w-0">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] font-semibold text-emerald-800">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10.5px] font-mono uppercase tracking-[0.09em] text-[#34d399]">
             <Sigma className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
             <span>Mathematical Specification</span>
-            <span aria-hidden="true" className="text-neutral-300">·</span>
-            <span className="text-[#4a5851] font-medium">
+            <span aria-hidden="true" className="text-white/25">·</span>
+            <span className="text-[#9cb0a7] normal-case tracking-normal font-sans">
               Model formulated for ROOMWISE · Empirical inputs pending
             </span>
           </div>
           <h2
             id="rcem-panel-heading"
-            className="text-base sm:text-lg font-bold text-[#111815] tracking-tight leading-snug"
+            className="font-display text-lg sm:text-xl font-semibold text-white tracking-tight leading-snug"
           >
             ROOMWISE Counterfactual Energy Model (RCEM)
           </h2>
-          <p className="text-xs sm:text-[13px] text-[#4a5851] leading-relaxed max-w-3xl">
-            RCEM calculates the difference between reference and ROOMWISE power across
-            corresponding time intervals, accumulating that difference over time to estimate energy
-            avoided.
+          <p className="text-xs sm:text-[13px] text-[#b8cbc3] leading-relaxed max-w-3xl">
+            RCEM calculates the difference between Reference Operating Scenario (ROS) power and
+            ROOMWISE Adaptive Operation power across matching time intervals to quantify energy avoided.
           </p>
         </div>
 
-        <div className="text-[11px] font-mono text-[#64726b] tabular-nums shrink-0 md:text-right">
-          <div>Specification Only</div>
+        <div className="text-[11px] font-mono text-[#9cb0a7] tabular-nums shrink-0 md:text-right">
+          <div className="text-[#34d399] font-semibold">Specification Only</div>
           <div>Empirical outputs unavailable</div>
         </div>
       </div>
 
+      <div className="p-5 sm:p-7 space-y-6">
       {/* Visible Current-Stage Disclosure */}
       <div
         role="note"
         aria-label="RCEM current empirical status"
-        className="px-4 sm:px-5 py-3.5 rounded-xl bg-[#f3f5f4] border border-neutral-200/90 space-y-1"
+        className="px-4 sm:px-5 py-3.5 rounded-lg bg-[#fafbf9] border border-[rgba(17,25,22,0.1)] space-y-1"
       >
-        <div className="text-xs font-semibold text-[#111815]">
+        <div className="text-xs font-semibold text-[#111916]">
           Model formulated for ROOMWISE · Empirical inputs pending
         </div>
         <p className="text-xs text-[#4a5851] leading-relaxed">
           The RCEM mathematical formulation has been developed specifically for ROOMWISE in
-          discrete-time and continuous-time forms. Actual interval-level baseline and ROOMWISE
-          power readings have not yet been collected. Numerical RCEM results and empirical
-          validation are therefore not currently available.
+          discrete-time and continuous-time forms. Actual interval-level meter readings for
+          Reference Operating Scenario (ROS) and ROOMWISE Adaptive Operation have not yet been
+          collected. Empirical RCEM results and meter validation are therefore currently pending,
+          distinct from Overview&apos;s simulated ROS comparison and the 70-classroom survey estimate.
         </p>
       </div>
 
@@ -191,7 +194,7 @@ export const RcemModelPanel: React.FC = () => {
               tex={DISCRETE_EQUATION_TEX}
               display
               className="text-[#111815] text-[15px] sm:text-[17px]"
-              ariaLabel="Discrete-time RCEM equation: E sub RCEM equals 1 divided by 1000 times the sum from i equals 1 to N of P sub B comma i minus P sub RW comma i, all times Delta t sub i, enclosed in a box."
+              ariaLabel="Discrete-time RCEM equation: E sub RCEM equals 1 divided by 1000 times the sum from i equals 1 to N of P sub ROS comma i minus P sub RW comma i, all times Delta t sub i, enclosed in a box."
             />
           </div>
 
@@ -214,7 +217,8 @@ export const RcemModelPanel: React.FC = () => {
             </div>
             <p className="text-xs text-[#4a5851] leading-relaxed">
               The general representation for continuously varying power. It integrates the
-              difference between baseline and ROOMWISE power over the comparison period.
+              difference between Reference Operating Scenario (ROS) and ROOMWISE Adaptive Operation
+              power over the comparison period.
             </p>
           </div>
 
@@ -223,7 +227,7 @@ export const RcemModelPanel: React.FC = () => {
               tex={CONTINUOUS_EQUATION_TEX}
               display
               className="text-[#111815] text-[15px] sm:text-[17px]"
-              ariaLabel="Continuous-time RCEM equation: E sub RCEM equals 1 divided by 1000 times the integral from t sub 0 to t sub 1 of P sub B of t minus P sub RW of t with respect to t, enclosed in a box."
+              ariaLabel="Continuous-time RCEM equation: E sub RCEM equals 1 divided by 1000 times the integral from t sub 0 to t sub 1 of P sub ROS of t minus P sub RW of t with respect to t, enclosed in a box."
             />
           </div>
 
@@ -297,8 +301,8 @@ export const RcemModelPanel: React.FC = () => {
             ))}
           </div>
           <p className="text-[11px] text-[#64726b] leading-relaxed">
-            Negative values are never clamped to zero so periods where ROOMWISE draws more power
-            than the baseline remain transparently visible.
+            Negative values are never clamped to zero so periods where ROOMWISE Adaptive Operation
+            draws more power than ROS remain transparently visible.
           </p>
         </div>
 
@@ -308,10 +312,10 @@ export const RcemModelPanel: React.FC = () => {
             Data Provenance Boundaries for Future Empirical Integration
           </h3>
           <p className="text-xs text-[#4a5851] leading-relaxed">
-            Existing operational telemetry and simulated intervention records shown elsewhere in
-            Energy History are not treated as measured RCEM evidence, and the separate 70-classroom
-            survey wastage calculation remains independent. When empirical meter data is collected,
-            future RCEM calculations will distinguish:
+            Simulation-modelled ROS comparisons on Overview and intervention records in Energy
+            History are not treated as measured RCEM evidence, and the 70-classroom survey-based
+            potential savings estimate remains strictly independent. When empirical meter data is
+            collected, future RCEM calculations will distinguish:
           </p>
           <ul className="space-y-1.5 text-xs text-[#4a5851]">
             {FUTURE_PROVENANCE_REQUIREMENTS.map((req, idx) => (
@@ -324,6 +328,7 @@ export const RcemModelPanel: React.FC = () => {
             ))}
           </ul>
         </div>
+      </div>
       </div>
     </section>
   );

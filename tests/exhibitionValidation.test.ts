@@ -29,6 +29,7 @@ import { buildSchoolDayDemandProfile } from '../src/utils/demandProfile.ts';
 import {
   computeCampusCanonicalSummary,
   computeClassroomCanonicalMetrics,
+  computeClassroomReferenceOperatingWatts,
   computeHeatIndexCelsius,
   computeIndoorNaturalDaylightLux,
   computeOutdoorIlluminanceLux,
@@ -169,6 +170,41 @@ test('25-node classroom dataset & canonical energy math maintain exact dimension
   assert.ok(
     Math.abs(summary.dailyEmissionsKgCO2 - summary.dailyActualKWh * INITIAL_SCHOOL_SETTINGS.gridCarbonFactorKgCO2PerKWh) <= 0.01
   );
+
+  // Reference Operating Scenario (ROS) checks: distinct from 13,390 W nameplate ceiling, unclamped avoidance
+  assert.ok(
+    summary.totalRosPowerWatts > summary.totalCurrentPowerWatts &&
+      summary.totalRosPowerWatts < summary.totalRatedPowerWatts,
+    `Expected ROS power (${summary.totalRosPowerWatts}W) to sit between adaptive (${summary.totalCurrentPowerWatts}W) and nameplate max (${summary.totalRatedPowerWatts}W)`
+  );
+  assert.equal(summary.dailyAvoidedKWh, Number((summary.dailyRosKWh - summary.dailyActualKWh).toFixed(2)));
+  assert.ok(summary.dailyAvoidedKWh > 0);
+  assert.ok(summary.dailyCostAvoidedINR > 0);
+  assert.ok(summary.monthlyAvoidedKWh > 0);
+  assert.ok(summary.monthlyCostAvoidedINR > 0);
+});
+
+test('ROS avoids clamping when ROOMWISE Adaptive Operation exceeds Reference Operating Scenario', () => {
+  const sampleRoom = INITIAL_CLASSROOMS[0];
+  const spec = getRoomApplianceSpec(sampleRoom.id)!;
+  const fullApps = buildExpandedAppliancesFromSpec(spec).map((a) => ({
+    ...a,
+    currentPowerWatts: a.powerRatingWatts,
+    outputPercent: 100,
+    isManualOverride: true,
+    operatingMode: 'MANUAL' as const,
+  }));
+  const overdrivenRoom = {
+    ...sampleRoom,
+    appliances: fullApps,
+    currentPowerWatts: computeAppliancesRatedPowerWatts(fullApps),
+    environment: { ...sampleRoom.environment, heatIndex: 28 },
+  };
+  const rosW = computeClassroomReferenceOperatingWatts(overdrivenRoom);
+  assert.ok(overdrivenRoom.currentPowerWatts > rosW);
+  const metrics = computeClassroomCanonicalMetrics(overdrivenRoom, INITIAL_SCHOOL_SETTINGS);
+  assert.ok(metrics.dailyAvoidedKWh < 0, 'Unclamped dailyAvoidedKWh must stay negative when manual override exceeds ROS');
+  assert.ok(metrics.dailyCostAvoidedINR < 0, 'Unclamped dailyCostAvoidedINR must stay negative when manual override exceeds ROS');
 });
 
 test('Physical daylight & heat-index coupling enforces 0 lx natural daylight at night and positive indoor illuminance by day', () => {
@@ -228,11 +264,11 @@ test('70-classroom school-wide reference scenario arithmetic is dimensionally ex
   assert.ok(Math.abs(campusAnnualINR - 70560) < 1e-9);
 });
 
-test('RCEM discrete and continuous formulations render cleanly in strict KaTeX and preserve exact notation', () => {
+test('RCEM discrete and continuous formulations render cleanly in strict KaTeX and preserve exact P_ROS notation', () => {
   const discreteTex =
-    '\\boxed{E_{\\mathrm{RCEM}} = \\frac{1}{1000} \\sum_{i=1}^{N} (P_{\\mathrm{B},i} - P_{\\mathrm{RW},i}) \\Delta t_i}';
+    '\\boxed{E_{\\mathrm{RCEM}} = \\frac{1}{1000} \\sum_{i=1}^{N} (P_{\\mathrm{ROS},i} - P_{\\mathrm{RW},i}) \\Delta t_i}';
   const continuousTex =
-    '\\boxed{E_{\\mathrm{RCEM}} = \\frac{1}{1000} \\int_{t_0}^{t_1} \\left[P_{\\mathrm{B}}(t) - P_{\\mathrm{RW}}(t)\\right] dt}';
+    '\\boxed{E_{\\mathrm{RCEM}} = \\frac{1}{1000} \\int_{t_0}^{t_1} \\left[P_{\\mathrm{ROS}}(t) - P_{\\mathrm{RW}}(t)\\right] dt}';
 
   const discreteHtml = katex.renderToString(discreteTex, {
     displayMode: true,
@@ -246,14 +282,16 @@ test('RCEM discrete and continuous formulations render cleanly in strict KaTeX a
   });
 
   assert.ok(discreteHtml.includes('RCEM'));
+  assert.ok(discreteHtml.includes('ROS'));
   assert.ok(continuousHtml.includes('RCEM'));
+  assert.ok(continuousHtml.includes('ROS'));
 
   // Verify discrete formula sign-handling & watt-hour to kWh conversion
-  const calcRcemDiscrete = (intervals: Array<{ pB: number; pRW: number; dtHours: number }>) =>
-    intervals.reduce((acc, x) => acc + (x.pB - x.pRW) * x.dtHours, 0) / 1000;
+  const calcRcemDiscrete = (intervals: Array<{ pRos: number; pRW: number; dtHours: number }>) =>
+    intervals.reduce((acc, x) => acc + (x.pRos - x.pRW) * x.dtHours, 0) / 1000;
 
-  assert.ok(Math.abs(calcRcemDiscrete([{ pB: 540, pRW: 240, dtHours: 1.0 }]) - 0.3) < 1e-9);
-  assert.ok(calcRcemDiscrete([{ pB: 300, pRW: 400, dtHours: 1.0 }]) < 0, 'Negative sign when P_RW > P_B must be preserved');
+  assert.ok(Math.abs(calcRcemDiscrete([{ pRos: 540, pRW: 240, dtHours: 1.0 }]) - 0.3) < 1e-9);
+  assert.ok(calcRcemDiscrete([{ pRos: 300, pRW: 400, dtHours: 1.0 }]) < 0, 'Negative sign when P_RW > P_ROS must be preserved');
 });
 
 test('Campus Live 3D architectural layout contains exactly the 5 academic blocks and excludes residential zone', () => {

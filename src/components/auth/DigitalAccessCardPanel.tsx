@@ -22,6 +22,7 @@ import { useAuth, authFetch, setStoredClientSessionToken } from '../../context/A
 import { useToast } from '../../context/ToastContext';
 import { VerifiedAdminInfo } from '../../types/auth';
 import { ROOMWISE_EASE } from '../../utils/motion';
+import { ActionButton, InlineActionLink } from '../common/DesignSystem';
 
 interface Props {
   selectedStaff?: VerifiedAdminInfo;
@@ -302,14 +303,13 @@ export const DigitalAccessCardPanel: React.FC<Props> = ({
   return (
     <div className={embedded ? 'space-y-4' : 'p-6 space-y-5 bg-white'}>
       {onBack && phase !== 'granted' && (
-        <button
-          type="button"
+        <InlineActionLink
+          tone="neutral"
+          icon={<ArrowLeft className="w-3.5 h-3.5" />}
           onClick={handleBackClick}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-600 hover:text-neutral-900 transition-colors cursor-pointer"
         >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          <span>Back to Sign-In options</span>
-        </button>
+          Back to Sign-In options
+        </InlineActionLink>
       )}
 
       <AnimatePresence mode="wait">
@@ -361,15 +361,14 @@ export const DigitalAccessCardPanel: React.FC<Props> = ({
               </p>
             </div>
 
-            <motion.button
-              type="button"
-              whileTap={{ scale: 0.985 }}
+            <ActionButton
+              variant="forest"
+              size="md"
               onClick={initiateChallenge}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition-colors cursor-pointer"
+              icon={<RefreshCw className="w-3.5 h-3.5" />}
             >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span>Generate Fresh QR Code</span>
-            </motion.button>
+              Generate Fresh QR Code
+            </ActionButton>
           </motion.div>
         ) : (
           <motion.div
@@ -455,34 +454,24 @@ export const DigitalAccessCardPanel: React.FC<Props> = ({
                     Expires {formatCountdown(secondsLeft)}
                   </span>
                   <span aria-hidden="true">·</span>
-                  <button
-                    type="button"
+                  <InlineActionLink
+                    tone="emerald"
                     onClick={initiateChallenge}
-                    className="text-emerald-700 hover:text-emerald-900 font-sans font-semibold hover:underline cursor-pointer"
+                    className="font-sans"
                   >
                     Refresh QR
-                  </button>
+                  </InlineActionLink>
                 </div>
               )}
 
               <div className="pt-2 border-t border-neutral-100 flex items-center justify-between gap-2 text-[11px] text-neutral-500">
-                <button
-                  type="button"
+                <InlineActionLink
+                  tone={copiedLink ? 'emerald' : 'neutral'}
+                  icon={copiedLink ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                   onClick={handleCopyMobileUrl}
-                  className="inline-flex items-center gap-1 text-neutral-600 hover:text-neutral-900 font-medium cursor-pointer"
                 >
-                  {copiedLink ? (
-                    <>
-                      <Check className="w-3.5 h-3.5 text-emerald-700" />
-                      <span className="text-emerald-700">Copied mobile URL</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5" />
-                      <span>Copy phone link</span>
-                    </>
-                  )}
-                </button>
+                  {copiedLink ? 'Copied mobile URL' : 'Copy phone link'}
+                </InlineActionLink>
                 <a
                   href="/access-card"
                   target="_blank"

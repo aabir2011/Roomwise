@@ -13,7 +13,6 @@ import {
   ScanFace,
   AlertTriangle,
   CheckCircle2,
-  Loader2,
   Eye,
   EyeOff,
   KeyRound,
@@ -27,6 +26,7 @@ import {
 } from '../../context/AuthContext';
 import { formatWebAuthnError } from '../../utils/webauthnClient';
 import { tabContentVariants } from '../../utils/motion';
+import { ActionButton, IconButton, InlineActionLink } from '../common/DesignSystem';
 
 export interface InspectedChallenge {
   challengeId: string;
@@ -245,14 +245,15 @@ export const PhoneComputerApprovalCard: React.FC<Props> = ({
             Authorised by <strong className="text-neutral-800">{approvedByName}</strong>
           </div>
 
-          <motion.button
-            type="button"
-            whileTap={{ scale: 0.985 }}
+          <ActionButton
+            variant="primary"
+            size="lg"
+            fullWidth
             onClick={onDone}
-            className="w-full min-h-[48px] px-4 py-3 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold transition-colors cursor-pointer"
+            className="min-h-[46px]"
           >
             Done
-          </motion.button>
+          </ActionButton>
         </div>
       </motion.div>
     );
@@ -270,14 +271,13 @@ export const PhoneComputerApprovalCard: React.FC<Props> = ({
       <div className="h-1 bg-gradient-to-r from-emerald-800 via-emerald-600 to-teal-600" />
       <div className="p-5 sm:p-6 space-y-4">
         <div className="flex items-center justify-between gap-2">
-          <button
-            type="button"
+          <InlineActionLink
+            tone="neutral"
+            icon={<ArrowLeft className="w-3.5 h-3.5" />}
             onClick={onCancelScan}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-600 hover:text-neutral-900 transition-colors cursor-pointer"
           >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Back</span>
-          </button>
+            Back
+          </InlineActionLink>
           <span className="text-xs font-mono font-bold text-emerald-800 tabular-nums shrink-0">
             Expires in {secondsLeft}s
           </span>
@@ -359,26 +359,26 @@ export const PhoneComputerApprovalCard: React.FC<Props> = ({
                 placeholder="Enter staff password"
                 className="w-full min-h-[42px] px-3.5 py-2 pr-10 bg-white border border-neutral-300 rounded-xl text-xs text-neutral-900 focus:ring-2 focus:ring-emerald-600 focus:outline-none"
               />
-              <button
-                type="button"
+              <IconButton
+                variant="ghost"
+                size="xs"
+                label={showPassword ? 'Hide password' : 'Show password'}
                 onClick={() => setShowPassword((s) => !s)}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-neutral-700 cursor-pointer"
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                className="!absolute right-2 top-1/2 -translate-y-1/2"
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
+              </IconButton>
             </div>
             {canUsePasskeyInline && (
-              <button
-                type="button"
+              <InlineActionLink
+                tone="emerald"
                 onClick={() => {
                   setUsePasswordOverride(false);
                   setErrorMsg(null);
                 }}
-                className="text-[11px] font-semibold text-emerald-800 hover:underline cursor-pointer"
               >
                 Use registered passkey instead
-              </button>
+              </InlineActionLink>
             )}
           </div>
         )}
@@ -390,39 +390,34 @@ export const PhoneComputerApprovalCard: React.FC<Props> = ({
               <span>Your registered passkey will verify your identity when you authorise.</span>
             </div>
             {needsInlineVerify && (
-              <button
-                type="button"
+              <InlineActionLink
+                tone="emerald"
+                icon={<KeyRound className="w-3 h-3" />}
                 onClick={() => setUsePasswordOverride(true)}
-                className="inline-flex items-center gap-1 font-semibold text-emerald-900 hover:underline shrink-0 cursor-pointer"
+                className="shrink-0"
               >
-                <KeyRound className="w-3 h-3" />
-                <span>Password</span>
-              </button>
+                Password
+              </InlineActionLink>
             )}
           </div>
         )}
 
         <div className="space-y-2.5 pt-1">
-          <motion.button
-            type="button"
-            whileTap={decisionState !== 'idle' ? undefined : { scale: 0.985 }}
-            disabled={decisionState !== 'idle'}
+          <ActionButton
+            variant="forest"
+            size="lg"
+            fullWidth
+            loading={decisionState !== 'idle'}
+            icon={<ShieldCheck className="w-5 h-5" />}
             onClick={handleAuthoriseDevice}
-            className="w-full min-h-[52px] px-4 py-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-extrabold tracking-wide transition-colors shadow-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+            className="min-h-[48px] text-sm font-bold tracking-wide"
           >
-            {decisionState !== 'idle' ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <ShieldCheck className="w-5 h-5" />
-            )}
-            <span>
-              {decisionState === 'verifying-passkey'
-                ? 'Verifying Passkey...'
-                : decisionState === 'submitting'
-                ? 'Authorising Computer...'
-                : 'AUTHORISE DEVICE'}
-            </span>
-          </motion.button>
+            {decisionState === 'verifying-passkey'
+              ? 'Verifying Passkey...'
+              : decisionState === 'submitting'
+              ? 'Authorising Computer...'
+              : 'AUTHORISE DEVICE'}
+          </ActionButton>
           <p className="text-[11px] text-center text-neutral-500">
             Review the computer details above before authorising. Close or tap Back to cancel.
           </p>

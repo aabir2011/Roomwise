@@ -16,6 +16,7 @@ import {
   Undo2,
   X,
 } from 'lucide-react';
+import { ActionButton, IconButton, SegmentedControl } from '../common/DesignSystem';
 import type {
   BuildingPolygon,
   CampusVisualOverlay,
@@ -565,94 +566,76 @@ export const CampusFootprintMap: React.FC<CampusFootprintMapProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5">
-          {/* Top-Down vs 2.5D Switch */}
-          <div className="inline-flex items-center p-0.5 rounded-lg bg-neutral-100 border border-neutral-200/80 text-[11px]">
-            <button
-              type="button"
-              onClick={() => setViewMode('2.5d')}
-              className={`px-2 py-0.5 rounded-md font-medium whitespace-nowrap transition-colors cursor-pointer ${
-                viewMode === '2.5d'
-                  ? 'bg-white text-neutral-900 shadow-2xs font-semibold'
-                  : 'text-neutral-600 hover:text-neutral-900'
-              }`}
-            >
-              2.5D
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('topdown')}
-              className={`px-2 py-0.5 rounded-md font-medium whitespace-nowrap transition-colors cursor-pointer ${
-                viewMode === 'topdown'
-                  ? 'bg-white text-neutral-900 shadow-2xs font-semibold'
-                  : 'text-neutral-600 hover:text-neutral-900'
-              }`}
-            >
-              Top-Down
-            </button>
-          </div>
+          <SegmentedControl<'2.5d' | 'topdown'>
+            layoutId="campus-map-viewmode"
+            size="sm"
+            tone="light"
+            value={viewMode}
+            onChange={setViewMode}
+            ariaLabel="Map projection mode"
+            options={[
+              { id: '2.5d', label: '2.5D' },
+              { id: 'topdown', label: 'Top-Down' },
+            ]}
+          />
 
-          <button
-            type="button"
+          <ActionButton
+            variant={showPvArrays ? 'primary' : 'secondary'}
+            size="xs"
+            aria-pressed={showPvArrays}
             onClick={() => setShowPvArrays((v) => !v)}
-            className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-[11px] font-medium whitespace-nowrap transition-colors cursor-pointer ${
-              showPvArrays
-                ? 'bg-[#0b2e22] text-white border-[#0b2e22]'
-                : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50'
-            }`}
+            icon={<Grid2x2 className="w-3 h-3" />}
           >
-            <Grid2x2 className="w-3 h-3 shrink-0" />
-            <span>PV Rows</span>
-          </button>
+            PV Rows
+          </ActionButton>
 
           {isAdminUnlocked && onCreateDrawnBuilding && !drawMode && (
-            <button
-              type="button"
+            <ActionButton
+              variant="soft"
+              size="xs"
               onClick={() => {
                 setDrawMode(true);
                 setDraftPoints([]);
               }}
-              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold bg-emerald-50 text-emerald-900 border border-emerald-200 hover:bg-emerald-100 transition-colors cursor-pointer whitespace-nowrap"
+              icon={<PenTool className="w-3 h-3" />}
             >
-              <PenTool className="w-3 h-3 shrink-0" />
-              <span>Draw</span>
-            </button>
+              Draw
+            </ActionButton>
           )}
 
           <div className="inline-flex items-center gap-1">
-            <button
-              type="button"
+            <IconButton
+              variant="secondary"
+              size="xs"
+              label="Zoom in"
               onClick={() => handleZoom(0.76)}
-              title="Zoom in"
-              aria-label="Zoom in"
-              className="p-1.5 sm:p-1 rounded-lg border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
-            </button>
-            <button
-              type="button"
+            </IconButton>
+            <IconButton
+              variant="secondary"
+              size="xs"
+              label="Zoom out"
               onClick={() => handleZoom(1.32)}
-              title="Zoom out"
-              aria-label="Zoom out"
-              className="p-1.5 sm:p-1 rounded-lg border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 cursor-pointer"
             >
               <Minus className="w-3.5 h-3.5" />
-            </button>
-            <button
-              type="button"
+            </IconButton>
+            <ActionButton
+              variant="secondary"
+              size="xs"
               onClick={handleFitCampus}
               title="Fit campus layout"
-              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-neutral-200 bg-white text-[11px] font-medium text-neutral-700 hover:bg-neutral-50 cursor-pointer whitespace-nowrap"
+              icon={<Maximize2 className="w-3 h-3" />}
             >
-              <Maximize2 className="w-3 h-3 shrink-0" />
-              <span>Fit</span>
-            </button>
+              Fit
+            </ActionButton>
           </div>
         </div>
       </div>
 
       {/* Draw mode active bar */}
       {drawMode && (
-        <div className="px-3.5 py-2 bg-[#0b2e22] text-emerald-50 flex flex-wrap items-center justify-between gap-2 text-xs">
+        <div className="px-3.5 py-2 rw-obsidian-panel border-none rounded-none text-emerald-50 flex flex-wrap items-center justify-between gap-2 text-xs">
           <div className="flex items-center gap-2">
             <PenTool className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
             <span>
@@ -661,35 +644,35 @@ export const CampusFootprintMap: React.FC<CampusFootprintMapProps> = ({
             </span>
           </div>
           <div className="flex items-center gap-1.5">
-            <button
-              type="button"
+            <ActionButton
+              variant="dark-ghost"
+              size="xs"
               disabled={draftPoints.length === 0}
               onClick={() => setDraftPoints((p) => p.slice(0, -1))}
-              className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-white/10 hover:bg-white/20 disabled:opacity-40 text-[11px] cursor-pointer whitespace-nowrap"
+              icon={<Undo2 className="w-3 h-3" />}
             >
-              <Undo2 className="w-3 h-3" />
               Undo
-            </button>
-            <button
-              type="button"
+            </ActionButton>
+            <ActionButton
+              variant="forest"
+              size="xs"
               disabled={draftPoints.length < 3}
               onClick={handleFinishDraw}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-emerald-500 text-emerald-950 font-semibold hover:bg-emerald-400 disabled:opacity-40 text-[11px] cursor-pointer whitespace-nowrap"
+              icon={<Check className="w-3 h-3" />}
             >
-              <Check className="w-3 h-3" />
               Save
-            </button>
-            <button
-              type="button"
+            </ActionButton>
+            <ActionButton
+              variant="dark-ghost"
+              size="xs"
               onClick={() => {
                 setDrawMode(false);
                 setDraftPoints([]);
               }}
-              className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-white/10 hover:bg-white/20 text-[11px] cursor-pointer whitespace-nowrap"
+              icon={<X className="w-3 h-3" />}
             >
-              <X className="w-3 h-3" />
               Cancel
-            </button>
+            </ActionButton>
           </div>
         </div>
       )}

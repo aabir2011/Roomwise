@@ -30,9 +30,48 @@ import { useAuth, getStoredClientSessionToken } from '../../context/AuthContext'
 import { useDeviceClassification } from '../../utils/deviceDetection';
 import { RoomwiseLogo } from '../common/RoomwiseLogo';
 import { AnimatedNumber, Tooltip } from '../common/MotionPrimitives';
+import { ActionButton, IconButton } from '../common/DesignSystem';
 import { ROOMWISE_EASE, SPRING_GENTLE, SPRING_SNAPPY, backdropVariants } from '../../utils/motion';
 
 const SIDEBAR_COLLAPSE_KEY = 'roomwise_sidebar_collapsed';
+
+interface NavGroup {
+  label: string;
+  items: Array<{
+    id: string;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+  }>;
+}
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    label: 'Campus',
+    items: [
+      { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
+      { id: 'digital-twin', label: 'Digital Twin', icon: Layers },
+      { id: 'campus-live', label: 'Campus Live', icon: Box },
+      { id: 'classrooms', label: 'Classrooms (25)', icon: School },
+    ],
+  },
+  {
+    label: 'Intelligence',
+    items: [
+      { id: 'environmental-solar', label: 'Environmental & Solar', icon: CloudSun },
+      { id: 'analytics', label: 'Energy Analytics', icon: LineChart },
+      { id: 'history', label: 'Energy History', icon: History },
+      { id: 'space-intelligence', label: 'Space Intelligence', icon: ArrowRightLeft },
+    ],
+  },
+  {
+    label: 'Governance',
+    items: [
+      { id: 'audit', label: 'Energy Audit', icon: ShieldCheck },
+      { id: 'reports', label: 'Reports & BEE', icon: FileSpreadsheet },
+      { id: 'settings', label: 'Settings', icon: SlidersHorizontal },
+    ],
+  },
+];
 
 export const Sidebar: React.FC = () => {
   const {
@@ -84,24 +123,9 @@ export const Sidebar: React.FC = () => {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [isMobileMenuOpen, setIsMobileMenuOpen]);
 
-  const navItems = [
-    { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
-    { id: 'digital-twin', label: 'Digital Twin', icon: Layers },
-    { id: 'campus-live', label: 'Campus Live', icon: Box },
-    { id: 'classrooms', label: 'Classrooms (25)', icon: School },
-    { id: 'environmental-solar', label: 'Environmental & Solar', icon: CloudSun },
-    { id: 'analytics', label: 'Energy Analytics', icon: LineChart },
-    { id: 'history', label: 'Energy History', icon: History },
-    { id: 'space-intelligence', label: 'Space Intelligence', icon: ArrowRightLeft },
-    { id: 'audit', label: 'Energy Audit', icon: ShieldCheck },
-    { id: 'reports', label: 'Reports & BEE', icon: FileSpreadsheet },
-    { id: 'settings', label: 'Settings', icon: SlidersHorizontal },
-  ];
-
   const ratedUtilizationPct = Math.min(100, Math.round(campusSummary.ratedUtilizationPercent));
   const ratedMaxKW = (campusSummary.totalRatedPowerWatts / 1000).toFixed(2);
   const availableHeadroomKW = (campusSummary.availableHeadroomWatts / 1000).toFixed(2);
-
   const unresolvedAuditCount = auditFindings.filter((f) => !f.isResolved).length;
 
   const handleNavClick = (tabId: string) => {
@@ -110,185 +134,220 @@ export const Sidebar: React.FC = () => {
   };
 
   const renderSidebarInner = (compact: boolean) => (
-    <div className="flex flex-col h-full justify-between select-none">
-      {/* Brand & Navigation */}
-      <div className="min-w-0">
-        <div className={`border-b border-neutral-200/70 transition-all ${compact ? 'p-3' : 'px-5 py-4'}`}>
+    <div className="flex flex-col h-full min-h-0 justify-between select-none text-[#e5eee8]">
+      {/* Brand & Grouped Architectural Navigation */}
+      <div className="min-w-0 min-h-0 flex-1 flex flex-col overflow-hidden">
+        <div
+          className={`border-b border-white/[0.08] transition-all shrink-0 ${
+            compact ? 'p-2.5' : 'px-3.5 py-2.5'
+          }`}
+        >
           <div className={`flex items-center ${compact ? 'justify-center' : 'justify-between gap-2'}`}>
             {compact ? (
-              <button
-                type="button"
-                onClick={toggleCollapse}
+              <IconButton
+                variant="dark-ghost"
+                size="md"
+                label="Expand navigation sidebar"
                 title="Expand navigation sidebar"
-                aria-label="Expand navigation sidebar"
-                className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-neutral-100/80 transition-colors"
+                onClick={toggleCollapse}
+                className="!bg-white/[0.05] !border-white/10 hover:!bg-white/[0.1]"
               >
                 <img
                   src="/assets/aistudio/logo__transparent__55b16555.png"
                   alt="ROOMWISE"
-                  className="w-7 h-7 object-contain"
+                  className="w-6 h-6 object-contain"
                 />
-              </button>
+              </IconButton>
             ) : (
-              <RoomwiseLogo size="md" />
+              <RoomwiseLogo size="md" tone="dark" />
             )}
 
             {!compact && (
-              <button
-                type="button"
-                onClick={toggleCollapse}
-                className="hidden lg:inline-flex p-1.5 text-[#64726b] hover:text-[#111815] rounded-lg hover:bg-neutral-100/80 transition-colors shrink-0"
+              <IconButton
+                variant="dark-ghost"
+                size="xs"
+                label="Collapse navigation sidebar"
                 title="Collapse sidebar"
-                aria-label="Collapse navigation sidebar"
+                onClick={toggleCollapse}
+                className="hidden lg:inline-flex !bg-transparent !border-transparent hover:!bg-white/[0.08] text-[#8ea69b]"
               >
                 <PanelLeftClose className="w-4 h-4" />
-              </button>
+              </IconButton>
             )}
 
-            <button
-              type="button"
+            <IconButton
+              variant="dark-ghost"
+              size="xs"
+              label="Close navigation"
               onClick={() => setIsMobileMenuOpen(false)}
-              className="lg:hidden p-1.5 text-[#64726b] hover:text-[#111815] rounded-lg hover:bg-neutral-100 transition-colors"
-              aria-label="Close navigation"
+              className="lg:hidden !bg-transparent !border-transparent hover:!bg-white/[0.08] text-[#8ea69b]"
             >
               <X className="w-5 h-5" />
-            </button>
+            </IconButton>
           </div>
 
           {compact ? (
-            <div className="mt-2.5 flex justify-center">
-              <button
-                type="button"
-                onClick={toggleCollapse}
-                className="p-1.5 text-[#64726b] hover:text-[#111815] rounded-lg hover:bg-neutral-100 transition-colors"
-                title="Expand sidebar"
-                aria-label="Expand sidebar"
-              >
-                <PanelLeftOpen className="w-4 h-4" />
-              </button>
+            <div className="mt-2 flex justify-center">
+              <Tooltip content="Expand navigation" side="right">
+                <IconButton
+                  variant="dark-ghost"
+                  size="xs"
+                  label="Expand sidebar"
+                  onClick={toggleCollapse}
+                  className="!bg-transparent !border-transparent hover:!bg-white/[0.08] text-[#8ea69b]"
+                >
+                  <PanelLeftOpen className="w-4 h-4" />
+                </IconButton>
+              </Tooltip>
             </div>
           ) : (
-            <div className="mt-3.5 pt-3 border-t border-neutral-200/60">
+            <div className="mt-2 pt-2 border-t border-white/[0.07] flex items-center justify-between gap-2">
               <div
-                className="text-xs font-semibold text-[#111815] truncate"
-                title={settings.institutionName}
+                className="text-[11px] font-medium text-[#d5e3db] truncate"
+                title={`${settings.institutionName} · 5 Blocks · 25 Monitored Nodes`}
               >
                 {settings.institutionName}
               </div>
-              <div className="text-[11px] text-[#64726b] truncate mt-0.5 tabular-nums">
-                5 Blocks · 25 Nodes
-              </div>
+              <span className="text-[9.5px] font-mono text-[#7c9489] shrink-0 tabular-nums">
+                25 Nodes
+              </span>
             </div>
           )}
         </div>
 
-        {/* Navigation Links */}
-        <nav className="p-3 space-y-0.5" aria-label="Primary Campus Navigation">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive =
-              activeTab === item.id ||
-              (item.id === 'environmental-solar' &&
-                (activeTab === 'environmental' || activeTab === 'solar'));
-            const layoutSuffix = compact ? 'compact' : 'full';
+        {/* Grouped Navigation Links — fits cleanly at 768px–1080px with zero clipping */}
+        <nav
+          className={`flex-1 min-h-0 overflow-y-auto rw-dark-scrollbar ${
+            compact ? 'p-2 space-y-1' : 'px-2.5 py-2 space-y-2.5'
+          }`}
+          aria-label="Primary Campus Navigation"
+        >
+          {NAV_GROUPS.map((group, groupIndex) => (
+            <div
+              key={group.label}
+              className={
+                compact && groupIndex > 0
+                  ? 'pt-1.5 border-t border-white/[0.07]'
+                  : !compact && groupIndex > 0
+                  ? 'pt-1.5 border-t border-white/[0.06]'
+                  : ''
+              }
+            >
+              {!compact && (
+                <div className="px-2.5 pb-1 text-[9.5px] font-semibold uppercase tracking-[0.08em] text-[#6e867b]">
+                  {group.label}
+                </div>
+              )}
+              <div className="space-y-0.5">
+                {group.items.map((item) => {
+                  const Icon = item.icon;
+                  const isActive =
+                    activeTab === item.id ||
+                    (item.id === 'environmental-solar' &&
+                      (activeTab === 'environmental' || activeTab === 'solar'));
+                  const layoutSuffix = compact ? 'compact' : 'full';
 
-            const buttonEl = (
-              <motion.button
-                key={item.id}
-                type="button"
-                aria-current={isActive ? 'page' : undefined}
-                whileTap={{ scale: 0.985 }}
-                onClick={() => handleNavClick(item.id)}
-                className={`relative w-full flex items-center ${
-                  compact ? 'justify-center px-2 py-2.5' : 'gap-2.5 px-3 py-2'
-                } rounded-xl text-[13px] transition-colors text-left ${
-                  isActive
-                    ? 'text-[#071e17] font-semibold'
-                    : 'text-[#4a5851] font-medium hover:text-[#111815] hover:bg-[#f3f5f4]/80'
-                }`}
-              >
-                {isActive && (
-                  <motion.span
-                    layoutId={`sidebar-active-pill-${layoutSuffix}`}
-                    transition={SPRING_SNAPPY}
-                    className="absolute inset-0 rounded-xl bg-[#eef3f0] border border-emerald-700/15"
-                    aria-hidden="true"
-                  />
-                )}
+                  const buttonEl = (
+                    <motion.button
+                      key={item.id}
+                      type="button"
+                      aria-current={isActive ? 'page' : undefined}
+                      whileTap={{ scale: 0.985 }}
+                      onClick={() => handleNavClick(item.id)}
+                      className={`relative w-full flex items-center ${
+                        compact ? 'justify-center px-2 py-2' : 'gap-2.5 px-2.5 py-1.5'
+                      } rounded-lg text-[12.5px] leading-snug transition-colors text-left cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 ${
+                        isActive
+                          ? 'text-white font-semibold'
+                          : 'text-[#a5bab0] font-medium hover:text-[#eef4f0] hover:bg-white/[0.05]'
+                      }`}
+                    >
+                      {isActive && (
+                        <motion.span
+                          layoutId={`sidebar-active-pill-${layoutSuffix}`}
+                          transition={SPRING_SNAPPY}
+                          className="absolute inset-0 rounded-lg bg-[#122b21] border border-emerald-400/25"
+                          aria-hidden="true"
+                        />
+                      )}
 
-                <Icon
-                  className={`relative z-10 w-4 h-4 shrink-0 transition-colors ${
-                    isActive ? 'text-emerald-700' : 'text-[#64726b]'
-                  }`}
-                />
+                      {isActive && !compact && (
+                        <span
+                          className="relative z-10 w-[2px] h-3.5 rounded-full bg-gradient-to-b from-emerald-300 to-[#0b6e4f] -ml-1 mr-0.5 shrink-0"
+                          aria-hidden="true"
+                        />
+                      )}
 
-                {!compact && (
-                  <>
-                    <span className="relative z-10 truncate">{item.label}</span>
-                    {item.id === 'audit' && (
-                      <span
-                        className={`relative z-10 ml-auto text-[10px] font-mono font-semibold tabular-nums ${
-                          unresolvedAuditCount > 0 ? 'text-amber-700' : 'text-emerald-700'
+                      <Icon
+                        className={`relative z-10 w-4 h-4 shrink-0 transition-colors ${
+                          isActive ? 'text-emerald-400' : 'text-[#7c9489]'
                         }`}
-                      >
-                        {unresolvedAuditCount > 0 ? unresolvedAuditCount : 'Clear'}
-                      </span>
-                    )}
-                  </>
-                )}
+                      />
 
-                {compact && item.id === 'audit' && unresolvedAuditCount > 0 && (
-                  <span
-                    className="absolute top-1.5 right-2 w-1.5 h-1.5 rounded-full bg-amber-600"
-                    aria-label={`${unresolvedAuditCount} unresolved findings`}
-                  />
-                )}
-              </motion.button>
-            );
+                      {!compact && (
+                        <>
+                          <span className="relative z-10 truncate">{item.label}</span>
+                          {item.id === 'audit' && (
+                            <span
+                              className={`relative z-10 ml-auto text-[10px] font-mono font-semibold tabular-nums ${
+                                unresolvedAuditCount > 0 ? 'text-amber-300' : 'text-emerald-400'
+                              }`}
+                            >
+                              {unresolvedAuditCount > 0 ? unresolvedAuditCount : 'Clear'}
+                            </span>
+                          )}
+                        </>
+                      )}
 
-            if (compact) {
-              return (
-                <Tooltip key={item.id} content={item.label} side="bottom" className="w-full block">
-                  {buttonEl}
-                </Tooltip>
-              );
-            }
-            return buttonEl;
-          })}
+                      {compact && item.id === 'audit' && unresolvedAuditCount > 0 && (
+                        <span
+                          className="absolute top-1.5 right-2 w-1.5 h-1.5 rounded-full bg-amber-400"
+                          aria-label={`${unresolvedAuditCount} unresolved findings`}
+                        />
+                      )}
+                    </motion.button>
+                  );
+
+                  if (compact) {
+                    return (
+                      <Tooltip key={item.id} content={item.label} side="right" className="w-full block">
+                        {buttonEl}
+                      </Tooltip>
+                    );
+                  }
+                  return buttonEl;
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
       </div>
 
-      {/* Bottom Summary & Session Footer */}
-      <div className="space-y-2.5 p-3">
+      {/* Compact Live Load Strip & Session Footer */}
+      <div className="space-y-2 p-2.5 border-t border-white/[0.08] shrink-0 bg-[#08130f]">
         {!compact ? (
-          <div className="p-3.5 rounded-2xl rw-forest-hero text-white">
-            <div className="flex items-center justify-between text-[11px] mb-2">
-              <span className="font-medium text-emerald-100/80">Campus Load</span>
-              <span className="font-mono font-semibold text-emerald-300 tabular-nums">
-                {campusSummary.availableHeadroomWatts === 0
-                  ? '100% Rated'
-                  : `${campusSummary.ratedUtilizationPercent}% Rated`}
-              </span>
-            </div>
-
-            <div className="flex items-baseline justify-between">
-              <span className="text-lg font-semibold font-mono text-white tabular-nums">
+          <div
+            className="px-2.5 py-2 rounded-lg bg-[#0e1f18] border border-white/[0.08]"
+            title={`Active draw ${(campusSummary.totalCurrentPowerWatts / 1000).toFixed(2)} kW of ${ratedMaxKW} kW rated (${availableHeadroomKW} kW headroom)`}
+          >
+            <div className="flex items-baseline justify-between gap-2 text-[11px] tabular-nums">
+              <span className="font-mono font-semibold text-white">
                 <AnimatedNumber
                   value={campusSummary.totalCurrentPowerWatts / 1000}
                   decimals={2}
                   suffix=" kW"
                 />
               </span>
-              <span className="font-mono text-[11px] text-emerald-200/85 tabular-nums">
+              <span className="font-mono text-[10px] text-emerald-300 font-medium">
                 {campusSummary.availableHeadroomWatts === 0
-                  ? `of ${ratedMaxKW} kW max`
-                  : `${availableHeadroomKW} kW headroom`}
+                  ? '100% rated'
+                  : `${ratedUtilizationPct}% · ${availableHeadroomKW} kW free`}
               </span>
             </div>
 
-            <div className="w-full bg-white/15 h-1 rounded-full mt-2.5 overflow-hidden">
+            <div className="w-full bg-white/[0.1] h-1 rounded-full mt-1.5 overflow-hidden">
               <motion.div
-                className="bg-emerald-400 h-full rounded-full"
+                className="bg-gradient-to-r from-[#0b6e4f] via-emerald-400 to-emerald-300 h-full rounded-full"
                 initial={false}
                 animate={{
                   width: `${Math.min(100, Math.max(4, ratedUtilizationPct))}%`,
@@ -299,95 +358,103 @@ export const Sidebar: React.FC = () => {
           </div>
         ) : (
           <Tooltip
+            side="right"
+            className="w-full block"
             content={`Live: ${(campusSummary.totalCurrentPowerWatts / 1000).toFixed(2)} kW (${campusSummary.ratedUtilizationPercent}% of ${ratedMaxKW} kW Installed Rated Max)`}
           >
-            <div className="w-full py-2 rounded-xl bg-[#0b2e22] text-emerald-200 text-center font-mono text-[10px] font-semibold tabular-nums">
+            <div className="w-full py-1.5 rounded-lg bg-[#12261f] border border-white/10 text-emerald-300 text-center font-mono text-[10px] font-semibold tabular-nums hover:border-emerald-400/35 transition-colors">
               {ratedUtilizationPct}%
             </div>
           </Tooltip>
         )}
 
         {!compact && isAdminUnlocked && device.isPhone && (
-          <button
-            type="button"
+          <ActionButton
+            variant="forest"
+            size="md"
+            fullWidth
             onClick={() => {
               setIsMobileMenuOpen(false);
               openPhoneQrModal();
             }}
-            className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-[#0b2e22] hover:bg-[#114231] text-white text-xs font-semibold transition-colors flex items-center justify-center gap-2 cursor-pointer"
+            icon={<QrCode className="w-4 h-4 text-emerald-200" />}
           >
-            <QrCode className="w-4 h-4 shrink-0 text-emerald-300" />
-            <span>Scan Computer QR</span>
-          </button>
+            Scan Computer QR
+          </ActionButton>
         )}
 
         {/* User Session Row */}
         <div
-          className={`pt-2 border-t border-neutral-200/75 flex items-center ${
-            compact ? 'justify-center pt-2.5' : 'justify-between gap-2'
+          className={`pt-1.5 border-t border-white/[0.07] flex items-center ${
+            compact ? 'justify-center pt-2' : 'justify-between gap-2'
           }`}
         >
           {isAuthLoading && getStoredClientSessionToken() ? (
-            <div className="text-[11px] text-[#64726b] font-medium py-1 px-1 flex items-center gap-2">
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-700" />
+            <div className="text-[11px] text-[#8ea69b] font-medium py-1 px-1 flex items-center gap-2">
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" />
               {!compact && <span>Verifying...</span>}
             </div>
           ) : compact ? (
-            <Tooltip content={isAdminUnlocked ? `${currentStaff.name} · Logout` : 'Admin Login'}>
-              <button
-                type="button"
+            <Tooltip
+              side="right"
+              content={isAdminUnlocked ? `${currentStaff.name} · Logout` : 'Admin Login'}
+            >
+              <IconButton
+                variant={isAdminUnlocked ? 'forest' : 'dark-ghost'}
+                size="sm"
+                label={isAdminUnlocked ? 'Logout administrator session' : 'Open administrator login'}
                 onClick={() => (isAdminUnlocked ? requestLogout() : openAuthModal())}
-                className={`w-8 h-8 rounded-xl font-semibold text-xs flex items-center justify-center text-white transition-transform active:scale-95 ${
-                  isAdminUnlocked ? 'bg-[#0b2e22] hover:bg-[#114231]' : 'bg-[#111815] hover:bg-neutral-800'
-                }`}
-                aria-label={isAdminUnlocked ? 'Logout administrator session' : 'Open administrator login'}
+                className="font-semibold text-xs"
               >
                 {isAdminUnlocked ? currentStaff.avatarInitials : user.avatarInitials}
-              </button>
+              </IconButton>
             </Tooltip>
           ) : (
             <>
-              <div className="flex items-center gap-2.5 overflow-hidden min-w-0">
+              <div className="flex items-center gap-2 overflow-hidden min-w-0">
                 <div
-                  className={`w-7 h-7 rounded-lg text-white font-semibold text-[11px] flex items-center justify-center shrink-0 ${
-                    isAdminUnlocked ? 'bg-[#0b2e22]' : 'bg-[#111815]'
+                  className={`w-7 h-7 rounded-md text-white font-semibold text-[11px] flex items-center justify-center shrink-0 ${
+                    isAdminUnlocked
+                      ? 'bg-[#0b6e4f] border border-emerald-400/30'
+                      : 'bg-white/[0.1] border border-white/10'
                   }`}
                 >
                   {isAdminUnlocked ? currentStaff.avatarInitials : user.avatarInitials}
                 </div>
                 <div className="min-w-0">
-                  <div className="text-xs font-semibold text-[#111815] truncate">
+                  <div className="text-xs font-semibold text-[#eef4f0] truncate">
                     {isAdminUnlocked ? currentStaff.name : 'Student Mode'}
                   </div>
-                  <div className="text-[11px] text-[#526059] truncate">
+                  <div className="text-[10px] text-[#8ea69b] truncate">
                     {isAdminUnlocked ? currentStaff.role : 'Read-only access'}
                   </div>
                 </div>
               </div>
 
               {isAdminUnlocked ? (
-                <button
-                  type="button"
+                <ActionButton
+                  variant="dark-ghost"
+                  size="xs"
                   onClick={() => {
                     setIsMobileMenuOpen(false);
                     requestLogout();
                   }}
-                  className="inline-flex items-center gap-1 px-2 py-1 text-[#4a5851] hover:text-[#111815] rounded-lg hover:bg-neutral-100 transition-colors shrink-0 text-[11px] font-medium"
+                  icon={<LogOut className="w-3 h-3" />}
                   title="Logout from administrator session"
+                  className="!bg-transparent !border-transparent hover:!bg-white/[0.08] text-[#9bb3a8]"
                 >
-                  <LogOut className="w-3 h-3" />
-                  <span>Logout</span>
-                </button>
+                  Logout
+                </ActionButton>
               ) : (
-                <button
-                  type="button"
+                <ActionButton
+                  variant="forest"
+                  size="xs"
                   onClick={() => openAuthModal()}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300/80 rounded-lg transition-colors shrink-0 text-[11px] font-semibold active:scale-[0.98]"
+                  icon={<LogIn className="w-3 h-3" />}
                   title="Sign in with administrator passkey or credentials"
                 >
-                  <LogIn className="w-3 h-3 shrink-0" />
-                  <span>Admin Login</span>
-                </button>
+                  Admin
+                </ActionButton>
               )}
             </>
           )}
@@ -400,9 +467,9 @@ export const Sidebar: React.FC = () => {
     <>
       <motion.aside
         initial={false}
-        animate={{ width: isCollapsed ? 74 : 252 }}
+        animate={{ width: isCollapsed ? 68 : 254 }}
         transition={SPRING_GENTLE}
-        className="hidden lg:flex glass-sidebar flex-col justify-between shrink-0 h-screen sticky top-0 z-30 overflow-hidden"
+        className="hidden lg:flex glass-sidebar flex-col justify-between shrink-0 h-full z-30 overflow-hidden"
       >
         {renderSidebarInner(isCollapsed)}
       </motion.aside>
@@ -415,7 +482,7 @@ export const Sidebar: React.FC = () => {
               initial="hidden"
               animate="visible"
               exit="exit"
-              className="fixed inset-0 bg-[#071e17]/40 backdrop-blur-xs"
+              className="fixed inset-0 bg-[#0b1713]/55 backdrop-blur-xs"
               onClick={() => setIsMobileMenuOpen(false)}
             />
 
@@ -423,8 +490,8 @@ export const Sidebar: React.FC = () => {
               initial={{ x: '-100%' }}
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
-              transition={{ duration: 0.24, ease: ROOMWISE_EASE }}
-              className="relative w-72 max-w-[82vw] rw-glass-float border-r border-neutral-200 shadow-2xl h-full flex flex-col z-50"
+              transition={{ duration: 0.22, ease: ROOMWISE_EASE }}
+              className="relative w-72 max-w-[82vw] glass-sidebar shadow-2xl h-full flex flex-col z-50"
             >
               {renderSidebarInner(false)}
             </motion.aside>

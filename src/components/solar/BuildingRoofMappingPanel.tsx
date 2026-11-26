@@ -14,7 +14,6 @@ import {
   ChevronDown,
   ChevronUp,
   Link2,
-  Loader2,
   Lock,
   MapPin,
   Plus,
@@ -26,7 +25,13 @@ import {
   Trash2,
   XCircle,
 } from 'lucide-react';
-import { SectionHeading } from '../common/DesignSystem';
+import {
+  ActionButton,
+  FilterChipButton,
+  IconButton,
+  InlineActionLink,
+  SectionHeading,
+} from '../common/DesignSystem';
 import { MathText } from '../common/MathText';
 import { CampusFootprintMap } from './CampusFootprintMap';
 import type {
@@ -306,52 +311,48 @@ export const BuildingRoofMappingPanel: React.FC<BuildingRoofMappingPanelProps> =
         <div className="flex flex-wrap items-center gap-2 shrink-0">
           {isAdminUnlocked ? (
             <>
-              <button
-                type="button"
+              <ActionButton
+                variant="primary"
+                size="sm"
                 disabled={isBusy}
                 onClick={() => {
                   setDrawnPolygonDraft(null);
                   setShowManualForm((v) => !v);
                 }}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#0b2e22] text-white hover:bg-emerald-950 disabled:opacity-50 transition-colors cursor-pointer whitespace-nowrap"
+                icon={<Plus className="w-3.5 h-3.5 text-emerald-300" />}
               >
-                <Plus className="w-3.5 h-3.5" />
                 Add Building
-              </button>
-              <button
-                type="button"
-                disabled={isBusy}
+              </ActionButton>
+              <ActionButton
+                variant="secondary"
+                size="sm"
+                loading={isBusy}
                 onClick={() => onRefreshDiscovery()}
                 title={`Query supplementary OpenStreetMap footprints within ${discovery.searchRadiusMeters} m`}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-neutral-300 text-neutral-800 hover:bg-neutral-50 disabled:opacity-50 transition-colors cursor-pointer whitespace-nowrap"
+                icon={<RefreshCw className="w-3.5 h-3.5" />}
               >
-                {isBusy ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <RefreshCw className="w-3.5 h-3.5" />
-                )}
                 Sync OSM
-              </button>
-              <button
-                type="button"
+              </ActionButton>
+              <ActionButton
+                variant="secondary"
+                size="sm"
                 disabled={isBusy}
                 onClick={() => onRestoreCampus()}
                 title="Restore original image-reconstructed campus layout"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 transition-colors cursor-pointer whitespace-nowrap"
+                icon={<RotateCcw className="w-3.5 h-3.5" />}
               >
-                <RotateCcw className="w-3.5 h-3.5" />
                 Restore Layout
-              </button>
+              </ActionButton>
             </>
           ) : (
-            <button
-              type="button"
+            <ActionButton
+              variant="secondary"
+              size="sm"
               onClick={onRequestAdminUnlock}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-neutral-300 text-neutral-800 hover:bg-neutral-50 cursor-pointer whitespace-nowrap"
+              icon={<Lock className="w-3.5 h-3.5 text-[#5c6a64]" />}
             >
-              <Lock className="w-3.5 h-3.5 text-neutral-500" />
               Unlock Admin to Edit Campus
-            </button>
+            </ActionButton>
           )}
         </div>
       </div>
@@ -368,16 +369,15 @@ export const BuildingRoofMappingPanel: React.FC<BuildingRoofMappingPanelProps> =
                 ? `Save Drawn Building Footprint (~${drawnPolygonDraft.approxAreaM2.toLocaleString()} m² · ${drawnPolygonDraft.points.length} vertices)`
                 : 'Add Custom Campus Building'}
             </h3>
-            <button
-              type="button"
+            <InlineActionLink
+              tone="neutral"
               onClick={() => {
                 setShowManualForm(false);
                 setDrawnPolygonDraft(null);
               }}
-              className="text-xs text-neutral-500 hover:text-neutral-800 cursor-pointer"
             >
               Cancel
-            </button>
+            </InlineActionLink>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
@@ -423,14 +423,15 @@ export const BuildingRoofMappingPanel: React.FC<BuildingRoofMappingPanelProps> =
             )}
           </div>
           <div className="flex justify-end">
-            <button
+            <ActionButton
               type="submit"
-              disabled={savingBuilding}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-[#0b2e22] text-white hover:bg-emerald-950 disabled:opacity-50 cursor-pointer"
+              variant="primary"
+              size="sm"
+              loading={savingBuilding}
+              icon={<Save className="w-3.5 h-3.5 text-emerald-300" />}
             >
-              <Save className="w-3.5 h-3.5" />
               Save Building
-            </button>
+            </ActionButton>
           </div>
         </form>
       )}
@@ -460,7 +461,7 @@ export const BuildingRoofMappingPanel: React.FC<BuildingRoofMappingPanelProps> =
           <div className="rw-surface rounded-2xl p-3.5 sm:p-4 space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div className="overflow-x-auto max-w-full">
-                <div className="inline-flex items-center p-1 rounded-lg bg-[#f3f5f4] border border-neutral-200/75 gap-0.5">
+                <div className="flex items-center gap-1.5">
                   {(
                     [
                       { id: 'all', label: 'All' },
@@ -469,18 +470,14 @@ export const BuildingRoofMappingPanel: React.FC<BuildingRoofMappingPanelProps> =
                       { id: 'osm', label: `OSM (${discovery.osmBuildingsCount})` },
                     ] as Array<{ id: FilterTab; label: string }>
                   ).map((tab) => (
-                    <button
+                    <FilterChipButton
                       key={tab.id}
-                      type="button"
+                      layoutId="roof-directory-filter"
+                      active={filter === tab.id}
                       onClick={() => setFilter(tab.id)}
-                      className={`px-2.5 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors cursor-pointer ${
-                        filter === tab.id
-                          ? 'bg-white text-neutral-900 font-semibold shadow-2xs'
-                          : 'text-neutral-600 hover:text-neutral-900'
-                      }`}
                     >
                       {tab.label}
-                    </button>
+                    </FilterChipButton>
                   ))}
                 </div>
               </div>
@@ -591,14 +588,14 @@ export const BuildingRoofMappingPanel: React.FC<BuildingRoofMappingPanelProps> =
                 }`}
                 action={
                   selectedBuilding.source === 'manual' && isAdminUnlocked ? (
-                    <button
-                      type="button"
+                    <IconButton
+                      variant="danger"
+                      size="xs"
+                      label="Delete custom building"
                       onClick={() => onDeleteManualBuilding(selectedBuilding.id)}
-                      title="Delete custom building"
-                      className="p-1.5 rounded-lg text-neutral-500 hover:text-red-700 hover:bg-red-50 cursor-pointer"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    </IconButton>
                   ) : undefined
                 }
               />
@@ -621,14 +618,13 @@ export const BuildingRoofMappingPanel: React.FC<BuildingRoofMappingPanelProps> =
                     )}
 
                     {relatedBuilding && (
-                      <button
-                        type="button"
+                      <InlineActionLink
+                        tone="emerald"
+                        icon={<Link2 className="w-3 h-3" />}
                         onClick={() => setSelectedId(relatedBuilding.id)}
-                        className="inline-flex items-center gap-1 text-emerald-800 font-semibold hover:underline cursor-pointer"
                       >
-                        <Link2 className="w-3 h-3" />
                         Inspect {relatedBuilding.displayName}
-                      </button>
+                      </InlineActionLink>
                     )}
                   </div>
                 </div>
@@ -692,9 +688,11 @@ export const BuildingRoofMappingPanel: React.FC<BuildingRoofMappingPanelProps> =
                         </div>
                       )}
                     </div>
-                    <button
-                      type="button"
-                      disabled={calculatingId === selectedBuilding.id || isBusy}
+                    <ActionButton
+                      variant="primary"
+                      size="sm"
+                      loading={calculatingId === selectedBuilding.id}
+                      disabled={isBusy}
                       onClick={async () => {
                         setCalculatingId(selectedBuilding.id);
                         try {
@@ -703,15 +701,10 @@ export const BuildingRoofMappingPanel: React.FC<BuildingRoofMappingPanelProps> =
                           setCalculatingId(null);
                         }
                       }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#0b2e22] text-white hover:bg-emerald-950 disabled:opacity-50 cursor-pointer whitespace-nowrap"
+                      icon={<Sun className="w-3.5 h-3.5 text-emerald-300" />}
                     >
-                      {calculatingId === selectedBuilding.id ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <Sun className="w-3.5 h-3.5" />
-                      )}
                       Calculate PVGIS
-                    </button>
+                    </ActionButton>
                   </div>
 
                   {/* 2. Authoritative Building Footprint vs Provisional Roof & PV Sizing Metrics */}
@@ -793,23 +786,21 @@ export const BuildingRoofMappingPanel: React.FC<BuildingRoofMappingPanelProps> =
 
                   {/* 3. Analytical Confirmation Status Controls */}
                   <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
+                    <ActionButton
+                      variant={selectedBuilding.selectionStatus === 'confirmed' ? 'forest' : 'secondary'}
+                      size="sm"
                       disabled={savingBuilding}
                       onClick={() => handleStatusChange(selectedBuilding.id, 'confirmed', true)}
-                      className={`flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg text-xs font-semibold border transition-colors cursor-pointer whitespace-nowrap ${
-                        selectedBuilding.selectionStatus === 'confirmed'
-                          ? 'bg-emerald-700 text-white border-emerald-800'
-                          : 'bg-white text-neutral-700 border-neutral-200 hover:bg-emerald-50'
-                      }`}
+                      icon={<CheckCircle2 className="w-3.5 h-3.5" />}
+                      className="flex-1"
                     >
-                      <CheckCircle2 className="w-3.5 h-3.5" />
                       {selectedBuilding.selectionStatus === 'confirmed'
                         ? 'Confirmed Roof'
                         : 'Confirm Roof'}
-                    </button>
-                    <button
-                      type="button"
+                    </ActionButton>
+                    <ActionButton
+                      variant={selectedBuilding.selectionStatus === 'excluded' ? 'primary' : 'secondary'}
+                      size="sm"
                       disabled={savingBuilding}
                       onClick={() =>
                         handleStatusChange(
@@ -819,17 +810,12 @@ export const BuildingRoofMappingPanel: React.FC<BuildingRoofMappingPanelProps> =
                             : 'excluded'
                         )
                       }
-                      className={`inline-flex items-center justify-center gap-1 py-1.5 px-3 rounded-lg text-xs font-semibold border transition-colors cursor-pointer whitespace-nowrap ${
-                        selectedBuilding.selectionStatus === 'excluded'
-                          ? 'bg-neutral-800 text-white border-neutral-900'
-                          : 'bg-white text-neutral-600 border-neutral-200 hover:bg-neutral-100'
-                      }`}
+                      icon={<XCircle className="w-3.5 h-3.5" />}
                     >
-                      <XCircle className="w-3.5 h-3.5" />
                       {selectedBuilding.selectionStatus === 'excluded'
                         ? 'Include Roof'
                         : 'Exclude'}
-                    </button>
+                    </ActionButton>
                   </div>
 
                   {/* 4. Collapsible Secondary Details: Roof & PV Parameters */}
@@ -838,7 +824,7 @@ export const BuildingRoofMappingPanel: React.FC<BuildingRoofMappingPanelProps> =
                       type="button"
                       onClick={() => setShowParamsForm((v) => !v)}
                       aria-expanded={showParamsForm}
-                      className="w-full flex items-center justify-between gap-2 text-left py-1 cursor-pointer group"
+                      className="w-full flex items-center justify-between gap-2 text-left rounded-xl px-2 py-1.5 -mx-2 -my-1 hover:bg-[#f6f8f7] transition-colors cursor-pointer group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0b6e4f]"
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <Sliders className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
@@ -849,13 +835,15 @@ export const BuildingRoofMappingPanel: React.FC<BuildingRoofMappingPanelProps> =
                           {selectedBuilding.roofConfig.tiltDegrees}° · {selectedBuilding.roofConfig.aspectDegrees}° · {selectedBuilding.roofConfig.systemLossesPercent}% loss
                         </span>
                       </div>
-                      <span className="inline-flex items-center gap-1 text-[11px] text-neutral-500 group-hover:text-neutral-900 shrink-0 whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1.5 text-[11px] text-neutral-500 group-hover:text-neutral-900 shrink-0 whitespace-nowrap">
                         {!isAdminUnlocked && <span>Read-only</span>}
-                        {showParamsForm ? (
-                          <ChevronUp className="w-4 h-4" />
-                        ) : (
-                          <ChevronDown className="w-4 h-4" />
-                        )}
+                        <span className="w-6 h-6 rounded-md bg-white border border-[#111916]/12 group-hover:border-[#0b6e4f]/35 transition-colors inline-flex items-center justify-center text-[#46544e]">
+                          {showParamsForm ? (
+                            <ChevronUp className="w-3.5 h-3.5" />
+                          ) : (
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          )}
+                        </span>
                       </span>
                     </button>
 
@@ -994,18 +982,16 @@ export const BuildingRoofMappingPanel: React.FC<BuildingRoofMappingPanelProps> =
                         </div>
 
                         {isAdminUnlocked && (
-                          <button
+                          <ActionButton
                             type="submit"
-                            disabled={savingBuilding}
-                            className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-[#0b2e22] text-white hover:bg-emerald-950 disabled:opacity-50 cursor-pointer whitespace-nowrap"
+                            variant="primary"
+                            size="sm"
+                            fullWidth
+                            loading={savingBuilding}
+                            icon={<Save className="w-3.5 h-3.5 text-emerald-300" />}
                           >
-                            {savingBuilding ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                              <Save className="w-3.5 h-3.5" />
-                            )}
                             Save Parameters
-                          </button>
+                          </ActionButton>
                         )}
                       </form>
                     )}
@@ -1020,7 +1006,7 @@ export const BuildingRoofMappingPanel: React.FC<BuildingRoofMappingPanelProps> =
                     type="button"
                     onClick={() => setShowPositionTools((v) => !v)}
                     aria-expanded={showPositionTools}
-                    className="w-full flex items-center justify-between gap-2 text-xs py-1 cursor-pointer group"
+                    className="w-full flex items-center justify-between gap-2 text-xs rounded-xl px-2 py-1.5 -mx-2 -my-1 hover:bg-[#f6f8f7] transition-colors cursor-pointer group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0b6e4f]"
                   >
                     <span className="font-bold text-neutral-800 whitespace-nowrap">
                       Visual Map Position
@@ -1032,57 +1018,63 @@ export const BuildingRoofMappingPanel: React.FC<BuildingRoofMappingPanelProps> =
                           ariaLabel={`Delta E equals ${selectedBuilding.override?.offsetEastMeters ?? 0} meters, Delta N equals ${selectedBuilding.override?.offsetNorthMeters ?? 0} meters`}
                         />
                       </span>
-                      {showPositionTools ? (
-                        <ChevronUp className="w-4 h-4" />
-                      ) : (
-                        <ChevronDown className="w-4 h-4" />
-                      )}
+                      <span className="w-6 h-6 rounded-md bg-white border border-[#111916]/12 group-hover:border-[#0b6e4f]/35 transition-colors inline-flex items-center justify-center text-[#46544e]">
+                        {showPositionTools ? (
+                          <ChevronUp className="w-3.5 h-3.5" />
+                        ) : (
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        )}
+                      </span>
                     </span>
                   </button>
 
                   {showPositionTools && (
                     <div className="mt-2.5 space-y-2">
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <button
-                          type="button"
+                        <ActionButton
+                          variant="secondary"
+                          size="xs"
                           disabled={savingBuilding}
                           onClick={() => handleNudgePosition(0, 2)}
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-neutral-200 bg-white text-[11px] text-neutral-700 hover:bg-neutral-50 cursor-pointer whitespace-nowrap"
+                          icon={<ArrowUp className="w-3 h-3" />}
                         >
-                          <ArrowUp className="w-3 h-3" /> 2m N
-                        </button>
-                        <button
-                          type="button"
+                          2m N
+                        </ActionButton>
+                        <ActionButton
+                          variant="secondary"
+                          size="xs"
                           disabled={savingBuilding}
                           onClick={() => handleNudgePosition(0, -2)}
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-neutral-200 bg-white text-[11px] text-neutral-700 hover:bg-neutral-50 cursor-pointer whitespace-nowrap"
+                          icon={<ArrowDown className="w-3 h-3" />}
                         >
-                          <ArrowDown className="w-3 h-3" /> 2m S
-                        </button>
-                        <button
-                          type="button"
+                          2m S
+                        </ActionButton>
+                        <ActionButton
+                          variant="secondary"
+                          size="xs"
                           disabled={savingBuilding}
                           onClick={() => handleNudgePosition(-2, 0)}
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-neutral-200 bg-white text-[11px] text-neutral-700 hover:bg-neutral-50 cursor-pointer whitespace-nowrap"
+                          icon={<ArrowLeft className="w-3 h-3" />}
                         >
-                          <ArrowLeft className="w-3 h-3" /> 2m W
-                        </button>
-                        <button
-                          type="button"
+                          2m W
+                        </ActionButton>
+                        <ActionButton
+                          variant="secondary"
+                          size="xs"
                           disabled={savingBuilding}
                           onClick={() => handleNudgePosition(2, 0)}
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-neutral-200 bg-white text-[11px] text-neutral-700 hover:bg-neutral-50 cursor-pointer whitespace-nowrap"
+                          icon={<ArrowRight className="w-3 h-3" />}
                         >
-                          <ArrowRight className="w-3 h-3" /> 2m E
-                        </button>
-                        <button
-                          type="button"
+                          2m E
+                        </ActionButton>
+                        <InlineActionLink
+                          tone="neutral"
                           disabled={savingBuilding}
                           onClick={handleResetVisualOffset}
-                          className="ml-auto text-[11px] text-neutral-500 hover:text-neutral-900 underline underline-offset-2 cursor-pointer whitespace-nowrap"
+                          className="ml-auto"
                         >
                           Reset
-                        </button>
+                        </InlineActionLink>
                       </div>
                       <p className="text-[11px] text-neutral-500">
                         Visual alignment only; analytical roof area is unchanged.

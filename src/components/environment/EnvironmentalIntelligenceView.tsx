@@ -12,6 +12,7 @@ import {
   Wind,
   Sun,
   AlertTriangle,
+  ArrowRight,
   CheckCircle2,
   Calendar,
   History,
@@ -37,7 +38,13 @@ import {
 import { useEnergy } from '../../context/EnergyContext';
 import { useAuth, authFetch } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
-import { PageHeader, SectionHeading, SegmentedControl } from '../common/DesignSystem';
+import {
+  ActionButton,
+  InlineActionLink,
+  PageHeader,
+  SectionHeading,
+  SegmentedControl,
+} from '../common/DesignSystem';
 import { AcronymHint } from '../common/AcronymHint';
 import { MathText } from '../common/MathText';
 import type { EnvironmentalOverviewResponse } from '../../types/environmental';
@@ -229,26 +236,26 @@ export const EnvironmentalIntelligenceView: React.FC<EnvironmentalIntelligenceVi
                 : ''}
             </span>
           )}
-          <button
-            type="button"
+          <ActionButton
+            variant="secondary"
+            size="sm"
+            loading={refreshing}
             onClick={handleRefreshClick}
-            disabled={refreshing}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-800 font-semibold text-xs transition-colors min-h-[34px] disabled:opacity-60 whitespace-nowrap"
+            icon={
+              !isAdminUnlocked ? (
+                <Lock className="w-3.5 h-3.5 text-[#5c6a64]" />
+              ) : (
+                <RefreshCw className="w-3.5 h-3.5 text-[#0b6e4f]" />
+              )
+            }
             title={
               isAdminUnlocked
                 ? 'Force refresh Open-Meteo feeds'
                 : 'Sign in as admin to force an uncached refresh'
             }
           >
-            {refreshing ? (
-              <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-700" />
-            ) : !isAdminUnlocked ? (
-              <Lock className="w-3.5 h-3.5 text-neutral-500" />
-            ) : (
-              <RefreshCw className="w-3.5 h-3.5 text-emerald-700" />
-            )}
-            <span>{refreshing ? 'Refreshing...' : 'Refresh'}</span>
-          </button>
+            {refreshing ? 'Refreshing...' : 'Refresh'}
+          </ActionButton>
         </div>
       </div>
 
@@ -274,13 +281,14 @@ export const EnvironmentalIntelligenceView: React.FC<EnvironmentalIntelligenceVi
               <div className="text-amber-900 mt-0.5">{error}</div>
             </div>
           </div>
-          <button
-            type="button"
+          <ActionButton
+            variant="amber"
+            size="sm"
             onClick={() => void fetchOverview()}
-            className="px-3 py-1.5 rounded-xl bg-amber-900 text-white font-semibold text-xs shrink-0"
+            icon={<RefreshCw className="w-3.5 h-3.5" />}
           >
             Retry
-          </button>
+          </ActionButton>
         </div>
       )}
 
@@ -304,150 +312,171 @@ export const EnvironmentalIntelligenceView: React.FC<EnvironmentalIntelligenceVi
 
           {/* TAB 1: OVERVIEW & CLASSROOM CONTEXT */}
           {section === 'overview' && (
-            <div className="space-y-5 sm:space-y-6">
-              {/* Primary KPI Strip */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                <div className="rw-forest-hero text-white rounded-2xl p-4 sm:p-5">
-                  <div className="flex items-center justify-between text-[11px] text-emerald-200/90 font-semibold">
-                    <span>Outdoor Model Temp</span>
-                    <Thermometer className="w-3.5 h-3.5 text-emerald-300" />
+            <div className="space-y-5">
+              {/* Signature Atmospheric Observatory Hero Strip (Obsidian-Pine + Sky Gradient + 3-Col Hairline Sheet) */}
+              <div className="rounded-xl border border-[rgba(17,25,22,0.12)] bg-white overflow-hidden grid grid-cols-1 lg:grid-cols-12 shadow-[0_1px_2px_rgba(11,23,19,0.03)]">
+                <div className="lg:col-span-4 bg-[radial-gradient(circle_at_top_right,rgba(14,107,168,0.28),transparent_56%),radial-gradient(circle_at_bottom_left,rgba(52,211,153,0.16),transparent_60%),linear-gradient(155deg,#091511_0%,#0d221b_54%,#102b24_100%)] text-[#f4f6f4] p-5 flex flex-col justify-between gap-3">
+                  <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-[0.1em] text-[#34d399]">
+                    <span>Outdoor Microclimate · Kharagpur</span>
+                    <Thermometer className="w-3.5 h-3.5" />
                   </div>
-                  <div className="mt-2 text-2xl sm:text-3xl font-bold font-mono tabular-nums">
-                    {fmtNum(data.current?.temperatureC, 1, '°C')}
+                  <div>
+                    <div className="flex items-baseline gap-2.5">
+                      <span className="font-mono text-3xl sm:text-4xl font-semibold text-white tabular-nums tracking-tight">
+                        {fmtNum(data.current?.temperatureC, 1, '°C')}
+                      </span>
+                      <span className="text-xs text-[#9cb0a7] font-mono tabular-nums">
+                        Feels {fmtNum(data.current?.apparentTemperatureC, 1, '°C')}
+                      </span>
+                    </div>
+                    <div className="mt-1 text-xs text-[#d6e4de] truncate">
+                      {data.current?.condition.description || 'Unavailable'}
+                    </div>
                   </div>
-                  <div className="mt-1 text-xs text-emerald-100/90 truncate">
-                    {data.current?.condition.description || 'Unavailable'} · Feels{' '}
-                    {fmtNum(data.current?.apparentTemperatureC, 1, '°C')}
-                  </div>
-                  <div className="mt-1.5 text-[10px] font-mono text-emerald-200/70">
-                    Open-Meteo model-derived
-                  </div>
-                </div>
-
-                <div className="rw-surface rounded-2xl p-4 sm:p-5">
-                  <div className="flex items-center justify-between text-[11px] text-neutral-500 font-semibold">
-                    <span>Humidity &amp; Wind</span>
-                    <Droplets className="w-3.5 h-3.5 text-sky-600" />
-                  </div>
-                  <div className="mt-2 text-2xl sm:text-3xl font-bold font-mono text-neutral-900 tabular-nums">
-                    {fmtNum(data.current?.relativeHumidityPercent, 0, '%')}
-                  </div>
-                  <div className="mt-1 text-xs text-neutral-600 tabular-nums">
-                    Dew pt {fmtNum(data.current?.dewPointC, 1, '°C')} · Wind{' '}
-                    {fmtNum(data.current?.windSpeedKmh, 1, ' km/h')}
-                  </div>
-                  <div className="mt-1.5 text-[10px] font-mono text-neutral-500">
-                    Pressure {fmtNum(data.current?.surfacePressureHpa, 0, ' hPa')}
+                  <div className="pt-2.5 border-t border-white/10 text-[10.5px] font-mono text-[#8ba097] flex items-center justify-between">
+                    <span>Open-Meteo model-derived</span>
+                    <span>22.31°N · 87.31°E</span>
                   </div>
                 </div>
 
-                <div className="rw-surface rounded-2xl p-4 sm:p-5">
-                  <div className="flex items-center justify-between text-[11px] text-neutral-500 font-semibold">
-                    <span>Sky &amp; Solar Flux</span>
-                    <Sun className="w-3.5 h-3.5 text-amber-600" />
+                <div className="lg:col-span-8 grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-[rgba(17,25,22,0.09)]">
+                  <div className="p-5 flex flex-col justify-between gap-2">
+                    <div className="flex items-center justify-between text-[10.5px] uppercase tracking-[0.07em] text-[#5c6a64] font-semibold">
+                      <span>Humidity &amp; Wind</span>
+                      <Droplets className="w-3.5 h-3.5 text-[#0e6ba8]" />
+                    </div>
+                    <div className="text-2xl sm:text-3xl font-semibold font-mono text-[#111916] tabular-nums">
+                      {fmtNum(data.current?.relativeHumidityPercent, 0, '%')}
+                    </div>
+                    <div className="space-y-0.5 text-[11px] font-mono text-[#5c6a64] tabular-nums">
+                      <div>
+                        Dew {fmtNum(data.current?.dewPointC, 1, '°C')} · Wind{' '}
+                        {fmtNum(data.current?.windSpeedKmh, 1, ' km/h')}
+                      </div>
+                      <div className="text-[10.5px] text-[#7a8982]">
+                        Pressure {fmtNum(data.current?.surfacePressureHpa, 0, ' hPa')}
+                      </div>
+                    </div>
                   </div>
-                  <div className="mt-2 text-2xl sm:text-3xl font-bold font-mono text-neutral-900 tabular-nums">
-                    {fmtNum(data.current?.cloudCoverPercent, 0, '%')}
-                  </div>
-                  <div className="mt-1 text-xs text-neutral-600 tabular-nums">
-                    Cloud · <AcronymHint term="GHI" /> {fmtNum(data.current?.shortwaveRadiationWm2, 0, ' W/m²')}
-                  </div>
-                  <div className="mt-1.5 text-[10px] font-mono text-neutral-500">
-                    Peak 24h GHI {fmtNum(data.solarRadiation?.todayPeakGhiWm2, 0, ' W/m²')}
-                  </div>
-                </div>
 
-                <div className="rw-surface rounded-2xl p-4 sm:p-5 border-emerald-200/70 bg-emerald-50/35">
-                  <div className="flex items-center justify-between text-[11px] text-emerald-900 font-semibold">
-                    <span>Campus Indoor Avg</span>
-                    <Gauge className="w-3.5 h-3.5 text-emerald-700" />
+                  <div className="p-5 flex flex-col justify-between gap-2">
+                    <div className="flex items-center justify-between text-[10.5px] uppercase tracking-[0.07em] text-[#5c6a64] font-semibold">
+                      <span>Sky &amp; Solar Flux</span>
+                      <Sun className="w-3.5 h-3.5 text-[#b45309]" />
+                    </div>
+                    <div className="text-2xl sm:text-3xl font-semibold font-mono text-[#111916] tabular-nums">
+                      {fmtNum(data.current?.cloudCoverPercent, 0, '%')}
+                    </div>
+                    <div className="space-y-0.5 text-[11px] font-mono text-[#5c6a64] tabular-nums">
+                      <div>
+                        Cloud · <AcronymHint term="GHI" /> {fmtNum(data.current?.shortwaveRadiationWm2, 0, ' W/m²')}
+                      </div>
+                      <div className="text-[10.5px] text-[#7a8982]">
+                        Peak 24h GHI {fmtNum(data.solarRadiation?.todayPeakGhiWm2, 0, ' W/m²')}
+                      </div>
+                    </div>
                   </div>
-                  <div className="mt-2 text-2xl sm:text-3xl font-bold font-mono text-neutral-900 tabular-nums">
-                    {data.indoorCampusSnapshot.avgIndoorTempC.toFixed(1)}°C
-                  </div>
-                  <div className="mt-1 text-xs text-emerald-900 tabular-nums">
-                    {data.indoorCampusSnapshot.avgIndoorHumidityPercent}% RH ·{' '}
-                    {data.indoorCampusSnapshot.avgNaturalDaylightLux} lx <AcronymHint term="LDR" />
-                  </div>
-                  <div className="mt-1.5 text-[10px] font-mono text-neutral-500">
-                    25 local room nodes · modelled telemetry
+
+                  <div className="p-5 flex flex-col justify-between gap-2 bg-gradient-to-br from-[#f6fbf8] to-[#e9f4ee]">
+                    <div className="flex items-center justify-between text-[10.5px] uppercase tracking-[0.07em] text-[#0b6e4f] font-semibold">
+                      <span>Campus Indoor Avg</span>
+                      <Gauge className="w-3.5 h-3.5 text-[#0b6e4f]" />
+                    </div>
+                    <div className="text-2xl sm:text-3xl font-semibold font-mono text-[#0b1713] tabular-nums">
+                      {data.indoorCampusSnapshot.avgIndoorTempC.toFixed(1)}°C
+                    </div>
+                    <div className="space-y-0.5 text-[11px] font-mono text-[#0b6e4f] tabular-nums">
+                      <div>
+                        {data.indoorCampusSnapshot.avgIndoorHumidityPercent}% RH ·{' '}
+                        {data.indoorCampusSnapshot.avgNaturalDaylightLux} lx <AcronymHint term="LDR" />
+                      </div>
+                      <div className="text-[10.5px] text-[#4a5851]">
+                        25 local room nodes
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Advisory Intelligence Cards (Cooling, Daylight, Energy Outlook) */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                <div className="rw-surface rounded-2xl p-4 sm:p-5 space-y-2.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800">
-                      Cooling Anticipation
-                    </span>
-                    <span
-                      className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-md ${
-                        data.insights.coolingAnticipation.advisoryLevel === 'elevated'
-                          ? 'bg-amber-100 text-amber-900'
-                          : data.insights.coolingAnticipation.advisoryLevel === 'moderate'
-                          ? 'bg-sky-100 text-sky-900'
-                          : 'bg-emerald-100 text-emerald-900'
-                      }`}
-                    >
-                      {data.insights.coolingAnticipation.advisoryLevel}
-                    </span>
+              {/* Unified 3-Column Hairline Advisory Matrix */}
+              <div className="rounded-xl border border-[rgba(17,25,22,0.1)] bg-white overflow-hidden grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-[rgba(17,25,22,0.09)]">
+                <div className="p-5 space-y-2.5 flex flex-col justify-between">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10.5px] font-mono font-semibold uppercase tracking-[0.08em] text-[#0b6e4f]">
+                        01 · Cooling Anticipation
+                      </span>
+                      <span
+                        className={`text-[10px] font-mono font-semibold uppercase px-1.5 py-0.5 rounded border ${
+                          data.insights.coolingAnticipation.advisoryLevel === 'elevated'
+                            ? 'bg-[#fffbeb] text-[#92400e] border-[#f59e0b]/40'
+                            : data.insights.coolingAnticipation.advisoryLevel === 'moderate'
+                            ? 'bg-[#eff6ff] text-[#0e6ba8] border-[#0e6ba8]/25'
+                            : 'bg-[#eef6f2] text-[#0b6e4f] border-[#0b6e4f]/25'
+                        }`}
+                      >
+                        {data.insights.coolingAnticipation.advisoryLevel}
+                      </span>
+                    </div>
+                    <h3 className="font-display text-[15px] font-semibold text-[#111916] leading-snug">
+                      {data.insights.coolingAnticipation.headline}
+                    </h3>
+                    <p className="text-xs text-[#4a5851] leading-relaxed">
+                      {data.insights.coolingAnticipation.summary}
+                    </p>
                   </div>
-                  <h3 className="text-sm font-bold text-neutral-900">
-                    {data.insights.coolingAnticipation.headline}
-                  </h3>
-                  <p className="text-xs text-neutral-600 leading-relaxed">
-                    {data.insights.coolingAnticipation.summary}
-                  </p>
-                  <p className="text-[11px] text-neutral-500 border-t border-neutral-200/70 pt-2 leading-relaxed">
+                  <p className="text-[11px] text-[#5c6a64] border-t border-[rgba(17,25,22,0.08)] pt-2.5 leading-relaxed">
                     {data.insights.coolingAnticipation.recommendedAction}
                   </p>
                 </div>
 
-                <div className="rw-surface rounded-2xl p-4 sm:p-5 space-y-2.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800">
-                      Daylight Intelligence
-                    </span>
-                    <span className="text-[10px] font-mono font-semibold text-neutral-600">
-                      {data.insights.daylightIntelligence.highDaylightRoomsCount}/25 high-lux
-                    </span>
+                <div className="p-5 space-y-2.5 flex flex-col justify-between">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10.5px] font-mono font-semibold uppercase tracking-[0.08em] text-[#0b6e4f]">
+                        02 · Daylight Intelligence
+                      </span>
+                      <span className="text-[10.5px] font-mono font-semibold text-[#5c6a64] tabular-nums">
+                        {data.insights.daylightIntelligence.highDaylightRoomsCount}/25 high-lux
+                      </span>
+                    </div>
+                    <h3 className="font-display text-[15px] font-semibold text-[#111916] leading-snug">
+                      {data.insights.daylightIntelligence.headline}
+                    </h3>
+                    <p className="text-xs text-[#4a5851] leading-relaxed">
+                      {data.insights.daylightIntelligence.summary}
+                    </p>
                   </div>
-                  <h3 className="text-sm font-bold text-neutral-900">
-                    {data.insights.daylightIntelligence.headline}
-                  </h3>
-                  <p className="text-xs text-neutral-600 leading-relaxed">
-                    {data.insights.daylightIntelligence.summary}
-                  </p>
-                  <p className="text-[11px] text-emerald-800 font-medium border-t border-neutral-200/70 pt-2 leading-relaxed">
+                  <p className="text-[11px] text-[#0b6e4f] font-medium border-t border-[rgba(17,25,22,0.08)] pt-2.5 leading-relaxed">
                     {data.insights.daylightIntelligence.authorityNotice}
                   </p>
                 </div>
 
-                <div className="rw-surface rounded-2xl p-4 sm:p-5 space-y-2.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800">
-                      Weather-Aware Outlook
-                    </span>
-                    <Sparkles className="w-3.5 h-3.5 text-emerald-700" />
+                <div className="p-5 space-y-2.5 flex flex-col justify-between">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10.5px] font-mono font-semibold uppercase tracking-[0.08em] text-[#0b6e4f]">
+                        03 · Weather-Aware Outlook
+                      </span>
+                      <Sparkles className="w-3.5 h-3.5 text-[#0b6e4f]" />
+                    </div>
+                    <h3 className="font-display text-[15px] font-semibold text-[#111916] leading-snug">
+                      {data.insights.energyOutlook.headline}
+                    </h3>
+                    <p className="text-xs text-[#4a5851] leading-relaxed">
+                      {data.insights.energyOutlook.narrative}
+                    </p>
                   </div>
-                  <h3 className="text-sm font-bold text-neutral-900">
-                    {data.insights.energyOutlook.headline}
-                  </h3>
-                  <p className="text-xs text-neutral-600 leading-relaxed">
-                    {data.insights.energyOutlook.narrative}
-                  </p>
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-mono text-neutral-700 border-t border-neutral-200/70 pt-2 tabular-nums">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-mono text-[#313e38] border-t border-[rgba(17,25,22,0.08)] pt-2.5 tabular-nums">
                     <span>
                       30d avg:{' '}
-                      <strong>
+                      <strong className="text-[#111916]">
                         {fmtNum(data.insights.energyOutlook.historical30DayAvgDailyKWh, 1, ' kWh/d')}
                       </strong>
                     </span>
                     <span>
                       7d avg:{' '}
-                      <strong>
+                      <strong className="text-[#111916]">
                         {fmtNum(data.insights.energyOutlook.recent7DayAvgDailyKWh, 1, ' kWh/d')}
                       </strong>
                     </span>
@@ -476,13 +505,14 @@ export const EnvironmentalIntelligenceView: React.FC<EnvironmentalIntelligenceVi
                         <div className="flex items-center justify-between gap-2">
                           <span className="font-bold text-neutral-900">{item.title}</span>
                           {item.roomId && (
-                            <button
-                              type="button"
+                            <InlineActionLink
+                              tone="emerald"
                               onClick={() => setSelectedRoomId(item.roomId!)}
-                              className="text-[11px] font-semibold text-emerald-800 hover:underline shrink-0"
+                              trailingIcon={<ArrowRight className="w-3 h-3" />}
+                              className="shrink-0"
                             >
                               Inspect Room
-                            </button>
+                            </InlineActionLink>
                           )}
                         </div>
                         <p className="text-[11px] text-neutral-600 leading-relaxed">
@@ -504,25 +534,14 @@ export const EnvironmentalIntelligenceView: React.FC<EnvironmentalIntelligenceVi
                   title="Classroom Sensor Context (25 Local Nodes vs Outdoor Model)"
                   subtitle="Local room PIR, LDR, and DHT11 states govern classroom automation; Open-Meteo provides regional outdoor context."
                   action={
-                    onNavigateSolar ? (
-                      <button
-                        type="button"
-                        onClick={onNavigateSolar}
-                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-800 hover:text-emerald-950"
-                      >
-                        <Sun className="w-3.5 h-3.5" />
-                        <span>Open Solar PVGIS Model →</span>
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab('solar')}
-                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-800 hover:text-emerald-950"
-                      >
-                        <Sun className="w-3.5 h-3.5" />
-                        <span>Open Solar PVGIS Model →</span>
-                      </button>
-                    )
+                    <InlineActionLink
+                      tone="emerald"
+                      onClick={onNavigateSolar ?? (() => setActiveTab('solar'))}
+                      icon={<Sun className="w-3.5 h-3.5" />}
+                      trailingIcon={<ArrowRight className="w-3.5 h-3.5" />}
+                    >
+                      Open Solar PVGIS Model
+                    </InlineActionLink>
                   }
                 />
 
@@ -603,12 +622,20 @@ export const EnvironmentalIntelligenceView: React.FC<EnvironmentalIntelligenceVi
                 <div className="h-64 sm:h-72 w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart data={timeline72h} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      <XAxis dataKey="time" tick={{ fontSize: 10 }} interval="preserveStartEnd" minTickGap={28} />
-                      <YAxis yAxisId="temp" tick={{ fontSize: 10 }} unit="°C" />
-                      <YAxis yAxisId="pct" orientation="right" tick={{ fontSize: 10 }} domain={[0, 100]} unit="%" />
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(17,25,22,0.08)" vertical={false} />
+                      <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#5c6a64' }} interval="preserveStartEnd" minTickGap={28} />
+                      <YAxis yAxisId="temp" tick={{ fontSize: 10, fill: '#5c6a64' }} unit="°C" />
+                      <YAxis yAxisId="pct" orientation="right" tick={{ fontSize: 10, fill: '#5c6a64' }} domain={[0, 100]} unit="%" />
                       <RechartsTooltip
-                        contentStyle={{ fontSize: 11, borderRadius: 12, borderColor: '#d1d5db' }}
+                        contentStyle={{
+                          fontSize: 11,
+                          borderRadius: 10,
+                          backgroundColor: '#0b1713',
+                          borderColor: 'rgba(255,255,255,0.14)',
+                          color: '#f4f6f4',
+                        }}
+                        itemStyle={{ color: '#e4ece8' }}
+                        labelStyle={{ color: '#34d399', fontFamily: 'IBM Plex Mono, monospace', marginBottom: 4 }}
                         labelFormatter={(_, payload) => payload?.[0]?.payload?.fullLabel || ''}
                       />
                       <Legend wrapperStyle={{ fontSize: 11 }} />
@@ -618,8 +645,8 @@ export const EnvironmentalIntelligenceView: React.FC<EnvironmentalIntelligenceVi
                         dataKey="cloud"
                         name="Cloud Cover (%)"
                         fill="#bae6fd"
-                        fillOpacity={0.35}
-                        stroke="#0284c7"
+                        fillOpacity={0.32}
+                        stroke="#0e6ba8"
                         strokeWidth={1.5}
                       />
                       <Line
@@ -627,7 +654,7 @@ export const EnvironmentalIntelligenceView: React.FC<EnvironmentalIntelligenceVi
                         type="monotone"
                         dataKey="temp"
                         name="Air Temp (°C)"
-                        stroke="#047857"
+                        stroke="#0b6e4f"
                         strokeWidth={2.2}
                         dot={false}
                       />
@@ -636,7 +663,7 @@ export const EnvironmentalIntelligenceView: React.FC<EnvironmentalIntelligenceVi
                         type="monotone"
                         dataKey="apparent"
                         name="Feels Like (°C)"
-                        stroke="#d97706"
+                        stroke="#b45309"
                         strokeWidth={1.8}
                         strokeDasharray="4 4"
                         dot={false}
@@ -836,13 +863,13 @@ export const EnvironmentalIntelligenceView: React.FC<EnvironmentalIntelligenceVi
                             className="w-24 px-2.5 py-1.5 glass-input rounded-lg font-mono text-xs tabular-nums"
                           />
                         </label>
-                        <button
-                          type="button"
+                        <ActionButton
+                          variant="primary"
+                          size="sm"
                           onClick={() => void fetchOverview({ tilt: gtiTilt, azimuth: gtiAzimuth })}
-                          className="px-3.5 py-1.5 rounded-xl bg-[#0b2e22] hover:bg-[#114231] text-white font-semibold text-xs min-h-[34px]"
                         >
                           Update GTI
-                        </button>
+                        </ActionButton>
                       </div>
                     </div>
 
@@ -1086,7 +1113,7 @@ export const EnvironmentalIntelligenceView: React.FC<EnvironmentalIntelligenceVi
   if (embedded) return content;
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 space-y-5 sm:space-y-6 max-w-7xl mx-auto">
+    <div className="px-3.5 pt-2.5 pb-6 sm:px-5 sm:pt-3 sm:pb-7 lg:px-7 lg:pt-3 lg:pb-8 space-y-4 sm:space-y-5 max-w-7xl mx-auto">
       <PageHeader
         kicker="Open-Meteo External Feeds · DAV Model School, IIT Kharagpur"
         title="Environmental Intelligence"

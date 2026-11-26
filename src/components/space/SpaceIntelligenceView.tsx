@@ -40,7 +40,12 @@ import type {
   SpreadsheetParseResult,
 } from '../../types/space';
 import { AnimatedNumber } from '../common/MotionPrimitives';
-import { PageHeader, SegmentedControl } from '../common/DesignSystem';
+import {
+  ActionButton,
+  InlineActionLink,
+  PageHeader,
+  SegmentedControl,
+} from '../common/DesignSystem';
 import { MathText } from '../common/MathText';
 import { AnimatedList, AnimatedTableRow, FadeContent, Stepper } from '../reactbits';
 import { ROOMWISE_EASE } from '../../utils/motion';
@@ -553,13 +558,13 @@ export const SpaceIntelligenceView: React.FC = () => {
         <div className="p-6 rounded-2xl bg-white border border-rose-200 text-xs text-rose-900 space-y-3">
           <div className="font-bold text-sm">Unable to load Space Intelligence</div>
           <p>{loadError}</p>
-          <button
-            type="button"
+          <ActionButton
+            variant="primary"
+            size="md"
             onClick={() => void fetchBootstrap()}
-            className="px-4 py-2 rounded-xl bg-neutral-900 text-white font-semibold"
           >
             Retry
-          </button>
+          </ActionButton>
         </div>
       </div>
     );
@@ -604,7 +609,7 @@ export const SpaceIntelligenceView: React.FC = () => {
     : 0;
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 space-y-6 max-w-7xl mx-auto">
+    <div className="px-4 pt-5 pb-7 sm:px-6 sm:pt-6 sm:pb-8 lg:px-8 lg:pt-7 lg:pb-10 space-y-5 sm:space-y-6 max-w-[1440px] mx-auto">
       {/* Editorial Header */}
       <PageHeader
         kicker="Attendance-Aware Constraint Solver · Register Separate From PIR"
@@ -621,38 +626,35 @@ export const SpaceIntelligenceView: React.FC = () => {
             <a
               href="/api/space/template.csv"
               download="ROOMWISE_Attendance_Template.csv"
-              className="px-3.5 py-2 min-h-[40px] rounded-xl rw-surface hover:bg-[#f3f5f4] text-[#111815] text-xs font-semibold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0"
+              className="px-3.5 py-2 min-h-[38px] rounded-lg rw-surface hover:bg-[#f4f5f3] text-[#111916] text-xs font-semibold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0"
             >
-              <Download className="w-3.5 h-3.5 text-[#64726b]" />
+              <Download className="w-3.5 h-3.5 text-[#5c6862]" />
               <span>Template CSV</span>
             </a>
 
-            <button
-              type="button"
-              disabled={isAnalyzing}
+            <ActionButton
+              variant="primary"
+              size="md"
+              loading={isAnalyzing}
               onClick={() => void handleTryAllocation()}
-              className="px-4 py-2 min-h-[40px] rounded-xl bg-[#0b2e22] hover:bg-[#114231] text-white text-xs font-semibold flex items-center gap-2 transition-colors disabled:opacity-60 whitespace-nowrap shrink-0 cursor-pointer shadow-xs"
+              icon={<Play className="w-3.5 h-3.5 fill-current text-[#34d399]" />}
             >
-              {isAnalyzing ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-300" />
-              ) : (
-                <Play className="w-3.5 h-3.5 fill-current text-emerald-300" />
-              )}
-              <span>{isAnalyzing ? 'Analyzing...' : 'TRY ALLOCATION'}</span>
-            </button>
+              {isAnalyzing ? 'Analyzing...' : 'TRY ALLOCATION'}
+            </ActionButton>
           </>
         }
       />
 
-      {/* Unified Attendance Control & Upload Bar */}
+      {/* Unified Attendance Control & Upload Bar — Obsidian-Pine Command Console */}
       <FadeContent duration={0.2}>
-      <div className="rw-surface rounded-2xl divide-y divide-neutral-200/75 overflow-hidden">
-        {/* Allocation Workflow Stepper */}
-        <div className="px-4 py-2.5 bg-[#fafbfb] flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+      <div className="rounded-xl border border-[#111916]/12 bg-white overflow-hidden">
+        {/* Obsidian-Pine Allocation Workflow Stepper Band */}
+        <div className="px-3.5 py-3 sm:px-5 sm:py-3.5 rw-obsidian-panel border-none rounded-none shadow-none text-white flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
           <div className="flex-1 min-w-0 max-w-xl">
             <Stepper
               steps={allocationWorkflowSteps}
               currentStep={allocationWorkflowStep}
+              tone="dark"
               allowStepBack
               ariaLabel="Try Allocation workflow progress"
               onStepClick={(stepIdx) => {
@@ -667,24 +669,24 @@ export const SpaceIntelligenceView: React.FC = () => {
             />
           </div>
           {activeRun && (
-            <div className="text-[11px] font-mono text-[#4a5851] tabular-nums shrink-0">
+            <div className="text-[11px] font-mono text-[#34d399] tabular-nums shrink-0">
               {summary.recommendedMovesCount} move{summary.recommendedMovesCount === 1 ? '' : 's'} evaluated
             </div>
           )}
         </div>
         {/* Date & Horizon Row */}
-        <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="px-3.5 py-3 sm:px-5 sm:py-3.5 border-b border-[#111916]/10 flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 text-xs bg-white">
           <div className="flex flex-wrap items-center gap-3 min-w-0 max-w-full">
             <div className="flex items-center gap-2 min-w-0 max-w-full">
-              <CalendarDays className="w-4 h-4 text-emerald-700 shrink-0" />
-              <label htmlFor="space-date-select" className="font-semibold text-[#111815] whitespace-nowrap">
+              <CalendarDays className="w-4 h-4 text-[#0b6e4f] shrink-0" />
+              <label htmlFor="space-date-select" className="font-semibold text-[#111916] whitespace-nowrap">
                 Date
               </label>
               <select
                 id="space-date-select"
                 value={selectedDate}
                 onChange={(e) => handleDateChange(e.target.value)}
-                className="px-2.5 py-1.5 rounded-lg glass-input font-mono text-xs font-semibold text-[#111815] focus:outline-none min-w-0 max-w-full truncate"
+                className="px-2.5 py-1.5 rounded-lg rw-input font-mono text-xs font-semibold text-[#111916] focus:outline-none min-w-0 max-w-full truncate"
               >
                 {(bootstrap?.availableAttendanceDates || []).map((d) => (
                   <option key={d.attendanceDate} value={d.attendanceDate}>
@@ -708,7 +710,7 @@ export const SpaceIntelligenceView: React.FC = () => {
           </div>
 
           {activeRun && (
-            <div className="text-[11px] text-[#64726b] font-mono tabular-nums">
+            <div className="text-[11px] text-[#5c6862] font-mono tabular-nums">
               {activeRun.attendanceDate} · {activeRun.analysisMode === 'projected' ? 'Projected (+2)' : 'Actual'}
             </div>
           )}
@@ -726,17 +728,17 @@ export const SpaceIntelligenceView: React.FC = () => {
             setIsDraggingFile(false);
             void handleFileSelected(e.dataTransfer.files?.[0]);
           }}
-          className={`px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors ${
-            isDraggingFile ? 'bg-emerald-50/70' : 'bg-neutral-50/40'
+          className={`px-5 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors ${
+            isDraggingFile ? 'bg-[#0b6e4f]/8' : 'bg-[#f4f5f3]/70'
           }`}
         >
           <div className="flex items-center gap-2.5 text-xs min-w-0">
-            <FileSpreadsheet className="w-4 h-4 text-emerald-700 shrink-0" />
+            <FileSpreadsheet className="w-4 h-4 text-[#0b6e4f] shrink-0" />
             <div className="truncate">
-              <span className="font-semibold text-neutral-900">
+              <span className="font-semibold text-[#111916]">
                 {parseResult ? parseResult.fileName : 'Attendance Import'}
               </span>
-              <span className="text-neutral-500 ml-2">
+              <span className="text-[#5c6862] ml-2">
                 {isParsingFile
                   ? 'Reading workbook...'
                   : parseResult
@@ -755,28 +757,24 @@ export const SpaceIntelligenceView: React.FC = () => {
               className="hidden"
             />
             {parseResult && (
-              <button
-                type="button"
+              <ActionButton
+                variant="secondary"
+                size="xs"
                 onClick={clearUploadState}
-                className="px-2.5 py-1.5 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 text-[11px] font-semibold text-neutral-600 flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                icon={<X className="w-3 h-3" />}
               >
-                <X className="w-3 h-3" />
-                <span>Clear</span>
-              </button>
+                Clear
+              </ActionButton>
             )}
-            <button
-              type="button"
+            <ActionButton
+              variant="secondary"
+              size="sm"
+              loading={isParsingFile}
               onClick={() => fileInputRef.current?.click()}
-              disabled={isParsingFile}
-              className="px-3 py-1.5 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 text-xs font-semibold text-neutral-800 flex items-center gap-1.5 cursor-pointer disabled:opacity-60 whitespace-nowrap"
+              icon={<Upload className="w-3.5 h-3.5 text-[#0b6e4f]" />}
             >
-              {isParsingFile ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-700" />
-              ) : (
-                <Upload className="w-3.5 h-3.5 text-emerald-700" />
-              )}
-              <span>{parseResult ? 'Replace File' : 'Upload CSV / XLSX'}</span>
-            </button>
+              {parseResult ? 'Replace File' : 'Upload CSV / XLSX'}
+            </ActionButton>
           </div>
         </div>
 
@@ -833,13 +831,13 @@ export const SpaceIntelligenceView: React.FC = () => {
                     </select>
                   )}
 
-                  <button
-                    type="button"
+                  <ActionButton
+                    variant="secondary"
+                    size="xs"
                     onClick={() => setShowColumnMapping((v) => !v)}
-                    className="px-2.5 py-1 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 text-[11px] font-semibold text-neutral-700 cursor-pointer whitespace-nowrap"
                   >
                     {showColumnMapping ? 'Hide Column Mapping' : 'Column Mapping'}
-                  </button>
+                  </ActionButton>
                 </div>
               </div>
 
@@ -885,13 +883,13 @@ export const SpaceIntelligenceView: React.FC = () => {
                     ))}
                   </div>
                   <div className="flex justify-end">
-                    <button
-                      type="button"
+                    <ActionButton
+                      variant="secondary"
+                      size="xs"
                       onClick={handleRevalidateMapping}
-                      className="px-3 py-1 rounded-lg border border-neutral-300 bg-white hover:bg-neutral-100 text-[11px] font-semibold text-neutral-800 cursor-pointer whitespace-nowrap"
                     >
                       Re-Validate
-                    </button>
+                    </ActionButton>
                   </div>
                 </div>
               )}
@@ -971,21 +969,16 @@ export const SpaceIntelligenceView: React.FC = () => {
                     </span>
                   )}
                 </div>
-                <button
-                  type="button"
-                  disabled={parseResult.validRowsCount === 0 || isCommittingImport}
+                <ActionButton
+                  variant="forest"
+                  size="md"
+                  loading={isCommittingImport}
+                  disabled={parseResult.validRowsCount === 0}
                   onClick={() => void commitValidatedAttendance()}
-                  className="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold flex items-center gap-1.5 disabled:opacity-50 cursor-pointer whitespace-nowrap"
+                  icon={<CheckCircle2 className="w-3.5 h-3.5" />}
                 >
-                  {isCommittingImport ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                  )}
-                  <span>
-                    Commit {parseResult.validRowsCount} Row{parseResult.validRowsCount === 1 ? '' : 's'} &amp; Analyze
-                  </span>
-                </button>
+                  Commit {parseResult.validRowsCount} Row{parseResult.validRowsCount === 1 ? '' : 's'} &amp; Analyze
+                </ActionButton>
               </div>
             </motion.div>
           )}
@@ -1000,16 +993,16 @@ export const SpaceIntelligenceView: React.FC = () => {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="px-4 py-3.5 rounded-2xl rw-forest-hero text-white text-xs space-y-2.5 overflow-hidden"
+            className="px-5 py-4 rounded-xl rw-obsidian-panel text-white text-xs space-y-2.5 overflow-hidden"
           >
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 font-medium">
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-300 shrink-0" />
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-[#34d399] shrink-0" />
                 <span>
                   {ANALYSIS_STAGES[Math.max(0, analysisStageIndex)] || 'Evaluating campus schedule'}
                 </span>
               </div>
-              <span className="font-mono text-[11px] text-emerald-200/75 tabular-nums shrink-0">
+              <span className="font-mono text-[11px] text-[#34d399] tabular-nums shrink-0">
                 {Math.max(1, analysisStageIndex + 1)} / {ANALYSIS_STAGES.length}
               </span>
             </div>
@@ -1025,57 +1018,57 @@ export const SpaceIntelligenceView: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Concise 4-Metric Summary Strip */}
-      <div className="rw-surface rounded-2xl grid grid-cols-2 lg:grid-cols-4 divide-y lg:divide-y-0 lg:divide-x divide-neutral-200/75 overflow-hidden">
-        <div className="p-4 sm:px-5">
-          <div className="text-[11px] font-medium text-[#64726b]">Recommended Moves</div>
-          <div className="mt-1 flex items-baseline gap-1.5 tabular-nums">
-            <span className="text-2xl font-semibold text-[#111815] font-mono">
+      {/* Architectural 4-Column Summary Ledger Strip */}
+      <div className="rounded-xl border border-[#111916]/12 bg-[#111916]/10 grid grid-cols-2 lg:grid-cols-4 gap-px overflow-hidden">
+        <div className="p-3.5 sm:p-4 sm:px-5 bg-white">
+          <div className="text-[10px] font-mono uppercase tracking-[0.12em] text-[#5c6862]">Recommended Moves</div>
+          <div className="mt-1 sm:mt-1.5 flex items-baseline gap-1.5 tabular-nums">
+            <span className="text-xl sm:text-2xl font-bold text-[#111916] font-mono">
               <AnimatedNumber value={summary.recommendedMovesCount} />
             </span>
-            <span className="text-xs text-[#64726b]">/ {summary.evaluatedSectionsCount} sections</span>
+            <span className="text-xs text-[#5c6862]">/ {summary.evaluatedSectionsCount} sections</span>
           </div>
-          <div className="mt-0.5 text-[11px] text-[#64726b] tabular-nums">
+          <div className="mt-1 text-[11px] text-[#5c6862] tabular-nums">
             {summary.unchangedSectionsCount} unchanged
             {summary.unknownAttendanceCount > 0 ? ` · ${summary.unknownAttendanceCount} unknown` : ''}
           </div>
         </div>
 
-        <div className="p-4 sm:px-5 bg-emerald-50/35 rw-card-alive">
-          <div className="text-[11px] font-medium text-emerald-800">Estimated Savings</div>
-          <div className="mt-1 flex items-baseline gap-1 tabular-nums">
-            <span className="text-2xl font-semibold text-emerald-900 font-mono">
+        <div className="p-3.5 sm:p-4 sm:px-5 rw-obsidian-panel border-none rounded-none shadow-none text-white">
+          <div className="text-[10px] font-mono uppercase tracking-[0.12em] text-emerald-300/80">Estimated Savings</div>
+          <div className="mt-1 sm:mt-1.5 flex items-baseline gap-1.5 tabular-nums">
+            <span className="text-xl sm:text-2xl font-bold text-[#34d399] font-mono">
               <AnimatedNumber value={summary.totalProjectedSavingsKWh} decimals={2} prefix="+" />
             </span>
-            <span className="text-xs font-semibold text-emerald-700">kWh</span>
+            <span className="text-xs font-mono font-semibold text-emerald-200/80">kWh</span>
           </div>
-          <div className="mt-0.5 text-[11px] text-emerald-800/80">
+          <div className="mt-1 text-[11px] text-white/65">
             {analysisMode === 'projected' ? 'Next block (+2 seat margin)' : 'Evaluated windows'}
           </div>
         </div>
 
-        <div className="p-4 sm:px-5">
-          <div className="text-[11px] font-medium text-[#64726b]">Cost &amp; CO₂ Impact</div>
-          <div className="mt-1 flex items-baseline gap-0.5 tabular-nums">
-            <span className="text-xs font-semibold text-[#64726b]">₹</span>
-            <span className="text-2xl font-semibold text-[#111815] font-mono">
+        <div className="p-3.5 sm:p-4 sm:px-5 bg-white">
+          <div className="text-[10px] font-mono uppercase tracking-[0.12em] text-[#5c6862]">Cost &amp; CO₂ Impact</div>
+          <div className="mt-1 sm:mt-1.5 flex items-baseline gap-0.5 tabular-nums">
+            <span className="text-xs font-semibold text-[#5c6862]">₹</span>
+            <span className="text-xl sm:text-2xl font-bold text-[#111916] font-mono">
               <AnimatedNumber value={summary.totalProjectedSavingsINR} decimals={2} />
             </span>
           </div>
-          <div className="mt-0.5 text-[11px] text-[#64726b] tabular-nums">
+          <div className="mt-1 text-[11px] text-[#5c6862] tabular-nums">
             {summary.totalProjectedCo2AvoidedKg} kg CO₂ avoided
           </div>
         </div>
 
-        <div className="p-4 sm:px-5">
-          <div className="text-[11px] font-medium text-[#64726b]">Register Coverage</div>
-          <div className="mt-1 flex items-baseline gap-1.5 tabular-nums">
-            <span className="text-2xl font-semibold text-[#111815] font-mono">
+        <div className="p-3.5 sm:p-4 sm:px-5 bg-white">
+          <div className="text-[10px] font-mono uppercase tracking-[0.12em] text-[#5c6862]">Register Coverage</div>
+          <div className="mt-1 sm:mt-1.5 flex items-baseline gap-1.5 tabular-nums">
+            <span className="text-xl sm:text-2xl font-bold text-[#111916] font-mono">
               <AnimatedNumber value={selectedDateMeta?.recordedSectionsCount || 0} />
             </span>
-            <span className="text-xs text-[#64726b]">/ {bootstrap?.sections.length || 17} sections</span>
+            <span className="text-xs text-[#5c6862]">/ {bootstrap?.sections.length || 17} sections</span>
           </div>
-          <div className="mt-0.5 text-[11px] text-[#64726b] truncate">
+          <div className="mt-1 text-[11px] text-[#5c6862] truncate">
             {selectedDateMeta?.sourceSummary || 'Preloaded'}
           </div>
         </div>
@@ -1122,44 +1115,44 @@ export const SpaceIntelligenceView: React.FC = () => {
 
                 return (
                   <div
-                    className={`rounded-2xl transition-colors ${
+                    className={`rounded-xl border transition-colors ${
                       prop.status === 'approved'
-                        ? 'rw-surface-sage border-emerald-300/90'
+                        ? 'bg-[#eef4f1] border-[#0b6e4f]/30'
                         : prop.status === 'rejected'
-                        ? 'rw-surface-muted opacity-80'
-                        : 'rw-surface'
+                        ? 'bg-[#f4f5f3] border-[#111916]/10 opacity-75'
+                        : 'bg-white border-[#111916]/12'
                     }`}
                   >
                     <div className="p-4 sm:p-5 space-y-4">
                       {/* Card Top Metadata */}
                       <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-mono font-bold text-neutral-900">
+                          <span className="font-mono font-bold text-[#111916] px-2 py-0.5 rounded bg-[#f4f5f3] border border-[#111916]/10">
                             {prop.sectionCode}
                           </span>
-                          <span className="text-neutral-700 font-medium">
+                          <span className="font-display text-[#111916] font-semibold">
                             {prop.sectionDisplayName}
                           </span>
-                          <span className="text-neutral-300" aria-hidden="true">·</span>
+                          <span className="text-[#111916]/25" aria-hidden="true">·</span>
                           <span
                             className={`font-semibold ${
                               moveType.label === 'Section Consolidation'
-                                ? 'text-teal-800'
-                                : 'text-emerald-800'
+                                ? 'text-[#0e6ba8]'
+                                : 'text-[#0b6e4f]'
                             }`}
                           >
                             {moveType.label}
                           </span>
-                          <span className="text-neutral-300" aria-hidden="true">·</span>
-                          <span className="font-mono text-neutral-600 tabular-nums">
+                          <span className="text-[#111916]/25" aria-hidden="true">·</span>
+                          <span className="font-mono text-[#5c6862] tabular-nums">
                             {prop.windowLabel}
                           </span>
                         </div>
 
                         {prop.status !== 'pending' && (
                           <span
-                            className={`font-semibold uppercase text-[10px] tracking-wider ${
-                              prop.status === 'approved' ? 'text-emerald-700' : 'text-neutral-500'
+                            className={`font-mono font-semibold uppercase text-[10px] tracking-[0.1em] ${
+                              prop.status === 'approved' ? 'text-[#0b6e4f]' : 'text-[#5c6862]'
                             }`}
                           >
                             {prop.status}
@@ -1171,37 +1164,43 @@ export const SpaceIntelligenceView: React.FC = () => {
                       {/* Primary Comparison Grid */}
                       <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
                         {/* Original vs Proposed Classroom */}
-                        <div className="md:col-span-6 space-y-1">
+                        <div className="md:col-span-6 space-y-1.5">
                           <div className="flex items-center gap-2.5 flex-wrap text-xs">
-                            <div>
-                              <span className="font-mono font-bold text-neutral-800">
+                            <div className="px-2.5 py-1 rounded-lg bg-[#f4f5f3] border border-[#111916]/10">
+                              <span className="font-mono font-bold text-[#111916]">
                                 {prop.existingRoomCode}
                               </span>
-                              <span className="text-neutral-500 ml-1.5">
-                                {prop.existingRoomName} ({prop.existingRoomMaxOccupancy} seats)
+                              <span className="text-[#5c6862] ml-1.5">
+                                {prop.existingRoomName} ({prop.existingRoomMaxOccupancy})
                               </span>
                             </div>
-                            <ArrowRight className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
-                            <div>
-                              <span className="font-mono font-bold text-emerald-900">
+                            <ArrowRight className="w-3.5 h-3.5 text-[#0b6e4f] shrink-0" />
+                            <div className="px-2.5 py-1 rounded-lg rw-obsidian-panel border-none shadow-none text-white">
+                              <span className="font-mono font-bold text-[#34d399]">
                                 {prop.proposedRoomCode}
                               </span>
-                              <span className="text-neutral-800 font-medium ml-1.5">
-                                {prop.proposedRoomName} ({prop.proposedRoomMaxOccupancy} seats)
+                              <span className="text-white/85 font-medium ml-1.5">
+                                {prop.proposedRoomName} ({prop.proposedRoomMaxOccupancy})
                               </span>
                             </div>
                           </div>
-                          <div className="text-[11px] text-neutral-500">
+                          <div className="text-[11px] text-[#5c6862]">
                             {prop.subjectSummary} · {moveType.detail}
                           </div>
                         </div>
 
                         {/* Attendance & Room Capacity Fit */}
-                        <div className="md:col-span-3 space-y-0.5 text-xs tabular-nums">
-                          <div className="font-semibold text-neutral-900 font-mono">
+                        <div className="md:col-span-3 space-y-1 text-xs tabular-nums">
+                          <div className="font-semibold text-[#111916] font-mono">
                             {prop.presentCount}/{prop.enrolledStrength} present
                           </div>
-                          <div className="text-[11px] text-neutral-500">
+                          <div className="h-1.5 w-full max-w-[140px] rounded-full bg-[#ecefe9] overflow-hidden">
+                            <div
+                              className="h-full bg-gradient-to-r from-[#08543c] to-[#10b981] rounded-full"
+                              style={{ width: `${Math.min(100, Math.max(8, prop.utilizationProposedPercent))}%` }}
+                            />
+                          </div>
+                          <div className="text-[11px] text-[#5c6862]">
                             {prop.safetyMarginApplied > 0
                               ? `${prop.effectiveRequiredSeats} seats req. (+${prop.safetyMarginApplied})`
                               : `${prop.utilizationProposedPercent}% room utilisation`}
@@ -1210,65 +1209,64 @@ export const SpaceIntelligenceView: React.FC = () => {
 
                         {/* Energy Impact */}
                         <div className="md:col-span-3 md:text-right space-y-0.5 tabular-nums">
-                          <div className="text-base font-bold font-mono text-emerald-800">
+                          <div className="text-base font-bold font-mono text-[#0b6e4f]">
                             +{prop.netEnergySavingsKWh} kWh
                           </div>
-                          <div className="text-[11px] text-neutral-500 font-mono">
+                          <div className="text-[11px] text-[#5c6862] font-mono">
                             ₹{prop.costSavingsINR} · {prop.co2AvoidedKg} kg CO₂
                           </div>
                         </div>
                       </div>
 
                       {/* Footer Actions */}
-                      <div className="pt-3 border-t border-neutral-100 flex flex-wrap items-center justify-between gap-2">
-                        <button
-                          type="button"
+                      <div className="pt-3 border-t border-[#111916]/10 flex flex-wrap items-center justify-between gap-2">
+                        <InlineActionLink
+                          tone="neutral"
                           onClick={() =>
                             setExpandedProposalIds((prev) => ({
                               ...prev,
                               [prop.proposalId]: !isExpanded,
                             }))
                           }
-                          className="text-xs font-semibold text-neutral-600 hover:text-neutral-900 inline-flex items-center gap-1 cursor-pointer"
+                          icon={
+                            isExpanded ? (
+                              <ChevronUp className="w-3.5 h-3.5" />
+                            ) : (
+                              <ChevronDown className="w-3.5 h-3.5" />
+                            )
+                          }
                         >
-                          <span>
-                            {isExpanded
-                              ? 'Hide details'
-                              : `Details & rejected options (${prop.rejectedAlternatives.length})`}
-                          </span>
-                          {isExpanded ? (
-                            <ChevronUp className="w-3.5 h-3.5" />
-                          ) : (
-                            <ChevronDown className="w-3.5 h-3.5" />
-                          )}
-                        </button>
+                          {isExpanded
+                            ? 'Hide details'
+                            : `Details & rejected options (${prop.rejectedAlternatives.length})`}
+                        </InlineActionLink>
 
                         {prop.status === 'pending' && (
                           <div className="flex items-center gap-2 shrink-0">
-                            <button
-                              type="button"
+                            <ActionButton
+                              variant="secondary"
+                              size="sm"
                               disabled={isReviewing}
                               onClick={() => handleReviewProposal(prop, 'rejected')}
-                              className="px-3 py-1.5 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 text-xs font-semibold text-neutral-700 inline-flex items-center gap-1 disabled:opacity-50 cursor-pointer whitespace-nowrap"
+                              icon={<XCircle className="w-3.5 h-3.5 text-[#5c6862]" />}
                             >
-                              <XCircle className="w-3.5 h-3.5 text-neutral-400" />
-                              <span>Reject</span>
-                            </button>
-                            <button
-                              type="button"
-                              disabled={isReviewing}
+                              Reject
+                            </ActionButton>
+                            <ActionButton
+                              variant="primary"
+                              size="sm"
+                              loading={isReviewing}
                               onClick={() => handleReviewProposal(prop, 'approved')}
-                              className="px-3.5 py-1.5 rounded-lg bg-[#0b2e22] hover:bg-[#114231] text-white text-xs font-semibold inline-flex items-center gap-1 disabled:opacity-50 cursor-pointer whitespace-nowrap"
+                              icon={
+                                !isAdminUnlocked ? (
+                                  <KeyRound className="w-3.5 h-3.5 text-[#34d399]" />
+                                ) : (
+                                  <Check className="w-3.5 h-3.5 text-[#34d399]" />
+                                )
+                              }
                             >
-                              {isReviewing ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              ) : !isAdminUnlocked ? (
-                                <KeyRound className="w-3.5 h-3.5" />
-                              ) : (
-                                <Check className="w-3.5 h-3.5" />
-                              )}
-                              <span>{isAdminUnlocked ? 'Approve' : 'Approve (Admin)'}</span>
-                            </button>
+                              {isAdminUnlocked ? 'Approve' : 'Approve (Admin)'}
+                            </ActionButton>
                           </div>
                         )}
                       </div>
@@ -1359,7 +1357,8 @@ export const SpaceIntelligenceView: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowUnchanged((v) => !v)}
-                className="w-full px-4 sm:px-5 py-3.5 flex items-center justify-between gap-2 text-left hover:bg-neutral-50/70 transition-colors cursor-pointer"
+                aria-expanded={showUnchanged}
+                className="group w-full px-4 sm:px-5 py-3.5 flex items-center justify-between gap-2 text-left hover:bg-neutral-50/70 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0b6e4f]"
               >
                 <div className="text-xs">
                   <span className="font-semibold text-neutral-900">
@@ -1369,13 +1368,15 @@ export const SpaceIntelligenceView: React.FC = () => {
                     Remaining in scheduled classrooms
                   </span>
                 </div>
-                <span className="text-xs font-semibold text-neutral-600 inline-flex items-center gap-1 shrink-0">
+                <span className="text-xs font-semibold text-neutral-600 inline-flex items-center gap-1.5 shrink-0">
                   <span>{showUnchanged ? 'Hide' : 'Show'}</span>
-                  {showUnchanged ? (
-                    <ChevronUp className="w-3.5 h-3.5" />
-                  ) : (
-                    <ChevronDown className="w-3.5 h-3.5" />
-                  )}
+                  <span className="w-6 h-6 rounded-md bg-white border border-[#111916]/12 group-hover:border-[#0b6e4f]/35 group-hover:bg-[#f7fbf9] transition-colors inline-flex items-center justify-center text-[#46544e]">
+                    {showUnchanged ? (
+                      <ChevronUp className="w-3.5 h-3.5" />
+                    ) : (
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    )}
+                  </span>
                 </span>
               </button>
 
@@ -1407,18 +1408,19 @@ export const SpaceIntelligenceView: React.FC = () => {
                           </div>
 
                           {item.rejectedAlternatives.length > 0 && (
-                            <button
-                              type="button"
+                            <ActionButton
+                              variant="secondary"
+                              size="xs"
                               onClick={() =>
                                 setExpandedUnchangedIds((prev) => ({
                                   ...prev,
                                   [item.sectionId]: !isOpen,
                                 }))
                               }
-                              className="self-start md:self-auto px-2.5 py-1 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 text-[11px] font-semibold text-neutral-700 shrink-0 cursor-pointer"
+                              className="self-start md:self-auto"
                             >
                               {isOpen ? 'Hide checks' : `${item.rejectedAlternatives.length} checked`}
-                            </button>
+                            </ActionButton>
                           )}
                         </div>
 
@@ -1444,20 +1446,20 @@ export const SpaceIntelligenceView: React.FC = () => {
 
       {/* TAB 2: SECTIONS & REGISTER ATTENDANCE */}
       {innerTab === 'sections' && bootstrap && (
-        <div className="rw-surface rounded-2xl overflow-hidden">
-          <div className="px-4 sm:px-5 py-3.5 border-b border-neutral-200/80 flex flex-wrap items-center justify-between gap-2">
-            <div className="text-xs font-semibold text-neutral-900">
+        <div className="rounded-xl border border-[#111916]/12 bg-white overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-[#111916]/10 flex flex-wrap items-center justify-between gap-2">
+            <div className="font-display text-sm font-semibold text-[#111916]">
               Section Strength, Attendance ({selectedDate}) &amp; Allocation Policy
             </div>
             {!isAdminUnlocked && (
-              <button
-                type="button"
+              <ActionButton
+                variant="amber"
+                size="xs"
                 onClick={() => openAuthModal()}
-                className="px-2.5 py-1 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-950 text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer whitespace-nowrap shrink-0"
+                icon={<KeyRound className="w-3 h-3" />}
               >
-                <KeyRound className="w-3 h-3" />
-                <span>Admin Edit</span>
-              </button>
+                Admin Edit
+              </ActionButton>
             )}
           </div>
 
@@ -1545,34 +1547,34 @@ export const SpaceIntelligenceView: React.FC = () => {
                       <td className="py-2.5 px-4 text-right">
                         {isEditing ? (
                           <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              type="button"
+                            <ActionButton
+                              variant="secondary"
+                              size="xs"
                               onClick={() => setEditingSectionId(null)}
-                              className="px-2 py-1 rounded-lg border border-neutral-200 text-neutral-600 hover:bg-neutral-100 cursor-pointer whitespace-nowrap"
                             >
                               Cancel
-                            </button>
-                            <button
-                              type="button"
-                              disabled={isSaving}
+                            </ActionButton>
+                            <ActionButton
+                              variant="forest"
+                              size="xs"
+                              loading={isSaving}
                               onClick={() => handleSaveSection(sec)}
-                              className="px-2.5 py-1 rounded-lg bg-emerald-700 text-white font-semibold hover:bg-emerald-800 cursor-pointer whitespace-nowrap"
                             >
                               {isSaving ? 'Saving...' : 'Save'}
-                            </button>
+                            </ActionButton>
                           </div>
                         ) : (
-                          <button
-                            type="button"
+                          <ActionButton
+                            variant="secondary"
+                            size="xs"
                             onClick={() => {
                               setEditingSectionId(sec.sectionId);
                               setSectionStrengthDraft(sec.enrolledStrength);
                               setSectionPolicyDraft(sec.policy);
                             }}
-                            className="px-2.5 py-1 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 font-semibold text-neutral-700 cursor-pointer whitespace-nowrap"
                           >
                             Edit
-                          </button>
+                          </ActionButton>
                         )}
                       </td>
                     </tr>
@@ -1587,12 +1589,12 @@ export const SpaceIntelligenceView: React.FC = () => {
       {/* TAB 3: ROOMS & TIMETABLE */}
       {innerTab === 'rooms-timetable' && bootstrap && (
         <div className="space-y-5">
-          <div className="rw-surface rounded-2xl overflow-hidden">
-            <div className="px-4 sm:px-5 py-3.5 border-b border-neutral-200/80 flex flex-wrap items-center justify-between gap-2">
-              <div className="text-xs font-semibold text-neutral-900">
+          <div className="rounded-xl border border-[#111916]/12 bg-white overflow-hidden">
+            <div className="px-5 py-3.5 border-b border-[#111916]/10 flex flex-wrap items-center justify-between gap-2">
+              <div className="font-display text-sm font-semibold text-[#111916]">
                 Classroom Inventory &amp; Max Occupancy ({bootstrap.rooms.length} Rooms)
               </div>
-              <span className="text-[11px] text-neutral-500">
+              <span className="text-[11px] font-mono text-[#5c6862]">
                 Click any room code for live controls
               </span>
             </div>
@@ -1617,13 +1619,13 @@ export const SpaceIntelligenceView: React.FC = () => {
                     return (
                       <tr key={room.roomId} className="hover:bg-neutral-50/70 transition-colors">
                         <td className="py-2.5 px-4 font-mono font-bold text-neutral-900">
-                          <button
-                            type="button"
+                          <InlineActionLink
+                            tone="emerald"
                             onClick={() => setSelectedRoomId(room.roomId)}
-                            className="hover:text-emerald-700 underline decoration-dotted underline-offset-2 cursor-pointer"
+                            className="font-mono font-bold"
                           >
                             {room.roomCode}
-                          </button>
+                          </InlineActionLink>
                         </td>
                         <td className="py-2.5 px-4 font-medium text-neutral-900">
                           {room.roomName}
@@ -1662,33 +1664,33 @@ export const SpaceIntelligenceView: React.FC = () => {
                         <td className="py-2.5 px-4 text-right">
                           {isEditing ? (
                             <div className="flex items-center justify-end gap-1.5">
-                              <button
-                                type="button"
+                              <ActionButton
+                                variant="secondary"
+                                size="xs"
                                 onClick={() => setEditingRoomId(null)}
-                                className="px-2 py-1 rounded-lg border border-neutral-200 text-neutral-600 cursor-pointer whitespace-nowrap"
                               >
                                 Cancel
-                              </button>
-                              <button
-                                type="button"
-                                disabled={isSaving}
+                              </ActionButton>
+                              <ActionButton
+                                variant="forest"
+                                size="xs"
+                                loading={isSaving}
                                 onClick={() => handleSaveRoomCapacity(room)}
-                                className="px-2.5 py-1 rounded-lg bg-emerald-700 text-white font-semibold cursor-pointer whitespace-nowrap"
                               >
                                 {isSaving ? 'Saving...' : 'Save'}
-                              </button>
+                              </ActionButton>
                             </div>
                           ) : (
-                            <button
-                              type="button"
+                            <ActionButton
+                              variant="secondary"
+                              size="xs"
                               onClick={() => {
                                 setEditingRoomId(room.roomId);
                                 setRoomCapDraft(room.maxOccupancy);
                               }}
-                              className="px-2.5 py-1 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 font-semibold text-neutral-700 cursor-pointer whitespace-nowrap"
                             >
                               Edit
-                            </button>
+                            </ActionButton>
                           )}
                         </td>
                       </tr>
@@ -1699,12 +1701,12 @@ export const SpaceIntelligenceView: React.FC = () => {
             </div>
           </div>
 
-          <div className="rw-surface rounded-2xl overflow-hidden">
-            <div className="px-4 sm:px-5 py-3.5 border-b border-neutral-200/80 flex flex-wrap items-center justify-between gap-2">
-              <div className="text-xs font-semibold text-neutral-900">
+          <div className="rounded-xl border border-[#111916]/12 bg-white overflow-hidden">
+            <div className="px-5 py-3.5 border-b border-[#111916]/10 flex flex-wrap items-center justify-between gap-2">
+              <div className="font-display text-sm font-semibold text-[#111916]">
                 Timetable Rotations ({timetableDayFilter === 6 ? 'Saturday' : `Weekday · Day ${timetableDayFilter}`})
               </div>
-              <span className="text-[11px] font-mono text-neutral-500 tabular-nums whitespace-nowrap">
+              <span className="text-[11px] font-mono text-[#5c6862] tabular-nums whitespace-nowrap">
                 {bootstrap.timetableSlots.length} periods
               </span>
             </div>
@@ -1766,9 +1768,9 @@ export const SpaceIntelligenceView: React.FC = () => {
 
       {/* TAB 4: DECISION LOG */}
       {innerTab === 'history' && (
-        <div className="rw-surface rounded-2xl overflow-hidden">
-          <div className="px-4 sm:px-5 py-3.5 border-b border-neutral-200/80">
-            <div className="text-xs font-semibold text-neutral-900">
+        <div className="rounded-xl border border-[#111916]/12 bg-white overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-[#111916]/10">
+            <div className="font-display text-sm font-semibold text-[#111916]">
               Allocation Decision Log
             </div>
           </div>

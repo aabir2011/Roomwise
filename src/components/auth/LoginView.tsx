@@ -9,6 +9,7 @@ import { useAuth } from '../../context/AuthContext';
 import { RoomwiseLogo } from '../common/RoomwiseLogo';
 import { UserRole } from '../../types/auth';
 import { TeacherLoginPanel } from './TeacherLoginPanel';
+import { ActionButton, SegmentedControl } from '../common/DesignSystem';
 
 interface Props {
   targetRoomCode?: string | null;
@@ -47,32 +48,18 @@ export const LoginView: React.FC<Props> = ({ targetRoomCode, onLoginSuccess }) =
         {/* Role Selector Bar */}
         <div className="px-6 pt-5 pb-3 border-b border-neutral-100 flex items-center justify-between gap-4 bg-neutral-50/70">
           <RoomwiseLogo size="sm" showSubtitle={false} />
-          <div className="grid grid-cols-2 gap-1 p-1 bg-neutral-200/70 rounded-xl text-xs font-semibold">
-            <button
-              type="button"
-              onClick={() => handleRoleSelect('student')}
-              className={`py-1.5 px-3 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                selectedRole === 'student'
-                  ? 'bg-white text-neutral-900 shadow-xs font-bold'
-                  : 'text-neutral-600 hover:text-neutral-900'
-              }`}
-            >
-              <GraduationCap className="w-3.5 h-3.5 text-emerald-700" />
-              <span>Student</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleRoleSelect('admin')}
-              className={`py-1.5 px-3 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                selectedRole === 'admin'
-                  ? 'bg-white text-neutral-900 shadow-xs font-bold'
-                  : 'text-neutral-600 hover:text-neutral-900'
-              }`}
-            >
-              <Shield className="w-3.5 h-3.5 text-emerald-700" />
-              <span>Admin Card</span>
-            </button>
-          </div>
+          <SegmentedControl<UserRole>
+            tone="light"
+            size="sm"
+            layoutId="login-role-selector"
+            ariaLabel="Access mode"
+            value={selectedRole}
+            onChange={handleRoleSelect}
+            options={[
+              { id: 'student', label: 'Student', icon: GraduationCap },
+              { id: 'admin', label: 'Admin Card', icon: Shield },
+            ]}
+          />
         </div>
 
         {/* Scanned Classroom QR Banner */}
@@ -109,14 +96,15 @@ export const LoginView: React.FC<Props> = ({ targetRoomCode, onLoginSuccess }) =
                 View real-time classroom desk lux, thermal heat index, occupancy, and campus energy savings in read-only Student Mode. Administrative controls remain locked.
               </p>
             </div>
-            <button
-              type="button"
+            <ActionButton
+              variant="primary"
+              size="lg"
+              fullWidth
               onClick={handleEnterStudentMode}
-              className="w-full py-3 px-4 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold transition-colors flex items-center justify-center gap-2 cursor-pointer"
+              trailingIcon={<ArrowRight className="w-4 h-4" />}
             >
-              <span>Continue in Student Mode</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
+              Continue in Student Mode
+            </ActionButton>
           </div>
         )}
       </div>

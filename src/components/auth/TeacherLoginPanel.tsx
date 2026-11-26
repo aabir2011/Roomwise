@@ -18,7 +18,6 @@ import {
   EyeOff,
   ArrowLeft,
   ExternalLink,
-  Loader2,
   ChevronDown,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -39,6 +38,7 @@ import { DeviceClass, useDeviceClassification } from '../../utils/deviceDetectio
 import { ParsedQRChallengeParams } from '../../utils/qrChallengeParser';
 import { VerifiedAdminInfo } from '../../types/auth';
 import { ROOMWISE_EASE, tabContentVariants } from '../../utils/motion';
+import { ActionButton, IconButton, InlineActionLink } from '../common/DesignSystem';
 
 type LoginViewMode =
   | 'main'
@@ -326,38 +326,37 @@ export const TeacherLoginPanel: React.FC<Props> = ({
   const BiometricIcon = capability.prefersFaceLabel ? ScanFace : Fingerprint;
 
   return (
-    <div className="bg-white text-[#111815] relative overflow-hidden">
-      <div className="h-1 gradient-rim-emerald" />
+    <div className="bg-white text-[#111916] relative overflow-hidden">
+      {/* Obsidian-Pine Institutional Masthead */}
+      <div className="px-6 py-5 rw-obsidian-panel border-none rounded-none shadow-none text-white flex items-start justify-between gap-4">
+        <div className="space-y-1 pr-6">
+          <RoomwiseLogo size="sm" tone="dark" showSubtitle={false} />
+          <h2 className="font-display text-base sm:text-lg font-semibold tracking-tight text-white pt-1.5">
+            {mode === 'register' || mode === 'register-success'
+              ? 'Set Up Biometric Login'
+              : mode === 'qr'
+              ? 'Verify with Phone'
+              : mode === 'confirm-pc'
+              ? 'Authorise Computer Access'
+              : 'Teacher & Administrator Sign-In'}
+          </h2>
+          <p className="text-[11px] font-mono text-white/60">
+            DAV Model School, IIT Kharagpur
+          </p>
+        </div>
+
+        {onCancel && (
+          <ActionButton
+            variant="dark-ghost"
+            size="xs"
+            onClick={onCancel}
+          >
+            Cancel
+          </ActionButton>
+        )}
+      </div>
 
       <div className="p-6 sm:p-7 space-y-5">
-        {/* Clean Institutional Header */}
-        <div className="flex items-start justify-between gap-4 border-b border-neutral-200/80 pb-4">
-          <div className="space-y-1">
-            <RoomwiseLogo size="sm" showSubtitle={false} />
-            <h2 className="text-base sm:text-lg font-semibold tracking-tight text-[#111815] pt-1">
-              {mode === 'register' || mode === 'register-success'
-                ? 'Set Up Biometric Login'
-                : mode === 'qr'
-                ? 'Verify with Phone'
-                : mode === 'confirm-pc'
-                ? 'Authorise Computer Access'
-                : 'Teacher & Administrator Sign-In'}
-            </h2>
-            <p className="text-xs text-neutral-500">
-              DAV Model School, IIT Kharagpur
-            </p>
-          </div>
-
-          {onCancel && (
-            <button
-              type="button"
-              onClick={onCancel}
-              className="text-xs font-semibold text-neutral-500 hover:text-neutral-900 px-2.5 py-1.5 rounded-lg hover:bg-neutral-100 transition-colors cursor-pointer shrink-0"
-            >
-              Cancel
-            </button>
-          )}
-        </div>
 
         {/* Short Confirmation Banner After Logout */}
         <AnimatePresence>
@@ -374,13 +373,12 @@ export const TeacherLoginPanel: React.FC<Props> = ({
                 <span>Admin session ended</span>
               </div>
               {onDismissSessionEnded && (
-                <button
-                  type="button"
+                <InlineActionLink
+                  tone="emerald"
                   onClick={onDismissSessionEnded}
-                  className="text-[11px] font-semibold text-emerald-800 hover:text-emerald-950 cursor-pointer"
                 >
                   Dismiss
-                </button>
+                </InlineActionLink>
               )}
             </motion.div>
           )}
@@ -472,25 +470,18 @@ export const TeacherLoginPanel: React.FC<Props> = ({
               {/* Primary Biometric / Passkey Button (Device-aware & registered) */}
               {showPasskeyButton && (
                 <div className="space-y-1.5">
-                  <motion.button
-                    type="button"
-                    whileTap={isPasskeyLoading || isPasswordLoading ? undefined : { scale: 0.985 }}
-                    onClick={handlePrimaryBiometricClick}
+                  <ActionButton
+                    variant="forest"
+                    size="lg"
+                    fullWidth
+                    loading={isPasskeyLoading}
                     disabled={isPasskeyLoading || isPasswordLoading}
-                    className="w-full min-h-[48px] px-4 py-3 rounded-xl bg-[#0b2e22] hover:bg-[#114231] text-white text-sm font-semibold transition-colors shadow-xs flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-60"
+                    icon={<BiometricIcon className="w-4 h-4 shrink-0" />}
+                    onClick={handlePrimaryBiometricClick}
+                    className="min-h-[46px] text-sm"
                   >
-                    {isPasskeyLoading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Verifying on device...</span>
-                      </>
-                    ) : (
-                      <>
-                        <BiometricIcon className="w-4 h-4 shrink-0" />
-                        <span>{capability.primaryLabel}</span>
-                      </>
-                    )}
-                  </motion.button>
+                    {isPasskeyLoading ? 'Verifying on device...' : capability.primaryLabel}
+                  </ActionButton>
                   <p className="text-[11px] text-center text-neutral-500">
                     {capability.helperDescription}
                   </p>
@@ -500,23 +491,20 @@ export const TeacherLoginPanel: React.FC<Props> = ({
               {/* PHONE-ONLY: Clearly visible "Scan Computer QR Code" option */}
               {isPhoneUI && (
                 <div className="space-y-1.5">
-                  <motion.button
-                    type="button"
-                    whileTap={{ scale: 0.985 }}
+                  <ActionButton
+                    variant={showPasskeyButton ? 'soft' : 'forest'}
+                    size="lg"
+                    fullWidth
+                    icon={<Camera className="w-4 h-4 shrink-0" />}
                     onClick={() => {
                       setErrorMessage(null);
                       setScannerError(null);
                       setMode('scanner');
                     }}
-                    className={`w-full min-h-[48px] px-4 py-3 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2.5 cursor-pointer ${
-                      showPasskeyButton
-                        ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200'
-                        : 'bg-emerald-700 hover:bg-emerald-800 text-white shadow-xs'
-                    }`}
+                    className="min-h-[46px] text-sm"
                   >
-                    <Camera className="w-4 h-4 shrink-0" />
-                    <span>Scan Computer QR Code</span>
-                  </motion.button>
+                    Scan Computer QR Code
+                  </ActionButton>
                   <p className="text-[11px] text-center text-neutral-500">
                     Authorise a classroom or office computer login using this phone.
                   </p>
@@ -526,30 +514,28 @@ export const TeacherLoginPanel: React.FC<Props> = ({
               {/* Secondary Authentication Actions (Strictly Device-Aware) */}
               <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 pt-1">
                 {isDesktopUI && (
-                  <button
-                    type="button"
+                  <InlineActionLink
+                    tone="emerald"
+                    icon={<QrCode className="w-3.5 h-3.5" />}
                     onClick={() => {
                       setErrorMessage(null);
                       setMode('qr');
                     }}
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-700 hover:text-emerald-800 transition-colors py-1.5 cursor-pointer"
                   >
-                    <QrCode className="w-3.5 h-3.5 text-emerald-700" />
-                    <span>Verify with Phone</span>
-                  </button>
+                    Verify with Phone
+                  </InlineActionLink>
                 )}
 
-                <button
-                  type="button"
+                <InlineActionLink
+                  tone="neutral"
+                  icon={<KeyRound className="w-3.5 h-3.5" />}
                   onClick={() => {
                     setErrorMessage(null);
                     setShowPasswordForm((prev) => !prev);
                   }}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-600 hover:text-neutral-900 transition-colors py-1.5 cursor-pointer"
                 >
-                  <KeyRound className="w-3.5 h-3.5 text-neutral-500" />
-                  <span>{showPasswordForm ? 'Hide Password Sign-In' : 'Use Password Instead'}</span>
-                </button>
+                  {showPasswordForm ? 'Hide Password Sign-In' : 'Use Password Instead'}
+                </InlineActionLink>
               </div>
 
               {/* Collapsible Password Fallback Form */}
@@ -585,32 +571,28 @@ export const TeacherLoginPanel: React.FC<Props> = ({
                             placeholder="Enter staff password"
                             className="w-full min-h-[42px] px-3.5 py-2 pr-10 bg-white border border-neutral-300 rounded-xl text-xs text-neutral-900 focus:ring-2 focus:ring-emerald-600 focus:outline-none"
                           />
-                          <button
-                            type="button"
+                          <IconButton
+                            variant="ghost"
+                            size="xs"
+                            label={showPasswordText ? 'Hide password' : 'Show password'}
                             onClick={() => setShowPasswordText((s) => !s)}
-                            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-neutral-700 cursor-pointer"
-                            aria-label={showPasswordText ? 'Hide password' : 'Show password'}
+                            className="!absolute right-2 top-1/2 -translate-y-1/2"
                           >
                             {showPasswordText ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          </button>
+                          </IconButton>
                         </div>
                       </div>
 
-                      <motion.button
+                      <ActionButton
                         type="submit"
-                        whileTap={isPasswordLoading ? undefined : { scale: 0.985 }}
-                        disabled={isPasswordLoading}
-                        className="w-full min-h-[42px] px-4 py-2 rounded-xl bg-[#111815] hover:bg-[#0b2e22] text-white text-xs font-semibold transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                        variant="primary"
+                        size="lg"
+                        fullWidth
+                        loading={isPasswordLoading}
+                        className="min-h-[42px]"
                       >
-                        {isPasswordLoading ? (
-                          <>
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            <span>Signing in...</span>
-                          </>
-                        ) : (
-                          <span>Sign In with Password</span>
-                        )}
-                      </motion.button>
+                        {isPasswordLoading ? 'Signing in...' : 'Sign In with Password'}
+                      </ActionButton>
                     </div>
                   </motion.form>
                 )}
@@ -618,19 +600,18 @@ export const TeacherLoginPanel: React.FC<Props> = ({
 
               {/* Separate Accessible Enrollment Trigger */}
               <div className="pt-3 border-t border-neutral-200/80 text-center">
-                <button
-                  type="button"
+                <InlineActionLink
+                  tone="emerald"
+                  icon={<ShieldCheck className="w-3.5 h-3.5" />}
                   onClick={() => {
                     setErrorMessage(null);
                     setIframeBlockedNotice(false);
                     setRegStaffId(selectedStaffId);
                     setMode('register');
                   }}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-800 hover:text-emerald-950 transition-colors py-1 cursor-pointer"
                 >
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>Register New Face / Set Up Biometric Login</span>
-                </button>
+                  Register New Face / Set Up Biometric Login
+                </InlineActionLink>
               </div>
             </motion.div>
           )}
@@ -692,18 +673,17 @@ export const TeacherLoginPanel: React.FC<Props> = ({
               onSubmit={handleRegisterBiometric}
               className="space-y-4"
             >
-              <button
-                type="button"
+              <InlineActionLink
+                tone="neutral"
+                icon={<ArrowLeft className="w-3.5 h-3.5" />}
                 onClick={() => {
                   setErrorMessage(null);
                   setIframeBlockedNotice(false);
                   setMode('main');
                 }}
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-600 hover:text-neutral-900 transition-colors cursor-pointer"
               >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Back to Sign-In</span>
-              </button>
+                Back to Sign-In
+              </InlineActionLink>
 
               <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200/80 text-[11px] text-emerald-950 leading-relaxed">
                 Registers a hardware-backed WebAuthn passkey on this device (Face ID, Windows Hello, Android biometrics, or passkey). No webcam images or biometric scans are captured or stored by ROOMWISE.
@@ -763,14 +743,15 @@ export const TeacherLoginPanel: React.FC<Props> = ({
                       placeholder={`Enter password for ${targetRegStaff?.name || 'selected profile'}`}
                       className="w-full min-h-[44px] px-3.5 py-2 pr-10 bg-white border border-neutral-300 rounded-xl text-xs text-neutral-900 focus:ring-2 focus:ring-emerald-600 focus:outline-none"
                     />
-                    <button
-                      type="button"
+                    <IconButton
+                      variant="ghost"
+                      size="xs"
+                      label={regShowPassword ? 'Hide password' : 'Show password'}
                       onClick={() => setRegShowPassword((s) => !s)}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-neutral-700 cursor-pointer"
-                      aria-label={regShowPassword ? 'Hide password' : 'Show password'}
+                      className="!absolute right-2 top-1/2 -translate-y-1/2"
                     >
                       {regShowPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
+                    </IconButton>
                   </div>
                   <p className="text-[11px] text-neutral-500 mt-1">
                     Password verification ensures only the account holder can enroll a new device passkey.
@@ -778,24 +759,17 @@ export const TeacherLoginPanel: React.FC<Props> = ({
                 </div>
               )}
 
-              <motion.button
+              <ActionButton
                 type="submit"
-                whileTap={isRegisterLoading ? undefined : { scale: 0.985 }}
-                disabled={isRegisterLoading}
-                className="w-full min-h-[48px] px-4 py-3 rounded-xl bg-[#0b2e22] hover:bg-[#114231] text-white text-xs font-semibold transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                variant="forest"
+                size="lg"
+                fullWidth
+                loading={isRegisterLoading}
+                icon={<BiometricIcon className="w-4 h-4" />}
+                className="min-h-[46px]"
               >
-                {isRegisterLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Waiting for device prompt...</span>
-                  </>
-                ) : (
-                  <>
-                    <BiometricIcon className="w-4 h-4" />
-                    <span>Register Face / Passkey on This Device</span>
-                  </>
-                )}
-              </motion.button>
+                {isRegisterLoading ? 'Waiting for device prompt...' : 'Register Face / Passkey on This Device'}
+              </ActionButton>
             </motion.form>
           )}
 
@@ -825,28 +799,29 @@ export const TeacherLoginPanel: React.FC<Props> = ({
               </div>
 
               <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
-                <motion.button
-                  type="button"
-                  whileTap={{ scale: 0.985 }}
+                <ActionButton
+                  variant="forest"
+                  size="lg"
                   onClick={async () => {
                     setMode('main');
                     setErrorMessage(null);
                     await handlePrimaryBiometricClick();
                   }}
-                  className="flex-1 min-h-[44px] px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition-colors cursor-pointer"
+                  className="flex-1 min-h-[44px]"
                 >
                   {capability.primaryLabel}
-                </motion.button>
-                <button
-                  type="button"
+                </ActionButton>
+                <ActionButton
+                  variant="secondary"
+                  size="lg"
                   onClick={() => {
                     setErrorMessage(null);
                     setMode('main');
                   }}
-                  className="min-h-[44px] px-4 py-2.5 rounded-xl border border-neutral-300 bg-white hover:bg-neutral-50 text-neutral-700 text-xs font-semibold transition-colors cursor-pointer"
+                  className="min-h-[44px]"
                 >
                   Done
-                </button>
+                </ActionButton>
               </div>
             </motion.div>
           )}

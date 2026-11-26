@@ -10,6 +10,7 @@ import { BuildingName, Classroom } from '../../types/energy';
 import { computeAppliancesRatedPowerWatts } from '../../data/roomApplianceSpecs';
 import { getRoomActivityState } from '../../utils/applianceUtils';
 import { ROOMWISE_EASE } from '../../utils/motion';
+import { InlineActionLink } from '../common/DesignSystem';
 
 interface CampusArchitectureMapProps {
   classrooms: Classroom[];
@@ -563,14 +564,12 @@ export const CampusArchitectureMap: React.FC<CampusArchitectureMapProps> = ({
         )}
 
         {onExploreBuilding && (
-          <button
-            type="button"
+          <InlineActionLink
             onClick={() => onExploreBuilding(focusedBuilding || 'G+3 Block')}
-            className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-800 hover:text-emerald-950 shrink-0 whitespace-nowrap cursor-pointer"
+            trailingIcon={<ArrowUpRight className="w-3.5 h-3.5" />}
           >
-            <span>Open Digital Twin</span>
-            <ArrowUpRight className="w-3.5 h-3.5" />
-          </button>
+            Open Digital Twin
+          </InlineActionLink>
         )}
       </div>
     </section>

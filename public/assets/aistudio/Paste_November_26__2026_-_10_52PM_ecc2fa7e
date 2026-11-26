@@ -1,0 +1,907 @@
+# ROOMWISE — Premium Public Landing Page & Immersive Product Experience
+
+## PRIMARY OBJECTIVE
+
+Create a completely new, exceptional public-facing landing page for **ROOMWISE — Adaptive Campus Energy Management System**.
+
+This website will be used to introduce ROOMWISE to judges alongside its A0 academic project poster. It is a critical first impression. It must communicate the project's technical sophistication, originality, environmental purpose and real-world relevance within seconds.
+
+The landing page must feel like a premium digital experience produced by a world-class creative technology and product design studio.
+
+**Do not create another generic SaaS landing page.**
+
+Do not simply arrange a hero, three feature cards, statistics and testimonials. Do not use a premade startup template with a different logo.
+
+Treat this as an architectural, environmental and technology storytelling experience. Its central visual idea should be:
+
+**Energy that responds to need.**
+
+The website should communicate how individual classrooms can respond to their own conditions, and how those individual spaces can contribute to more intelligent campus-wide energy management.
+
+Build the actual responsive React implementation, including its motion system, interactions, layouts and navigation. Do not stop at a design proposal.
+
+---
+
+# 1. CREATIVE DIRECTION — A DISTINCTIVE VISUAL IDENTITY
+
+### The central design concept
+
+**Architecture × Energy × Intelligence**
+
+ROOMWISE exists at the intersection of physical infrastructure, environmental conditions, automation and institutional intelligence.
+
+The visual language should combine:
+
+- The architectural precision of premium building and infrastructure visualisation.
+- The cinematic storytelling of award-winning interactive websites.
+- The refinement and clarity of professional enterprise technology.
+- The visual elegance of high-end environmental and sustainability brands.
+- The fluidity of sophisticated motion graphics.
+- The precision of technical diagrams and engineering illustrations.
+
+Think of an architectural visualisation studio meeting a premium technology company.
+
+The result should be visually ambitious, confident and technically credible.
+
+### Research and creative references
+
+Study the interaction and visual craftsmanship of these studios and their portfolios:
+
+- **Active Theory** — immersive real-time digital experiences, WebGL environments and cinematic interaction.
+- **Resn** — unusual interactive storytelling, spatial composition and memorable digital experiences.
+- **Lusion** — sophisticated WebGL, material rendering, particle behaviour and fluid motion.
+- **Immersive Garden** — 3D storytelling, spatial transitions and carefully composed immersive scenes.
+- **Locomotive** — editorial composition, confident typography, art direction and scroll choreography.
+- **Hello Monday** — human-centred digital storytelling, expressive interaction and visual personality.
+
+Also study the clarity and product presentation of Apple, the typographic and layout discipline of Stripe, and the restraint of exceptional architectural and environmental publications.
+
+These are references for craftsmanship and principles, not templates to copy. Do not reproduce any studio's website, distinctive visual artwork, branding or signature composition.
+
+The objective is to develop a visual identity that belongs unmistakably to ROOMWISE.
+
+---
+
+# 2. ART DIRECTION — COLOUR, MATERIALS AND TYPOGRAPHY
+
+### Colour palette
+
+Build a sophisticated environmental palette:
+
+- Mineral white / warm off-white as the primary canvas.
+- Deep evergreen and forest green for strong visual sections.
+- Charcoal and graphite for text, contrast and technical elements.
+- Restrained emerald for energy signals and important interactions.
+- Sage and soft mint for environmental accents.
+- Very subtle cool-grey architectural surfaces.
+- Occasional warm daylight tones in the classroom visualisation.
+
+The palette must feel premium, not stereotypically eco-themed.
+
+Avoid:
+- Excessive neon green.
+- Purple-blue AI gradients.
+- Rainbow gradients.
+- Overused glassmorphism.
+- Generic dark-mode cyberpunk aesthetics.
+- Cheap glowing outlines.
+- Excessive bloom and lens flares.
+
+Use the existing ROOMWISE logo and branding assets if available.
+
+### Typography
+
+Establish a strong editorial typographic hierarchy:
+
+- Oversized, distinctive display typography for major statements.
+- Highly legible contemporary sans-serif for body content.
+- Compact technical typography for labels, measurements and section identifiers.
+- Carefully controlled letter spacing and line lengths.
+- Strong use of negative space.
+
+Consider Geist, Manrope or a comparable professional grotesk if the current project does not already have an established font system.
+
+Typography should be a major part of the visual experience, not an afterthought.
+
+### Materials and visual depth
+
+Use architectural illustrations, carefully lit 3D scenes, layered surfaces, fine contour lines, restrained gradients and subtle ambient light.
+
+The site can alternate between bright editorial sections and a few deep evergreen or charcoal cinematic sections.
+
+Preserve the existing ROOMWISE identity of subtle ambient moving washes, but refine them for the public website.
+
+---
+
+# 3. SIGNATURE HERO — THE FIRST IMPRESSION
+
+This is the most important section.
+
+Give it substantial creative attention.
+
+### Primary headline
+
+**Energy that responds to need.**
+
+Supporting description:
+
+"An adaptive campus energy management system connecting classroom conditions, intelligent control and institution-wide energy insight."
+
+The ROOMWISE wordmark should have a strong, deliberate presence.
+
+Include two clear actions:
+
+- **Explore the Platform** → `/platform`
+- **Discover How It Works** → scroll to the operating principle.
+
+### The hero visual: an intelligent architectural environment
+
+Build an original 3D or high-quality 2.5D architectural classroom visualisation.
+
+Use the classroom cutaway illustration from the supplied poster as the conceptual reference, but produce a considerably more sophisticated digital interpretation.
+
+The visual should feature:
+
+- A carefully modelled modern classroom.
+- Architectural walls, windows, desks, ceiling and lighting.
+- Natural daylight entering through the windows.
+- LED lighting fixtures.
+- Ceiling fans.
+- Small environmental sensor nodes.
+- A PIR motion sensor.
+- An LDR light sensor.
+- A temperature and humidity sensor.
+- A local microcontroller and compact OLED interface.
+- Subtle visual connections between sensing, control and the classroom environment.
+
+### Hero animation choreography
+
+Create a carefully choreographed sequence:
+
+1. A fine architectural line drawing gradually establishes the classroom structure.
+2. The linework gains depth and resolves into an elegant isometric architectural environment.
+3. Small sensing nodes become visible.
+4. Thin emerald signal paths travel from the sensors towards the local controller.
+5. The classroom responds visually: natural daylight, artificial illumination and fan behaviour change as the illustrated conditions change.
+6. The signal continues into an abstract campus-level spatial representation, introducing the idea of institution-wide insight.
+7. ROOMWISE's wordmark and main headline remain the clear visual anchor.
+
+This should feel like a premium architectural technology film translated into an interactive web experience.
+
+### Add one genuinely interactive element
+
+Allow visitors to interact with the classroom scene using a few simple demonstration controls:
+
+- Daylight conditions.
+- Detected room activity.
+- Temperature conditions.
+
+Changing a condition should visibly alter the illustrative classroom state and its response.
+
+For example, increasing daylight can demonstrate how artificial lighting requirements may change.
+
+This is an illustrative interaction, not actual sensor telemetry. Label it as a conceptual demonstration where appropriate.
+
+Do not invent numerical sensor measurements or suggest that the website is receiving live data from the physical Arduino prototype.
+
+The scene should react gracefully to cursor movement, hover and scroll, but never make interaction necessary to understand the message.
+
+---
+
+# 4. PAGE STRUCTURE — TELL A CONTINUOUS STORY
+
+The page should feel like one carefully directed experience, not unrelated sections stacked vertically.
+
+Use cinematic transitions, visual continuity, deliberate pacing and a clear narrative.
+
+## Section 01 — The problem
+
+**Headline:**
+
+"Every classroom has different needs. Why should they consume energy in the same way?"
+
+Introduce the underlying problem from the poster.
+
+Classrooms differ in:
+- Natural daylight.
+- Room activity and motion.
+- Ambient temperature.
+- Actual requirements for lighting and ventilation.
+
+Conventional switching practices do not necessarily account for these differences.
+
+### Visual treatment
+
+Create an elegant comparison between:
+- A conventional classroom relying on fixed or manual operating practices.
+- A room-aware classroom that can respond to its conditions.
+
+Use an architectural split scene, a transformation or a scroll-controlled illustration.
+
+Do not use generic stock photographs of classrooms.
+
+Avoid exaggerated claims about the amount of energy wasted.
+
+The visitor should understand the problem visually before reading the technical explanation.
+
+## Section 02 — How ROOMWISE works
+
+**Headline:**
+
+"From room conditions to energy insight."
+
+Present the four-stage operating principle from the poster:
+
+**01 — SENSE**
+
+Observe room conditions through environmental and motion sensing.
+
+**02 — CALIBRATE**
+
+Establish room-specific operating reference parameters.
+
+**03 — CONTROL**
+
+Adapt appliance operation in response to relevant room conditions.
+
+**04 — ANALYSE**
+
+Understand operating behaviour and evaluate energy performance over time.
+
+### Visual treatment
+
+Create an interactive four-stage sequence.
+
+A central classroom or system diagram should remain visually continuous while each stage becomes active.
+
+Use a travelling energy/signal pulse to connect the stages.
+
+The flow should communicate cause and effect, not merely display four numbered cards.
+
+Use animated SVG paths, carefully constructed transitions, subtle state changes or a scroll-triggered scene.
+
+Do not make unsupported claims about machine learning or autonomous self-learning.
+
+## Section 03 — Inside a ROOMWISE classroom
+
+**Headline:**
+
+"Intelligence begins at the room level."
+
+Create a detailed, elegant exploded-view architectural illustration of the classroom system.
+
+Organise the hardware into three layers:
+
+**INPUT — SENSORS**
+
+- LDR: ambient light sensing.
+- PIR: motion/activity detection.
+- DHT11: temperature and humidity sensing.
+
+**CONTROL — LOCAL INTELLIGENCE**
+
+- Arduino Uno microcontroller.
+- Local control logic.
+- OLED display.
+
+**OUTPUT — CLASSROOM RESPONSE**
+
+- LED lighting.
+- DC fan.
+
+Use directional paths and motion to communicate the information flow.
+
+Make individual components explorable through hover or click hotspots.
+
+Each hotspot should reveal a brief technical explanation.
+
+Use authentic-looking hardware illustrations, not randomly generated futuristic devices.
+
+Do not include the optional MQ-135 as an implemented component unless its actual implementation is verified.
+
+## Section 04 — One room. One profile. A more informed campus.
+
+**Headline:**
+
+"Individual classrooms. Institutional intelligence."
+
+Introduce the ROOMWISE software platform.
+
+It should be immediately apparent that ROOMWISE is more than a sensor-and-fan prototype.
+
+It is designed as a wider campus energy management platform.
+
+Showcase the major platform capabilities using actual application visuals wherever possible:
+
+- Overview — campus-level operational picture.
+- Digital Twin — 2D, card-based spatial map of classrooms.
+- CAMPUS LIVE — separate 3D campus visualisation.
+- Classrooms — individual classroom information and controls.
+- Environmental & Solar — outdoor environmental context and solar intelligence.
+- Energy Analytics — energy patterns and distributions.
+- Energy History — historical operating records and analysis.
+- Space Intelligence — classroom utilisation and allocation insight.
+- Energy Audit — identifying inefficiencies and recommendations.
+- QR Access and Reports — room-level access and institutional reporting.
+
+Do not combine the 2D Digital Twin and 3D CAMPUS LIVE into one feature. They are separate experiences.
+
+### Presentation style
+
+Use large, premium product showcases rather than a collection of small cards.
+
+Consider a few full-width device or screen compositions with carefully animated transitions between actual application screens.
+
+The viewer should understand that the platform has substantial depth without needing to read every feature description.
+
+Use actual screenshots or real application views where possible. Do not fabricate screenshots that represent functionality the application does not have.
+
+Add a strong **Explore the Platform** CTA linking to `/platform`.
+
+## Section 05 — What makes ROOMWISE different?
+
+Present the three differentiators from the poster:
+
+**ROOM-AWARE INTELLIGENCE**
+
+Each classroom can maintain its own operating profile rather than relying exclusively on one campus-wide setting.
+
+**ADAPTIVE CONTROL**
+
+Appliance operation can respond to room conditions instead of depending only on static schedules.
+
+**CAMPUS-WIDE VISIBILITY**
+
+Room-level information can be brought together to help institutions understand energy behaviour across their infrastructure.
+
+### Visual treatment
+
+Use an asymmetrical editorial composition.
+
+Each differentiator should have its own meaningful visual representation.
+
+Avoid three ordinary icon cards.
+
+## Section 06 — Projected institutional impact
+
+**Headline:**
+
+"What could more intelligent operation mean at campus scale?"
+
+Introduce the illustrative 70-classroom scenario from the supplied poster.
+
+Present these figures with clear labels:
+
+- **70 classrooms** — illustrative deployment scenario.
+- **₹91,000** — indicative implementation cost.
+- **₹70,560/year** — projected annual electricity-cost savings.
+- **~1.29 years** — simple projected payback period.
+
+Use carefully animated typographic figures, elegant diagrams or a restrained financial projection visualisation.
+
+### Essential methodological disclosure
+
+These values are projections, not measured results.
+
+Display a clear but unobtrusive note:
+
+"Illustrative 70-classroom scenario. These figures are projections based on assumed appliance loads, operating conditions, electricity tariffs and indicative implementation costs. Actual savings and payback will depend on measured consumption, operating conditions, local tariffs and final installation costs."
+
+Provide an expandable methodology panel for visitors who want to inspect the assumptions.
+
+Use the project's established calculation assumptions:
+
+- Six 20W LED lights per classroom.
+- Six 70W fans per classroom.
+- Combined assumed load: 540W.
+- 80 minutes of unattended operation per day.
+- Five days per week.
+- Four weeks per month.
+- Ten months per year.
+- Assumed tariff: ₹7/kWh.
+- 70 classrooms.
+
+Do not present these figures as experimentally measured performance or as actual institutional savings.
+
+Do not imply that the projected deployment has already occurred.
+
+Do not invent environmental equivalences, actual payback guarantees or verified carbon reductions.
+
+## Section 07 — Optional product film / walkthrough
+
+The landing page may contain a product video if a genuine ROOMWISE video asset is available.
+
+If an actual product walkthrough or project film is already available in the project assets, integrate it into a premium cinematic video section.
+
+Use:
+- A strong custom poster frame.
+- An elegant play control.
+- A refined video player.
+- Captions or subtitles where available.
+- A deliberate aspect ratio and responsive sizing.
+
+A concise walkthrough of approximately 45–90 seconds would work well.
+
+Do not autoplay audio.
+
+Do not insert a random stock video, generate fake footage of the product, or use a placeholder video pretending to be a completed walkthrough.
+
+If no genuine video asset is available, make the section optional and use the interactive product demonstration elsewhere on the page instead.
+
+## Section 08 — BEYOND THE CLASSROOM
+
+This heading must appear exactly as written:
+
+# BEYOND THE CLASSROOM
+
+This is the project's recognition and external-presence section.
+
+Create a beautifully executed horizontal logo marquee with consistent optical sizing, spacing and alignment.
+
+The requested marks are:
+
+1. GitHub.
+2. CBSE — use the authentic CBSE logo instead of the Sahodaya logo.
+3. Devpost.
+4. IDK Showcase.
+5. Project Radar.
+6. IIT Kharagpur.
+
+### Logo treatment
+
+This is important:
+
+- Obtain genuine, official or otherwise authoritative brand assets.
+- Prefer clean SVG or high-resolution transparent assets.
+- Do not generate logos using AI.
+- Do not approximate institutional emblems using text or generic icons.
+- Do not distort logos or alter their proportions.
+- Maintain consistent visual height and optical balance.
+- Use a restrained monochrome or carefully harmonised treatment where permitted by each brand.
+- Preserve recognisable logo geometry.
+
+The CBSE logo must replace the Sahodaya logo completely.
+
+### Accuracy and attribution
+
+The marquee must not imply that every organisation is a sponsor, partner, endorser or award-granting institution.
+
+Give each mark an accurate context:
+
+- **CBSE:** The project received recognition at the Sahodaya Inter-School Project Exhibition Competition, South Bengal Chapter, CBSE Bhubaneswar Region. Do not misrepresent this as a direct CBSE institutional award or endorsement.
+- **IIT Kharagpur:** Contextualise this as research discussions with an IIT Kharagpur researcher. Do not imply institutional adoption, formal partnership, official endorsement or confirmed implementation.
+- **GitHub:** Link to the public project repository only when the actual repository is available.
+- **Devpost, IDK Showcase and Project Radar:** Link to the actual ROOMWISE project pages when published. Do not invent profile URLs or suggest a listing exists if it has not gone live.
+
+Use a data-driven logo list so individual entries can be activated or hidden without redesigning the section.
+
+Do not add the Sahodaya logo.
+
+### Marquee animation
+
+Use a sophisticated, continuous horizontal movement with:
+- Slow, controlled speed.
+- Generous breathing space.
+- Smooth edge fading.
+- Pause-on-hover and pause-on-focus.
+- Responsive behaviour.
+- Reduced-motion support.
+
+Do not turn it into a fast ticker or an oversized advertising banner.
+
+The section should feel like a restrained institutional recognition strip, not a sponsorship wall.
+
+## Section 09 — The team and closing statement
+
+Introduce the creators:
+
+**Aabir Maji & Aaron Maiti**
+
+DAV Model School, IIT Kharagpur.
+
+Project category: Environment & Sustainability.
+
+End with a strong visual callback to the hero scene, connecting the classroom and campus.
+
+Final statement:
+
+**Smarter rooms. More sustainable campuses.**
+
+Primary CTA:
+
+**Explore ROOMWISE**
+
+Secondary CTA:
+
+**Open the Platform**
+
+The footer should be elegant, minimal and consistent with the public website's visual identity.
+
+---
+
+# 5. MOTION DESIGN SYSTEM — CHERRYPICK, DON'T DECORATE
+
+Do not simply install every animation library or copy every popular React component.
+
+Select components based on what they communicate.
+
+Study the libraries below and use the most appropriate elements.
+
+### A. Motion for React
+
+Reference: https://motion.dev/docs/react
+
+Use for:
+- Section entrance choreography.
+- Carefully timed text and image reveals.
+- Hover states.
+- Spring-based interactions.
+- Layout transitions.
+- Shared visual transitions where appropriate.
+
+Use this as the primary React-level motion system for normal interface animation.
+
+### B. GSAP + ScrollTrigger
+
+Reference: https://gsap.com/docs/v3/Plugins/ScrollTrigger/
+
+Use for:
+- The main classroom storytelling sequence.
+- Pinned scroll-based architectural visualisations.
+- Coordinated multi-element timelines.
+- SVG energy paths.
+- Scroll-controlled progression through the four-stage workflow.
+- Transitions between architectural and software representations.
+
+Use native document scrolling. Do not hijack the scrollbar or force users through an excessively long animation.
+
+Limit pinned scenes to sections where they genuinely improve comprehension.
+
+### C. React Three Fiber + Three.js + Drei
+
+Reference: https://r3f.docs.pmnd.rs/getting-started/introduction
+
+Use for:
+- The signature classroom hero.
+- The exploded-view architecture.
+- A spatial transition from classroom to campus.
+- Subtle camera movement and interactive architectural details.
+
+Prefer a carefully crafted, lightweight scene over a visually noisy collection of 3D objects.
+
+Inspect the existing React version and install compatible stable dependency versions. Do not upgrade the entire project blindly.
+
+### D. Theatre.js — optional cinematic animation authoring
+
+Reference: https://www.theatrejs.com/docs/latest
+
+Evaluate Theatre.js only if it materially improves the timing and choreography of the 3D scene.
+
+Use it for controlled scene timelines and precise camera/object animation where beneficial.
+
+Do not introduce it just to increase the dependency count.
+
+### E. Magic UI
+
+References:
+
+- https://magicui.design/docs/components/animated-beam
+- https://magicui.design/docs/components/marquee
+- https://magicui.design/docs/components
+
+Cherrypick:
+
+**Animated Beam:** Adapt the concept for the sensor → controller → appliance relationship. Use restrained energy pulses that travel along carefully drawn paths.
+
+**Marquee:** Use for the BEYOND THE CLASSROOM logo section.
+
+**Bento Grid:** May be adapted for one visual feature overview if it genuinely improves composition.
+
+Do not use default gradients or styling blindly. Restyle components to match ROOMWISE.
+
+### F. React Bits
+
+References:
+
+- https://reactbits.dev/c/backgrounds
+- https://pro.reactbits.dev/docs/components
+
+Study these effects as creative starting points:
+
+- Topography — environmental and architectural contour patterns.
+- Threads — fine flowing energy-like filaments.
+- Silk / Pattern Waves — controlled surface movement.
+- Gradient Waves — subtle ambient light transitions.
+- Dotted Maps — campus-scale spatial patterns.
+
+Adapt the effects to ROOMWISE's palette and meaning.
+
+Do not indiscriminately use neon, glitch, CRT, galaxy, hyperspace, or random cursor effects.
+
+Check whether a selected component requires a paid plan. Do not assume access to paid components or templates.
+
+### G. Rive — optional state-driven animation
+
+Reference: https://github.com/rive-app/rive-react
+
+Consider Rive for a carefully authored interactive classroom diagram or a small, state-driven illustration.
+
+It is especially suitable if a visual can change meaningfully in response to interaction.
+
+Do not add Rive animations that simply decorate the screen.
+
+### Final motion philosophy
+
+One coherent motion language should govern the website.
+
+Every animation must serve one of three purposes:
+
+1. Explain how ROOMWISE works.
+2. Establish the product's visual identity.
+3. Guide attention through the story.
+
+Use precise easing, natural acceleration, controlled delays and meaningful spatial movement.
+
+The energy signal should be a recurring visual motif throughout the website.
+
+Avoid:
+- Random floating elements.
+- Repetitive scroll reveals on every paragraph.
+- Excessive parallax.
+- Constantly moving backgrounds behind body text.
+- Overly aggressive transitions.
+- Cursor-following gimmicks.
+- Unnecessary number-counting animations.
+- Effects that interfere with reading or navigation.
+
+---
+
+# 6. BRAND NAVIGATION AND APPLICATION INTEGRATION
+
+ROOMWISE has two distinct experiences:
+
+**Public landing page:** `/`
+
+**Operational application:** `/platform`
+
+### Landing page navigation
+
+Create an elegant public-facing navigation with:
+
+- ROOMWISE logo.
+- About.
+- How It Works.
+- Technology.
+- Platform.
+- Beyond the Classroom.
+- A prominent **Open Platform ↗** action.
+
+The navigation may be transparent over the hero and transition into a solid or softly materialised surface as the user scrolls.
+
+Keep it elegant and minimal.
+
+### Platform transition
+
+The Open Platform action must navigate to `/platform`.
+
+Do not rebuild or replace the existing application.
+
+The dashboard must retain:
+- Its existing sidebar.
+- Existing modules.
+- Existing authentication.
+- Existing administrative access controls.
+- Existing role restrictions.
+- Existing data structures.
+- Existing operational functionality.
+
+Add a discreet **ROOMWISE Home** route back to the public landing page somewhere appropriate within the platform navigation or account area.
+
+Do not mix the public website's navigation into the operational dashboard.
+
+Direct navigation to `/platform` must continue to work, including page refreshes and deep links.
+
+The public landing page must be accessible without authentication.
+
+---
+
+# 7. FACTUAL ACCURACY — THE WEBSITE MUST REPRESENT THE REAL PROJECT
+
+The poster is the primary reference for the project's narrative, structure, technical concepts and stated projections.
+
+Preserve these distinctions.
+
+### Physical prototype and software platform are separate
+
+The physical prototype demonstrates room-level sensing and local adaptive control using the Arduino-based system.
+
+The web platform currently presents campus-wide functionality using simulated classroom data for rooms that are not instrumented.
+
+They are not yet live-connected.
+
+Communicate this accurately in a concise implementation note or technical clarification. Do not make this distinction dominate the visual story, but do not conceal it.
+
+Never:
+- Claim that every classroom has physical sensors.
+- Claim that the dashboard is receiving live data from all classrooms.
+- Present simulated dashboard readings as actual measured hardware telemetry.
+- Claim the physical system has already been deployed throughout the school.
+- Suggest that future hardware integration is already operational.
+
+### Technical accuracy
+
+- PIR detects motion; it does not count students or guarantee continuous human-presence detection.
+- LDR provides ambient-light sensing.
+- DHT11 measures temperature and humidity.
+- Arduino Uno acts as the local controller.
+- OLED provides the local interface.
+- LED lighting and a DC fan are the demonstrated appliance outputs.
+
+Do not claim machine-learning capabilities, verified predictive performance or self-learning mechanisms without demonstrated implementation.
+
+### Recognition and external engagement
+
+Use only established, accurate achievements and interactions.
+
+Where mentioned, distinguish:
+- First Prize — Sahodaya Inter-School Project Exhibition Competition, South Bengal Chapter, CBSE Bhubaneswar Region (2026).
+- Top 16 in India — National Climate Innovation Challenge (2025), with the correct project context.
+- Discussions with an IIT Kharagpur researcher about the possibility of implementation.
+
+Do not imply formal IIT Kharagpur approval, partnership, adoption or deployment.
+
+Do not present directory listings, GitHub presence or showcase profiles as awards.
+
+### Policy context
+
+If mentioning BEE, Mission LiFE, PM SHRI or MNRE, describe them as policy alignment or contextual relevance.
+
+Do not suggest that ROOMWISE is government-sponsored, endorsed, certified or formally compliant merely because its objectives relate to these initiatives.
+
+---
+
+# 8. TECHNICAL QUALITY, PERFORMANCE AND ACCESSIBILITY
+
+The website should look exceptional without becoming slow or fragile.
+
+### Performance
+
+- Lazy-load heavy 3D scenes.
+- Use an efficient loading sequence for the hero.
+- Use compressed textures and optimised 3D assets.
+- Avoid unnecessarily high polygon counts.
+- Avoid multiple WebGL canvases running simultaneously.
+- Pause or reduce animation when scenes leave the viewport.
+- Use appropriate fallbacks for devices that cannot render WebGL well.
+- Avoid loading large video and 3D assets before they are required.
+- Prevent layout shifts as scenes and media load.
+- Preserve sensible mobile performance.
+
+### Accessibility
+
+Respect `prefers-reduced-motion`.
+
+Provide reduced-motion alternatives for major animated scenes and transitions.
+
+Ensure:
+- Keyboard-accessible navigation.
+- Visible focus states.
+- Sufficient text contrast.
+- Semantic headings.
+- Descriptive image alternatives.
+- Accessible interactive controls.
+- Captions for video where available.
+
+Do not make essential information available only through motion or hover.
+
+### Responsive design
+
+Design deliberately for:
+- Large desktop monitors.
+- Standard laptop screens.
+- Tablets.
+- Mobile devices.
+
+The desktop experience can be more immersive, but mobile must have its own carefully composed art direction rather than simply shrinking the desktop layout.
+
+On mobile:
+- Reduce or replace heavy 3D scenes where required.
+- Preserve the narrative.
+- Maintain readable typography.
+- Simplify interactive controls.
+- Keep navigation and CTAs accessible.
+
+Test at 1920 × 1080, 1600 × 900, 1366 × 768, tablet dimensions and common mobile widths.
+
+---
+
+# 9. IMPLEMENTATION APPROACH
+
+Before coding:
+
+1. Inspect the existing ROOMWISE codebase, routing, assets, design tokens and installed dependencies.
+2. Identify existing logo files, campus imagery, application screenshots and any available project video.
+3. Understand the current public/application routing.
+4. Evaluate the current React and Three.js compatibility.
+5. Decide which motion libraries and components materially contribute to the chosen art direction.
+6. Build the landing page as a separate public experience without destabilising the operational platform.
+
+Create reusable components for:
+- Public navigation.
+- Hero scene.
+- Architectural classroom visual.
+- Operating-principle sequence.
+- Hardware explainer.
+- Platform showcase.
+- Projection section.
+- Optional product film.
+- Logo marquee.
+- Footer.
+
+Keep the implementation organised and maintainable.
+
+Do not place the entire page inside one enormous component.
+
+Do not add a large dependency merely to recreate a simple CSS or SVG animation.
+
+Do not replace working components elsewhere in ROOMWISE unnecessarily.
+
+---
+
+# 10. FINAL DESIGN ACCEPTANCE CRITERIA
+
+Do not consider the landing page finished merely because it contains all the sections.
+
+It must pass the following quality standards:
+
+**First impression**
+- The hero is visually distinctive and communicates ROOMWISE immediately.
+- The visual identity feels purpose-built, not template-based.
+- The main motto has a strong and memorable presence.
+
+**Storytelling**
+- The visitor understands the classroom energy problem.
+- The four-stage operating principle is clear.
+- The physical architecture and software platform are visually connected.
+- The platform's capabilities are understandable without reading a technical manual.
+
+**Motion**
+- Animation feels intentional, sophisticated and professionally choreographed.
+- The classroom visual is genuinely engaging.
+- The motion system has a consistent visual grammar.
+- The website remains usable without animation.
+
+**Recognition**
+- BEYOND THE CLASSROOM appears exactly as specified.
+- The requested logos use authentic assets.
+- CBSE replaces Sahodaya.
+- IIT Kharagpur and external platform logos are represented accurately.
+- No false partnership, endorsement or award claims.
+
+**Product integration**
+- Open Platform links to `/platform`.
+- The existing dashboard remains fully functional.
+- Authentication and permissions are unaffected.
+- Deep links work.
+
+**Technical quality**
+- No broken interactions.
+- No console errors.
+- No clipping or overlap.
+- No major performance regressions.
+- Responsive layouts work.
+- Video is included only when a genuine asset is available.
+
+### Final instruction
+
+Do not optimise for the largest number of animations, the greatest number of components or the most visually complicated page.
+
+Optimise for **visual distinction, narrative clarity, technical credibility and emotional impact**.
+
+The judges should remember the experience because they understand the idea and see how thoughtfully it has been realised.
+
+ROOMWISE should not look like another student project website.
+
+It should look like the public face of a serious, thoughtfully engineered campus technology product.
+
+**ENERGY THAT RESPONDS TO NEED.**

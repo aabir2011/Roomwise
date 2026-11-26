@@ -33,6 +33,8 @@ import {
 import { ApplianceControlDrawer } from '../classrooms/ApplianceControlDrawer';
 import { AnimatedNumber } from '../common/MotionPrimitives';
 import { AcronymHint } from '../common/AcronymHint';
+import { AmbientBackdrop } from '../common/AmbientBackdrop';
+import { ActionButton, IconButton } from '../common/DesignSystem';
 import { ROOMWISE_EASE } from '../../utils/motion';
 
 interface Props {
@@ -75,7 +77,8 @@ export const ClassroomTelemetryView: React.FC<Props> = ({
 
   if (!room || !lightSummary || !fanSummary) {
     return (
-      <div className="min-h-screen bg-app-ambient text-neutral-900 select-none pb-12">
+      <div className="min-h-screen bg-app-ambient relative text-neutral-900 select-none pb-12">
+        <AmbientBackdrop />
         <header className="sticky top-0 z-30 glass-header px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0">
             <RoomwiseLogo size="sm" showSubtitle={false} />
@@ -90,18 +93,18 @@ export const ClassroomTelemetryView: React.FC<Props> = ({
           </div>
 
           {onNavigateHome && (
-            <button
-              type="button"
+            <ActionButton
+              variant="primary"
+              size="sm"
               onClick={onNavigateHome}
-              className="px-3 py-1.5 rounded-xl rw-btn-primary text-xs font-bold flex items-center gap-1.5 whitespace-nowrap"
+              icon={<ArrowLeft className="w-3.5 h-3.5 text-emerald-400" />}
             >
-              <ArrowLeft className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Campus Dashboard</span>
-            </button>
+              Campus Dashboard
+            </ActionButton>
           )}
         </header>
 
-        <main className="max-w-xl mx-auto p-4 sm:p-8 mt-8">
+        <main className="relative z-10 max-w-xl mx-auto p-4 sm:p-8 mt-8">
           <div className="p-6 sm:p-8 rounded-3xl glass-card relative overflow-hidden space-y-5 text-center">
             <div className="absolute top-0 left-0 right-0 h-1 gradient-rim-amber" />
             <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 text-amber-700 flex items-center justify-center mx-auto">
@@ -149,23 +152,23 @@ export const ClassroomTelemetryView: React.FC<Props> = ({
 
             <div className="flex flex-wrap items-center justify-center gap-2.5 pt-1">
               {onNavigateHome && (
-                <button
-                  type="button"
+                <ActionButton
+                  variant="forest"
+                  size="md"
                   onClick={onNavigateHome}
-                  className="px-4 py-2 rounded-xl rw-btn-forest text-xs font-semibold flex items-center gap-1.5"
+                  icon={<ArrowLeft className="w-3.5 h-3.5 text-emerald-300" />}
                 >
-                  <ArrowLeft className="w-3.5 h-3.5 text-emerald-300" />
-                  <span>Return to Campus Overview</span>
-                </button>
+                  Return to Campus Overview
+                </ActionButton>
               )}
               {onSelectRoomCode && classrooms[0] && (
-                <button
-                  type="button"
+                <ActionButton
+                  variant="secondary"
+                  size="md"
                   onClick={() => onSelectRoomCode(classrooms[0].roomCode)}
-                  className="px-4 py-2 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-800 text-xs font-semibold"
                 >
                   Open {classrooms[0].roomCode} ({classrooms[0].name})
-                </button>
+                </ActionButton>
               )}
             </div>
           </div>
@@ -192,7 +195,8 @@ export const ClassroomTelemetryView: React.FC<Props> = ({
   };
 
   return (
-    <div className="min-h-screen bg-app-ambient text-neutral-900 select-none pb-12">
+    <div className="min-h-screen bg-app-ambient relative text-neutral-900 select-none pb-12">
+      <AmbientBackdrop />
       {/* Top Navigation Bar */}
       <header className="sticky top-0 z-30 glass-header px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
         <div className="flex items-center gap-3 min-w-0">
@@ -209,30 +213,32 @@ export const ClassroomTelemetryView: React.FC<Props> = ({
 
         <div className="flex items-center gap-2 shrink-0">
           {isAdminUnlocked && device.isPhone && (
-            <button
-              type="button"
+            <ActionButton
+              variant="soft"
+              size="sm"
               onClick={openPhoneQrModal}
-              className="px-2.5 py-1.5 rounded-xl border border-emerald-300/90 bg-emerald-50 hover:bg-emerald-100 text-emerald-950 text-xs font-bold transition-all active:scale-[0.98] flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
+              icon={<QrCode className="w-3.5 h-3.5" />}
               title="Scan Computer QR Code to authorise a laptop or desktop"
             >
-              <QrCode className="w-3.5 h-3.5 text-emerald-700" />
-              <span>Scan PC QR</span>
-            </button>
+              Scan PC QR
+            </ActionButton>
           )}
 
           {onNavigateHome && (
-            <button
-              type="button"
+            <ActionButton
+              variant="primary"
+              size="sm"
               onClick={onNavigateHome}
-              className="px-3 py-1.5 rounded-xl rw-btn-primary text-xs font-bold flex items-center gap-1.5 whitespace-nowrap"
+              trailingIcon={<ExternalLink className="w-3.5 h-3.5 text-emerald-400" />}
+              nudgeTrailing={false}
             >
-              <span>Campus Dashboard</span>
-              <ExternalLink className="w-3.5 h-3.5 text-emerald-400" />
-            </button>
+              Campus Dashboard
+            </ActionButton>
           )}
 
-          <button
-            type="button"
+          <ActionButton
+            variant={isAdminUnlocked ? 'forest' : 'amber'}
+            size="sm"
             onClick={() => {
               if (!isAdminUnlocked) {
                 openAuthModal(() => openDrawerFor(null));
@@ -240,27 +246,22 @@ export const ClassroomTelemetryView: React.FC<Props> = ({
                 openDrawerFor(null);
               }
             }}
-            className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap ${
-              isAdminUnlocked
-                ? 'rw-btn-forest'
-                : 'bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300/85 transition-colors'
-            }`}
+            icon={<Shield className="w-3.5 h-3.5" />}
           >
-            <Shield className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">
               {isAdminUnlocked ? `${currentStaff.name} (Controls)` : 'Teacher Override'}
             </span>
-          </button>
+          </ActionButton>
 
-          <button
-            type="button"
+          <IconButton
+            variant="secondary"
+            size="sm"
             onClick={() => setQrModalRoom(room)}
-            className="p-2 rounded-xl bg-white/90 hover:bg-white border border-neutral-200/85 text-neutral-700 hover:text-neutral-900 transition-colors"
             title="Display Classroom Door Placard QR"
-            aria-label="QR Placard"
+            label="QR Placard"
           >
-            <QrCode className="w-4 h-4 text-emerald-700" />
-          </button>
+            <QrCode className="w-4 h-4 text-[#0b6e4f]" />
+          </IconButton>
         </div>
       </header>
 
@@ -270,36 +271,34 @@ export const ClassroomTelemetryView: React.FC<Props> = ({
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.22, ease: ROOMWISE_EASE }}
-        className="max-w-4xl mx-auto p-4 sm:p-6 space-y-5"
+        className="relative z-10 max-w-4xl mx-auto p-4 sm:p-6 space-y-5"
       >
-        {/* Classroom Identity Card */}
-        <div className="p-5 sm:p-6 rounded-3xl glass-card relative overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 h-1 gradient-rim-emerald" />
-
+        {/* Obsidian-Pine Classroom Identity Masthead */}
+        <div className="rounded-xl rw-obsidian-panel text-[#f4f6f4] p-5 sm:p-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <div className="flex items-center gap-2 flex-wrap text-xs">
-                <span className="font-mono text-sm font-bold bg-neutral-900 text-white px-2.5 py-0.5 rounded-lg">
+              <div className="flex items-center gap-2.5 flex-wrap text-xs">
+                <span className="font-mono text-sm font-semibold bg-[#132922] text-[#34d399] border border-[#34d399]/30 px-2.5 py-0.5 rounded">
                   {room.roomCode}
                 </span>
                 <span
                   className={`font-semibold ${
-                    isOccupied ? 'text-emerald-800' : 'text-neutral-600'
+                    isOccupied ? 'text-[#34d399]' : 'text-[#9cb0a7]'
                   }`}
                 >
                   {getRoomActivityState(room)}
                 </span>
-                <span className="text-neutral-400 hidden sm:inline tabular-nums">
+                <span className="text-[#8ba097] hidden sm:inline tabular-nums">
                   · Configured capacity {room.capacity} seats
                 </span>
               </div>
 
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-neutral-900 tracking-tight mt-2">
+              <h1 className="font-display text-2xl sm:text-3xl font-semibold text-white tracking-tight mt-2">
                 {room.name}
               </h1>
 
-              <div className="flex items-center gap-2 text-xs text-neutral-600 mt-1 flex-wrap">
-                <span className="font-semibold text-neutral-800">{room.building}</span>
+              <div className="flex items-center gap-2 text-xs text-[#9cb0a7] mt-1 flex-wrap">
+                <span className="font-semibold text-[#e4ece8]">{room.building}</span>
                 <span aria-hidden="true">·</span>
                 <span>{room.floor}</span>
                 <span aria-hidden="true">·</span>
@@ -308,14 +307,14 @@ export const ClassroomTelemetryView: React.FC<Props> = ({
             </div>
 
             {onSelectRoomCode && (
-              <div className="self-start sm:self-auto shrink-0 bg-neutral-50/90 p-2.5 rounded-2xl border border-neutral-200/80">
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-neutral-500 mb-1">
+              <div className="self-start sm:self-auto shrink-0 bg-[#12241d] p-2.5 rounded-lg border border-white/12">
+                <label className="block text-[10px] font-semibold uppercase tracking-[0.08em] text-[#9cb0a7] mb-1">
                   Quick Room Switcher
                 </label>
                 <select
                   value={room.roomCode}
                   onChange={(e) => onSelectRoomCode(e.target.value)}
-                  className="px-2.5 py-1.5 glass-input rounded-xl text-xs font-semibold text-[#111815]"
+                  className="px-2.5 py-1.5 bg-[#0b1713] border border-white/15 rounded-md text-xs font-medium text-white focus:outline-none focus:border-[#34d399]"
                 >
                   {classrooms.map((c) => (
                     <option key={c.id} value={c.roomCode}>
@@ -327,254 +326,250 @@ export const ClassroomTelemetryView: React.FC<Props> = ({
             )}
           </div>
 
-          <div className="mt-4 pt-4 border-t border-neutral-200/60 flex flex-wrap items-center justify-between gap-2 text-xs text-neutral-500">
+          <div className="mt-4 pt-4 border-t border-white/10 flex flex-wrap items-center justify-between gap-2 text-xs text-[#9cb0a7]">
             <div className="flex items-center gap-1.5 font-mono text-[11px] tabular-nums">
-              <Clock className="w-3.5 h-3.5 text-emerald-600" />
+              <Clock className="w-3.5 h-3.5 text-[#34d399]" />
               <span>Last Update:</span>
-              <strong className="text-neutral-800">{room.decision.timestamp}</strong>
+              <strong className="text-white">{room.decision.timestamp}</strong>
             </div>
 
             <div className="flex items-center gap-3 text-[11px]">
               {isAdminUnlocked && (
-                <span className="text-emerald-800 font-semibold flex items-center gap-1">
-                  <Shield className="w-3 h-3 text-emerald-600" />
+                <span className="text-[#34d399] font-semibold flex items-center gap-1">
+                  <Shield className="w-3 h-3" />
                   <span>Authority: {currentStaff.name}</span>
                 </span>
               )}
               <span>
-                PIR: <span className="font-semibold text-neutral-800">{room.pir.status}</span>
+                PIR: <span className="font-semibold text-white">{room.pir.status}</span>
               </span>
             </div>
           </div>
         </div>
 
-        {/* Lighting & Thermal Primary Cards */}
+        {/* Lighting & Thermal Primary Architectural Sheets */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {/* Card 1: Ambient Lighting */}
-          <div className="p-5 rounded-2xl glass-card space-y-3">
-            <div className="flex items-center justify-between text-xs text-neutral-500">
-              <span className="font-bold text-neutral-900 flex items-center gap-1.5 uppercase tracking-wider text-[11px]">
-                <Sun className="w-4 h-4 text-amber-500" />
+          <div className="p-5 rounded-xl bg-white border border-[rgba(17,25,22,0.1)] space-y-3">
+            <div className="flex items-center justify-between text-xs text-[#5c6a64]">
+              <span className="font-semibold text-[#111916] flex items-center gap-1.5 uppercase tracking-[0.08em] text-[10.5px]">
+                <Sun className="w-4 h-4 text-[#b45309]" />
                 <span>Ambient Illumination</span>
               </span>
-              <span className="font-mono text-[11px] text-amber-800 font-semibold tabular-nums">
+              <span className="font-mono text-[11px] text-[#b45309] font-semibold tabular-nums">
                 Target {room.calibration.manualParameters.targetLux} lx
               </span>
             </div>
 
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-black font-mono text-neutral-900">
+              <span className="text-3xl font-semibold font-mono text-[#111916] tabular-nums">
                 <AnimatedNumber value={room.environment.ambientLux} />
               </span>
-              <span className="text-xs font-bold text-neutral-500">lux (desk surface)</span>
+              <span className="text-xs font-medium text-[#5c6a64]">lux (desk surface)</span>
             </div>
 
-            <div className="p-3 rounded-xl bg-neutral-50/90 border border-neutral-200/70 space-y-1.5 text-xs">
+            <div className="p-3 rounded-lg bg-[#fafbf9] border border-[rgba(17,25,22,0.08)] space-y-1.5 text-xs">
               <div className="flex justify-between items-center">
-                <span className="text-neutral-500">Daylight Contribution</span>
-                <span className="font-mono font-bold text-neutral-900 tabular-nums">
+                <span className="text-[#5c6a64]">Daylight Contribution</span>
+                <span className="font-mono font-semibold text-[#111916] tabular-nums">
                   {naturalDeliveredLux} lx (α={room.calibration.learnedParameters.daylightPenetrationAlpha})
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-neutral-500">Artificial Deficit</span>
-                <span className="font-mono font-bold text-emerald-800 tabular-nums">
+                <span className="text-[#5c6a64]">Artificial Deficit</span>
+                <span className="font-mono font-semibold text-[#0b6e4f] tabular-nums">
                   {Math.max(0, room.calibration.manualParameters.targetLux - naturalDeliveredLux)} lx
                 </span>
               </div>
-              <div className="flex justify-between items-center pt-2 border-t border-neutral-200/60 gap-2">
+              <div className="flex justify-between items-center pt-2 border-t border-[rgba(17,25,22,0.08)] gap-2">
                 <div className="min-w-0">
-                  <div className="font-medium text-neutral-700 flex items-center gap-1">
-                    <Lightbulb className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                  <div className="font-medium text-[#313e38] flex items-center gap-1">
+                    <Lightbulb className="w-3.5 h-3.5 text-[#b45309] shrink-0" />
                     <span>Lighting</span>
-                    <span className="text-neutral-300" aria-hidden="true">
-                      ·
-                    </span>
+                    <span className="text-[#c5cec9]" aria-hidden="true">·</span>
                     <span
-                      className={`text-[10px] font-bold uppercase ${
-                        lightSummary.modeStatus === 'AUTO' ? 'text-emerald-700' : 'text-amber-700'
+                      className={`text-[10px] font-mono font-semibold uppercase ${
+                        lightSummary.modeStatus === 'AUTO' ? 'text-[#0b6e4f]' : 'text-[#b45309]'
                       }`}
                     >
                       {lightSummary.modeStatus}
                     </span>
                   </div>
-                  <div className="text-[11px] font-mono tabular-nums text-neutral-800 mt-0.5 truncate">
+                  <div className="text-[11px] font-mono tabular-nums text-[#313e38] mt-0.5 truncate">
                     {lightSummary.avgPercent}% avg · {lightSummary.activeCount}/{lightSummary.totalCount}{' '}
                     active
                   </div>
                 </div>
-                <button
-                  type="button"
+                <ActionButton
+                  variant="secondary"
+                  size="xs"
                   onClick={() => openDrawerFor('lights')}
-                  className="shrink-0 px-2.5 py-1.5 rounded-lg bg-white hover:bg-neutral-100 border border-neutral-200 text-[11px] font-bold text-neutral-800 flex items-center gap-1 transition-all active:scale-[0.98]"
+                  icon={<SlidersHorizontal className="w-3 h-3 text-[#b45309]" />}
                 >
-                  <SlidersHorizontal className="w-3 h-3 text-amber-600" />
-                  <span>Adjust</span>
-                </button>
+                  Adjust
+                </ActionButton>
               </div>
             </div>
 
-            <div className="text-[11px] text-neutral-500 flex items-center justify-between">
+            <div className="text-[11px] text-[#5c6a64] flex items-center justify-between">
               <span>Lighting Draw ({lightSummary.totalCount} units)</span>
-              <span className="font-mono font-bold text-neutral-800">
+              <span className="font-mono font-semibold text-[#111916]">
                 <AnimatedNumber value={lightSummary.totalWatts} suffix=" W" />
               </span>
             </div>
           </div>
 
           {/* Card 2: Thermal Comfort & Airflow */}
-          <div className="p-5 rounded-2xl glass-card space-y-3">
-            <div className="flex items-center justify-between text-xs text-neutral-500">
-              <span className="font-bold text-neutral-900 flex items-center gap-1.5 uppercase tracking-wider text-[11px]">
-                <Thermometer className="w-4 h-4 text-rose-500" />
-                <span>Thermal State & Comfort</span>
+          <div className="p-5 rounded-xl bg-white border border-[rgba(17,25,22,0.1)] space-y-3">
+            <div className="flex items-center justify-between text-xs text-[#5c6a64]">
+              <span className="font-semibold text-[#111916] flex items-center gap-1.5 uppercase tracking-[0.08em] text-[10.5px]">
+                <Thermometer className="w-4 h-4 text-[#b91c1c]" />
+                <span>Thermal State &amp; Comfort</span>
               </span>
-              <span className="font-mono text-[11px] text-rose-800 font-semibold tabular-nums">
+              <span className="font-mono text-[11px] text-[#b91c1c] font-semibold tabular-nums">
                 RH {room.environment.humidity}%
               </span>
             </div>
 
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-black font-mono text-neutral-900">
+              <span className="text-3xl font-semibold font-mono text-[#111916] tabular-nums">
                 <AnimatedNumber value={room.environment.temperature} decimals={1} suffix="°C" />
               </span>
-              <span className="text-xs font-semibold text-neutral-600 tabular-nums">
-                (<AcronymHint term="HI" />: <strong className="text-neutral-800 font-mono">{room.environment.heatIndex}°C</strong>)
+              <span className="text-xs font-medium text-[#5c6a64] tabular-nums">
+                (<AcronymHint term="HI" />: <strong className="text-[#111916] font-mono">{room.environment.heatIndex}°C</strong>)
               </span>
             </div>
 
-            <div className="p-3 rounded-xl bg-neutral-50/90 border border-neutral-200/70 space-y-1.5 text-xs">
+            <div className="p-3 rounded-lg bg-[#fafbf9] border border-[rgba(17,25,22,0.08)] space-y-1.5 text-xs">
               <div className="flex justify-between items-center">
-                <span className="text-neutral-500">Thermal Dissipation (β)</span>
-                <span className="font-mono font-bold text-neutral-900 tabular-nums">
+                <span className="text-[#5c6a64]">Thermal Dissipation (β)</span>
+                <span className="font-mono font-semibold text-[#111916] tabular-nums">
                   {room.calibration.learnedParameters.thermalDissipationBeta} °C/hr
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-neutral-500">Target Range</span>
-                <span className="font-mono font-semibold text-neutral-800 tabular-nums">
+                <span className="text-[#5c6a64]">Target Range</span>
+                <span className="font-mono font-semibold text-[#111916] tabular-nums">
                   {room.calibration.manualParameters.comfortTempMin}°C –{' '}
                   {room.calibration.manualParameters.comfortTempMax}°C
                 </span>
               </div>
-              <div className="flex justify-between items-center pt-2 border-t border-neutral-200/60 gap-2">
+              <div className="flex justify-between items-center pt-2 border-t border-[rgba(17,25,22,0.08)] gap-2">
                 <div className="min-w-0">
-                  <div className="font-medium text-neutral-700 flex items-center gap-1">
-                    <Fan className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <div className="font-medium text-[#313e38] flex items-center gap-1">
+                    <Fan className="w-3.5 h-3.5 text-[#0b6e4f] shrink-0" />
                     <span>Fans</span>
-                    <span className="text-neutral-300" aria-hidden="true">
-                      ·
-                    </span>
+                    <span className="text-[#c5cec9]" aria-hidden="true">·</span>
                     <span
-                      className={`text-[10px] font-bold uppercase ${
-                        fanSummary.modeStatus === 'AUTO' ? 'text-emerald-700' : 'text-amber-700'
+                      className={`text-[10px] font-mono font-semibold uppercase ${
+                        fanSummary.modeStatus === 'AUTO' ? 'text-[#0b6e4f]' : 'text-[#b45309]'
                       }`}
                     >
                       {fanSummary.modeStatus}
                     </span>
                   </div>
-                  <div className="text-[11px] font-mono tabular-nums text-neutral-800 mt-0.5 truncate">
+                  <div className="text-[11px] font-mono tabular-nums text-[#313e38] mt-0.5 truncate">
                     {fanSummary.operatingLabel} · {fanSummary.activeCount}/{fanSummary.totalCount}{' '}
                     sectors · {fanSummary.avgPercent}% avg
                   </div>
                 </div>
-                <button
-                  type="button"
+                <ActionButton
+                  variant="secondary"
+                  size="xs"
                   onClick={() => openDrawerFor('fan')}
-                  className="shrink-0 px-2.5 py-1.5 rounded-lg bg-white hover:bg-neutral-100 border border-neutral-200 text-[11px] font-bold text-neutral-800 flex items-center gap-1 transition-all active:scale-[0.98]"
+                  icon={<SlidersHorizontal className="w-3 h-3 text-[#0b6e4f]" />}
                 >
-                  <SlidersHorizontal className="w-3 h-3 text-emerald-600" />
-                  <span>Adjust</span>
-                </button>
+                  Adjust
+                </ActionButton>
               </div>
             </div>
 
-            <div className="text-[11px] text-neutral-500 flex items-center justify-between">
+            <div className="text-[11px] text-[#5c6a64] flex items-center justify-between">
               <span>Fan Draw ({fanSummary.totalCount} sectors)</span>
-              <span className="font-mono font-bold text-neutral-800">
+              <span className="font-mono font-semibold text-[#111916]">
                 <AnimatedNumber value={fanSummary.totalWatts} suffix=" W" />
               </span>
             </div>
           </div>
         </div>
 
-        {/* Energy Balance & Decision Summary */}
-        <div className="p-5 sm:p-6 rounded-2xl glass-card space-y-4">
-          <div className="flex items-center justify-between flex-wrap gap-2">
+        {/* Hairline Energy Balance & Decision Summary */}
+        <div className="rounded-xl bg-white border border-[rgba(17,25,22,0.1)] overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-[rgba(17,25,22,0.08)] flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2">
-              <Zap className="w-4 h-4 text-emerald-600" />
-              <h2 className="text-xs font-bold text-neutral-900 uppercase tracking-wider">
+              <Zap className="w-4 h-4 text-[#0b6e4f]" />
+              <h2 className="text-[11px] font-semibold text-[#111916] uppercase tracking-[0.08em]">
                 Classroom Capacity &amp; Energy Balance
               </h2>
             </div>
-            <span className="text-xs font-bold text-emerald-800 tabular-nums">
+            <span className="text-xs font-mono font-semibold text-[#0b6e4f] tabular-nums">
               {ratedUtilPercent}% Rated Utilisation ({headroomPercent}% headroom below {ratedWatts} W max)
             </span>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-            <div className="p-3 rounded-xl bg-neutral-50 border border-neutral-200/75">
-              <div className="text-[11px] text-neutral-600">Live Active Demand</div>
-              <div className="text-lg font-bold font-mono text-neutral-900 mt-0.5">
+          <div className="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-[rgba(17,25,22,0.08)] text-xs">
+            <div className="p-4">
+              <div className="text-[10.5px] uppercase tracking-[0.06em] text-[#5c6a64]">Live Active Demand</div>
+              <div className="text-lg font-semibold font-mono text-[#111916] mt-1 tabular-nums">
                 <AnimatedNumber value={room.currentPowerWatts} />{' '}
-                <span className="text-xs font-normal text-neutral-500">W</span>
+                <span className="text-xs font-normal text-[#5c6a64]">W</span>
               </div>
             </div>
 
-            <div className="p-3 rounded-xl bg-neutral-50 border border-neutral-200/75">
-              <div className="text-[11px] text-neutral-600">Installed Rated Max</div>
-              <div className="text-lg font-bold font-mono text-neutral-900 mt-0.5 tabular-nums">
-                {ratedWatts} <span className="text-xs font-normal text-neutral-500">W</span>
+            <div className="p-4">
+              <div className="text-[10.5px] uppercase tracking-[0.06em] text-[#5c6a64]">Installed Rated Max</div>
+              <div className="text-lg font-semibold font-mono text-[#111916] mt-1 tabular-nums">
+                {ratedWatts} <span className="text-xs font-normal text-[#5c6a64]">W</span>
               </div>
-              <div className="text-[11px] text-neutral-600 mt-0.5 tabular-nums">
+              <div className="text-[11px] text-[#5c6a64] mt-0.5 tabular-nums">
                 100% Connected Ceiling
               </div>
             </div>
 
-            <div className="p-3 rounded-xl bg-emerald-50/75 border border-emerald-200/80">
-              <div className="text-[11px] text-emerald-800 font-medium">Available Rated Headroom</div>
-              <div className="text-lg font-bold font-mono text-emerald-900 mt-0.5">
+            <div className="p-4 bg-[#f2f7f4]">
+              <div className="text-[10.5px] uppercase tracking-[0.06em] text-[#0b6e4f] font-medium">Available Headroom</div>
+              <div className="text-lg font-semibold font-mono text-[#0b1713] mt-1 tabular-nums">
                 <AnimatedNumber value={availableHeadroomWatts} />{' '}
-                <span className="text-xs font-normal text-emerald-700">W</span>
+                <span className="text-xs font-normal text-[#0b6e4f]">W</span>
               </div>
             </div>
 
-            <div className="p-3 rounded-xl bg-teal-50/75 border border-teal-200/80">
-              <div className="text-[11px] text-teal-800 font-medium">Est. Daily Consumption</div>
-              <div className="text-lg font-bold font-mono text-teal-900 mt-0.5 tabular-nums">
+            <div className="p-4">
+              <div className="text-[10.5px] uppercase tracking-[0.06em] text-[#5c6a64]">Est. Daily Usage</div>
+              <div className="text-lg font-semibold font-mono text-[#111916] mt-1 tabular-nums">
                 {room.dailyActualKWh.toFixed(2)}{' '}
-                <span className="text-xs font-normal text-teal-700">kWh</span>
+                <span className="text-xs font-normal text-[#5c6a64]">kWh</span>
               </div>
-              <div className="text-[11px] text-teal-800 mt-0.5 tabular-nums">
-                {roomOperatingHours.toFixed(1)} h/day room-weighted
+              <div className="text-[11px] text-[#5c6a64] mt-0.5 font-mono tabular-nums">
+                {roomOperatingHours.toFixed(1)} h/day weighted
               </div>
             </div>
           </div>
 
-          <div className="p-4 rounded-xl bg-neutral-50/70 border border-neutral-200/80 space-y-1.5">
-            <div className="text-xs font-bold text-neutral-900 flex items-center gap-1.5">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+          <div className="p-4 bg-[#fafbf9] border-t border-[rgba(17,25,22,0.08)] space-y-1.5">
+            <div className="text-xs font-semibold text-[#111916] flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-[#0b6e4f]" />
               <span>Adaptive Closed-Loop Decision</span>
             </div>
-            <p className="text-xs text-neutral-700 leading-relaxed">
+            <p className="text-xs text-[#4a5851] leading-relaxed">
               {room.decision.ruleExplanation}
             </p>
           </div>
         </div>
 
         {/* Role Access Notice */}
-        <div className="p-4 rounded-2xl bg-neutral-100/70 border border-neutral-200/80 text-xs text-neutral-600 flex items-start gap-3">
-          <Info className="w-4 h-4 text-neutral-500 shrink-0 mt-0.5" />
+        <div className="p-4 rounded-xl bg-white border border-[rgba(17,25,22,0.1)] text-xs text-[#5c6a64] flex items-start gap-3">
+          <Info className="w-4 h-4 text-[#5c6a64] shrink-0 mt-0.5" />
           <div className="space-y-1">
-            <div className="font-semibold text-neutral-900 flex items-center gap-2">
+            <div className="font-semibold text-[#111916] flex items-center gap-2">
               <span>{isAdminUnlocked ? 'Admin Session Active' : 'Student Read-Only Portal'}</span>
               {isAdminUnlocked && (
-                <span className="text-[11px] text-emerald-800 font-semibold">
+                <span className="text-[11px] text-[#0b6e4f] font-semibold">
                   · {currentStaff.role}
                 </span>
               )}
             </div>
-            <p className="text-[11px] text-neutral-500 leading-relaxed">
+            <p className="text-[11px] text-[#5c6a64] leading-relaxed">
               {isAdminUnlocked
                 ? `Authorized administrator session for ${currentStaff.name} (${currentStaff.role}, ${currentStaff.assignedBuilding}). You can adjust units, set lux targets, or restore AUTO.`
                 : `Classroom lighting and BLDC ceiling fans are modulated by Roomwise based on daylighting sensors, indoor photometrics, and PIR occupancy tracking. Students have read-only access. Contact ${currentStaff.name} (${currentStaff.role}) for examination adjustments.`}

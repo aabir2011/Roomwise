@@ -81,7 +81,7 @@ export const WebGLFallbackView: React.FC<WebGLFallbackViewProps> = ({
               <button
                 type="button"
                 onClick={() => onSelectBuilding(bldg.id)}
-                className="w-full text-left flex items-baseline justify-between gap-2 hover:text-emerald-300 transition-colors"
+                className="w-full text-left flex items-baseline justify-between gap-2 rounded-lg px-1.5 py-1 -mx-1.5 hover:bg-white/[0.04] hover:text-emerald-300 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
               >
                 <span className="text-sm font-semibold text-[#f3f7f5]">{bldg.shortLabel}</span>
                 <span className="text-[10px] text-[#8d9d97]">
@@ -109,7 +109,7 @@ export const WebGLFallbackView: React.FC<WebGLFallbackViewProps> = ({
                               key={rm.roomId}
                               type="button"
                               onClick={() => onSelectRoom(rm.roomId)}
-                              className={`p-2 rounded-xl border text-left transition-all ${getRoomFillClass(
+                              className={`p-2 rounded-xl border text-left transition-all active:scale-[0.985] cursor-pointer hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 ${getRoomFillClass(
                                 st,
                                 visualMode
                               )} ${isSelected ? 'ring-2 ring-emerald-400' : ''}`}

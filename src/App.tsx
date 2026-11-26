@@ -15,6 +15,8 @@ import { Header } from './components/layout/Header';
 import { VoiceAssistantOverlay } from './components/voice/VoiceAssistantOverlay';
 import { DashboardView } from './components/dashboard/DashboardView';
 import { RoomwiseLogo } from './components/common/RoomwiseLogo';
+import { AmbientBackdrop } from './components/common/AmbientBackdrop';
+import { ActionButton } from './components/common/DesignSystem';
 import { ROOMWISE_EASE } from './utils/motion';
 import { useDeviceClassification } from './utils/deviceDetection';
 import { AppRoute, getPathForTab, parseRouteFromUrl, WorkspaceTabId } from './utils/routing';
@@ -85,10 +87,17 @@ const LogoutConfirmModal = lazy(() =>
 );
 
 const ViewFallback: React.FC = () => (
-  <div className="w-full py-20 flex items-center justify-center text-xs text-neutral-500 gap-2">
-    <Loader2 className="w-4 h-4 animate-spin text-emerald-700" />
-    <span>Loading workspace view...</span>
-  </div>
+  <motion.div
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    transition={{ duration: 0.18, ease: ROOMWISE_EASE }}
+    className="w-full py-24 flex items-center justify-center"
+  >
+    <div className="px-4 py-2.5 rounded-xl rw-surface flex items-center gap-2.5 text-xs font-medium text-[#46544e]">
+      <Loader2 className="w-4 h-4 animate-spin text-[#0b6e4f]" />
+      <span>Loading workspace telemetry...</span>
+    </div>
+  </motion.div>
 );
 
 const AppContent: React.FC = () => {
@@ -174,12 +183,13 @@ const AppContent: React.FC = () => {
     }
 
     return (
-      <div className="min-h-screen w-full bg-app-ambient flex items-center justify-center p-4 sm:p-8 select-none">
+      <div className="min-h-screen w-full bg-app-ambient relative flex items-center justify-center p-4 sm:p-8 select-none">
+        <AmbientBackdrop />
         <motion.div
           initial={{ opacity: 0, y: 8, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.24, ease: ROOMWISE_EASE }}
-          className="w-full max-w-md rounded-3xl rw-glass-float overflow-hidden"
+          className="relative z-10 w-full max-w-md rounded-3xl rw-glass-float overflow-hidden"
         >
           <Suspense fallback={<ViewFallback />}>
             <TeacherLoginPanel
@@ -238,27 +248,27 @@ const AppContent: React.FC = () => {
 
   if (currentRoute.type === 'not-found') {
     return (
-      <div className="min-h-screen w-full bg-app-ambient text-[#111815] flex flex-col items-center justify-center p-4 sm:p-8 select-none">
-        <div className="w-full max-w-lg rounded-3xl glass-card p-6 sm:p-8 relative overflow-hidden space-y-5 text-center">
-          <div className="absolute top-0 left-0 right-0 h-1 gradient-rim-emerald" />
+      <div className="min-h-screen w-full bg-app-ambient relative text-[#111916] flex flex-col items-center justify-center p-4 sm:p-8 select-none">
+        <AmbientBackdrop />
+        <div className="relative z-10 w-full max-w-lg rounded-xl rw-surface p-6 sm:p-8 overflow-hidden space-y-5 text-center">
           <div className="flex justify-center">
             <RoomwiseLogo size="md" showSubtitle={false} />
           </div>
 
-          <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center mx-auto">
-            <Compass className="w-6 h-6" />
+          <div className="w-11 h-11 rounded-lg bg-[#eef6f2] border border-[#0b6e4f]/20 text-[#0b6e4f] flex items-center justify-center mx-auto">
+            <Compass className="w-5 h-5" />
           </div>
 
           <div className="space-y-1.5">
-            <div className="text-[11px] font-mono font-bold uppercase tracking-widest text-emerald-800">
+            <div className="text-[11px] font-mono font-semibold text-[#0b6e4f]">
               404 · Route Not Found
             </div>
-            <h1 className="text-xl sm:text-2xl font-bold text-[#111815]">
+            <h1 className="font-display text-xl sm:text-2xl font-bold text-[#111916]">
               This ROOMWISE page does not exist
             </h1>
-            <p className="text-xs text-[#4a5851] leading-relaxed">
+            <p className="text-xs text-[#46544e] leading-relaxed">
               The path{' '}
-              <span className="font-mono font-semibold text-[#111815] bg-neutral-100 px-1.5 py-0.5 rounded">
+              <span className="font-mono font-semibold text-[#111916] bg-[#ecefe9] px-1.5 py-0.5 rounded">
                 {currentRoute.pathname}
               </span>{' '}
               is not a configured workspace view or classroom node.
@@ -266,38 +276,38 @@ const AppContent: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-            <button
-              type="button"
+            <ActionButton
+              variant="forest"
+              size="md"
               onClick={() => navigateToSection('dashboard')}
-              className="px-4 py-2 rounded-xl rw-btn-forest text-xs font-semibold flex items-center gap-1.5"
+              icon={<ArrowLeft className="w-3.5 h-3.5 text-emerald-200" />}
             >
-              <ArrowLeft className="w-3.5 h-3.5 text-emerald-300" />
-              <span>Campus Overview</span>
-            </button>
-            <button
-              type="button"
+              Campus Overview
+            </ActionButton>
+            <ActionButton
+              variant="secondary"
+              size="md"
               onClick={() => navigateToSection('campus-live')}
-              className="px-3.5 py-2 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 text-xs font-semibold text-[#111815] flex items-center gap-1.5"
+              icon={<Box className="w-3.5 h-3.5 text-[#0b6e4f]" />}
             >
-              <Box className="w-3.5 h-3.5 text-emerald-700" />
-              <span>Campus Live</span>
-            </button>
-            <button
-              type="button"
+              Campus Live
+            </ActionButton>
+            <ActionButton
+              variant="secondary"
+              size="md"
               onClick={() => navigateToSection('classrooms')}
-              className="px-3.5 py-2 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 text-xs font-semibold text-[#111815] flex items-center gap-1.5"
+              icon={<School className="w-3.5 h-3.5 text-[#0b6e4f]" />}
             >
-              <School className="w-3.5 h-3.5 text-emerald-700" />
-              <span>Classrooms (25)</span>
-            </button>
-            <button
-              type="button"
+              Classrooms (25)
+            </ActionButton>
+            <ActionButton
+              variant="secondary"
+              size="md"
               onClick={() => navigateToSection('reports')}
-              className="px-3.5 py-2 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 text-xs font-semibold text-[#111815] flex items-center gap-1.5"
+              icon={<FileSpreadsheet className="w-3.5 h-3.5 text-[#0b6e4f]" />}
             >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-700" />
-              <span>Reports &amp; BEE</span>
-            </button>
+              Reports &amp; BEE
+            </ActionButton>
           </div>
         </div>
       </div>
@@ -315,16 +325,9 @@ const AppContent: React.FC = () => {
   return (
     <div
       data-device={isPhoneViewport ? 'phone' : 'desktop'}
-      className="flex h-dvh w-screen overflow-hidden bg-app-ambient text-[#111815] font-sans antialiased relative selection:bg-emerald-600 selection:text-white"
+      className="flex h-dvh w-screen overflow-hidden bg-app-ambient text-[#111916] font-sans antialiased relative selection:bg-[#0b6e4f] selection:text-white"
     >
-      {!isCampusLive && (
-        <div className="rw-ambient-field" aria-hidden="true">
-          <div className="rw-ambient-orb-primary" />
-          <div className="rw-ambient-orb-secondary" />
-          {!isPhoneViewport && <div className="rw-ambient-orb-tertiary" />}
-        </div>
-      )}
-
+      <AmbientBackdrop />
       <Sidebar />
 
       <div className="flex-1 flex flex-col h-full overflow-hidden relative z-10 min-w-0">

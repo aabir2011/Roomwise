@@ -11,7 +11,6 @@ import {
   CloudSun,
   History,
   Layers,
-  Loader2,
   MapPin,
   ShieldAlert,
   Sun,
@@ -26,7 +25,13 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { SectionHeading, TelemetryReadout } from '../common/DesignSystem';
+import {
+  ActionButton,
+  InlineActionLink,
+  SectionHeading,
+  TelemetryReadout,
+} from '../common/DesignSystem';
+import { SpotlightCard } from '../reactbits/SpotlightCard';
 import { AcronymHint } from '../common/AcronymHint';
 import { MathText } from '../common/MathText';
 import type {
@@ -161,29 +166,25 @@ export const SolarPotentialPanel: React.FC<SolarPotentialPanelProps> = ({
 
         <div className="flex flex-wrap items-center gap-2 shrink-0">
           {subsetIds.length > 0 && (
-            <button
-              type="button"
+            <ActionButton
+              variant="soft"
+              size="sm"
               disabled={isBusy}
               onClick={() => onCalculateCampus(subsetIds, false)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-900 border border-emerald-300 hover:bg-emerald-100 disabled:opacity-50 cursor-pointer whitespace-nowrap"
+              icon={<Sun className="w-3.5 h-3.5" />}
             >
-              <Sun className="w-3.5 h-3.5" />
               Calculate Subset ({subsetIds.length})
-            </button>
+            </ActionButton>
           )}
-          <button
-            type="button"
-            disabled={isBusy}
+          <ActionButton
+            variant="primary"
+            size="sm"
+            loading={isBusy}
             onClick={() => onCalculateCampus(undefined, false)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-[#0b2e22] text-white hover:bg-emerald-950 disabled:opacity-50 cursor-pointer whitespace-nowrap"
+            icon={<Sun className="w-3.5 h-3.5 text-emerald-300" />}
           >
-            {isBusy ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <Sun className="w-3.5 h-3.5" />
-            )}
             {isProvisional ? 'Run PVGIS Scenario' : 'Calculate Campus PVGIS'}
-          </button>
+          </ActionButton>
         </div>
       </div>
 
@@ -211,13 +212,13 @@ export const SolarPotentialPanel: React.FC<SolarPotentialPanelProps> = ({
               </div>
             </div>
             {previewScenarioId && previewScenarioId !== campusSummary.activeScenarioId && (
-              <button
-                type="button"
+              <InlineActionLink
+                tone="emerald"
                 onClick={() => setPreviewScenarioId(null)}
-                className="text-[11px] font-semibold text-emerald-800 hover:underline self-start sm:self-center cursor-pointer whitespace-nowrap"
+                className="self-start sm:self-center"
               >
                 Return to Saved Default
-              </button>
+              </InlineActionLink>
             )}
           </div>
 
@@ -227,18 +228,21 @@ export const SolarPotentialPanel: React.FC<SolarPotentialPanelProps> = ({
                 (previewScenarioId ?? campusSummary.activeScenarioId) === sc.scenarioId;
               const isSavedDefault = campusSummary.activeScenarioId === sc.scenarioId;
               return (
-                <button
+                <SpotlightCard
                   key={sc.scenarioId}
-                  type="button"
+                  as="button"
+                  aria-pressed={isSelected}
+                  whileTap={{ scale: 0.99 }}
                   onClick={() =>
                     setPreviewScenarioId(
                       sc.scenarioId === campusSummary.activeScenarioId ? null : sc.scenarioId
                     )
                   }
-                  className={`text-left p-3.5 rounded-xl border transition-all cursor-pointer ${
+                  spotlightColor="rgba(11, 110, 79, 0.12)"
+                  className={`text-left p-3.5 rounded-xl border transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0b6e4f] ${
                     isSelected
-                      ? 'border-[#0b2e22] bg-emerald-50/55 rw-card-alive ring-1 ring-[#0b2e22]/20'
-                      : 'border-neutral-200 bg-[#fafcfb] hover:border-neutral-300 hover:bg-white'
+                      ? 'bg-[#eef6f2] border-[#0b6e4f]/45 ring-1 ring-[#0b6e4f]/20 shadow-xs'
+                      : 'bg-[#fafcfb] border-[#111916]/12 hover:border-[#0b6e4f]/38 hover:bg-white'
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2">
@@ -267,7 +271,7 @@ export const SolarPotentialPanel: React.FC<SolarPotentialPanelProps> = ({
                     </span>
                   </div>
                   <p className="mt-1.5 text-[11px] text-neutral-600 leading-snug">{sc.summary}</p>
-                </button>
+                </SpotlightCard>
               );
             })}
           </div>
@@ -376,18 +380,19 @@ export const SolarPotentialPanel: React.FC<SolarPotentialPanelProps> = ({
 
         {/* Expandable 12-month data table */}
         <div>
-          <button
-            type="button"
+          <InlineActionLink
+            tone="emerald"
             onClick={() => setShowMonthlyTable((v) => !v)}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-900 hover:text-emerald-700 cursor-pointer"
+            icon={
+              showMonthlyTable ? (
+                <ChevronUp className="w-3.5 h-3.5" />
+              ) : (
+                <ChevronDown className="w-3.5 h-3.5" />
+              )
+            }
           >
-            {showMonthlyTable ? (
-              <ChevronUp className="w-3.5 h-3.5" />
-            ) : (
-              <ChevronDown className="w-3.5 h-3.5" />
-            )}
             {showMonthlyTable ? 'Hide Monthly Breakdown Table' : 'Show 12-Month Breakdown Table'}
-          </button>
+          </InlineActionLink>
 
           {showMonthlyTable && (
             <div className="mt-3 overflow-x-auto">
@@ -430,7 +435,8 @@ export const SolarPotentialPanel: React.FC<SolarPotentialPanelProps> = ({
           <button
             type="button"
             onClick={() => setShowFeasibility((v) => !v)}
-            className="w-full flex items-center justify-between gap-2 text-left cursor-pointer"
+            aria-expanded={showFeasibility}
+            className="group w-full flex items-center justify-between gap-2 text-left cursor-pointer rounded-xl px-2 py-1.5 -mx-2 -my-1.5 hover:bg-[#f6f8f7] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0b6e4f]"
           >
             <div className="flex items-start gap-2.5">
               <ShieldAlert className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
@@ -443,11 +449,13 @@ export const SolarPotentialPanel: React.FC<SolarPotentialPanelProps> = ({
                 </p>
               </div>
             </div>
-            {showFeasibility ? (
-              <ChevronUp className="w-4 h-4 text-neutral-500 shrink-0" />
-            ) : (
-              <ChevronDown className="w-4 h-4 text-neutral-500 shrink-0" />
-            )}
+            <span className="w-7 h-7 rounded-lg bg-white border border-[#111916]/12 group-hover:border-[#0b6e4f]/35 group-hover:bg-[#f7fbf9] transition-colors inline-flex items-center justify-center shrink-0 text-[#46544e]">
+              {showFeasibility ? (
+                <ChevronUp className="w-4 h-4" />
+              ) : (
+                <ChevronDown className="w-4 h-4" />
+              )}
+            </span>
           </button>
 
           {showFeasibility && (
@@ -477,27 +485,23 @@ export const SolarPotentialPanel: React.FC<SolarPotentialPanelProps> = ({
           title="Per-Building Solar Breakdown"
           subtitle="Independent PVGIS evaluation per mapped campus roof."
           action={
-            <button
-              type="button"
+            <ActionButton
+              variant="secondary"
+              size="sm"
               onClick={onNavigateMapping}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-neutral-200 text-xs font-medium text-neutral-700 hover:bg-neutral-50 cursor-pointer whitespace-nowrap"
+              icon={<MapPin className="w-3.5 h-3.5 text-[#0b6e4f]" />}
             >
-              <MapPin className="w-3.5 h-3.5 text-emerald-700" />
               Manage Roofs
-            </button>
+            </ActionButton>
           }
         />
 
         {selectedBuildings.length === 0 ? (
           <div className="py-6 text-center text-xs text-neutral-500">
             No mapped buildings are marked Confirmed or Provisional yet. Open{' '}
-            <button
-              type="button"
-              onClick={onNavigateMapping}
-              className="text-emerald-800 font-semibold underline underline-offset-2 cursor-pointer"
-            >
+            <InlineActionLink tone="emerald" onClick={onNavigateMapping}>
               Building &amp; Roof Mapping
-            </button>{' '}
+            </InlineActionLink>{' '}
             to confirm campus roofs.
           </div>
         ) : (
@@ -558,9 +562,11 @@ export const SolarPotentialPanel: React.FC<SolarPotentialPanelProps> = ({
                       {b.solarEstimate ? b.solarEstimate.provenanceLabel : 'Preliminary estimate'}
                     </td>
                     <td className="py-2 pl-2 text-right">
-                      <button
-                        type="button"
-                        disabled={calculatingId === b.id || isBusy}
+                      <ActionButton
+                        variant="secondary"
+                        size="xs"
+                        loading={calculatingId === b.id}
+                        disabled={isBusy}
                         onClick={async () => {
                           setCalculatingId(b.id);
                           try {
@@ -569,10 +575,9 @@ export const SolarPotentialPanel: React.FC<SolarPotentialPanelProps> = ({
                             setCalculatingId(null);
                           }
                         }}
-                        className="px-2 py-1 rounded-md border border-neutral-200 bg-white text-[11px] font-semibold text-neutral-800 hover:bg-emerald-50 disabled:opacity-50 cursor-pointer"
                       >
                         {calculatingId === b.id ? 'Running...' : 'Calculate'}
-                      </button>
+                      </ActionButton>
                     </td>
                   </tr>
                 ))}
@@ -636,13 +641,16 @@ export const SolarPotentialPanel: React.FC<SolarPotentialPanelProps> = ({
         <button
           type="button"
           onClick={() => setShowHistory((v) => !v)}
-          className="w-full flex items-center justify-between text-xs font-semibold text-neutral-800 cursor-pointer"
+          aria-expanded={showHistory}
+          className="group w-full flex items-center justify-between text-xs font-semibold text-neutral-800 cursor-pointer rounded-xl px-2 py-1.5 -mx-2 -my-1.5 hover:bg-[#f6f8f7] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0b6e4f]"
         >
           <span className="inline-flex items-center gap-2">
             <History className="w-3.5 h-3.5 text-emerald-700" />
             Persisted PVGIS Calculation History ({workspace.history.length} saved runs)
           </span>
-          {showHistory ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          <span className="w-7 h-7 rounded-lg bg-white border border-[#111916]/12 group-hover:border-[#0b6e4f]/35 group-hover:bg-[#f7fbf9] transition-colors inline-flex items-center justify-center shrink-0 text-[#46544e]">
+            {showHistory ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </span>
         </button>
 
         {showHistory && (

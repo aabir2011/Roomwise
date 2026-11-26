@@ -24,6 +24,8 @@ import {
 import { useVoiceAssistant } from '../../context/VoiceAssistantContext';
 import { useAuth } from '../../context/AuthContext';
 import { VoiceWaveformCanvas } from './VoiceWaveformCanvas';
+import { Tooltip } from '../common/MotionPrimitives';
+import { ActionButton, IconButton } from '../common/DesignSystem';
 import { ROOMWISE_EASE } from '../../utils/motion';
 
 export const VoiceAssistantOverlay: React.FC = () => {
@@ -148,58 +150,62 @@ export const VoiceAssistantOverlay: React.FC = () => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.98 }}
             transition={{ duration: 0.2, ease: ROOMWISE_EASE }}
-            className="fixed top-16 sm:top-[4.5rem] right-3 sm:right-6 z-40 w-[calc(100vw-1.5rem)] max-w-sm rounded-2xl glass-modal p-4 shadow-lg"
+            className="fixed top-16 sm:top-[4.25rem] right-3 sm:right-6 z-40 w-[calc(100vw-1.5rem)] max-w-sm rounded-xl bg-white border border-[#111916]/15 overflow-hidden shadow-lg"
             role="region"
             aria-label="Enable Hey ROOMWISE Voice Assistant"
           >
-            <div className="flex items-start justify-between gap-2.5">
+            <div className="px-4 py-3 rw-obsidian-panel border-none rounded-none shadow-none text-white flex items-start justify-between gap-2.5">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center shrink-0">
+                <div className="w-8 h-8 rounded-lg bg-white/10 border border-white/15 text-[#34d399] flex items-center justify-center shrink-0">
                   <Mic className="w-4 h-4" />
                 </div>
                 <div>
-                  <div className="text-xs font-bold text-neutral-900">
+                  <div className="font-display text-xs font-bold text-white">
                     Enable &ldquo;Hey ROOMWISE&rdquo;
                   </div>
-                  <div className="text-[11px] text-neutral-500">
+                  <div className="text-[11px] text-white/65">
                     Hands-free campus energy intelligence
                   </div>
                 </div>
               </div>
-              <button
-                type="button"
+              <IconButton
+                variant="dark-ghost"
+                size="xs"
+                label="Dismiss voice prompt"
                 onClick={dismissPermissionCard}
-                className="p-1 text-neutral-400 hover:text-neutral-700 rounded-lg hover:bg-neutral-100 transition-colors"
-                aria-label="Dismiss voice prompt"
+                className="!bg-transparent !border-transparent hover:!bg-white/10"
               >
                 <X className="w-3.5 h-3.5" />
-              </button>
+              </IconButton>
             </div>
 
-            <p className="text-[11px] text-neutral-600 leading-relaxed mt-2.5">
-              Wake-word detection runs locally inside your browser. Ambient microphone audio is never transmitted until{' '}
-              <strong className="text-neutral-800">&ldquo;Hey ROOMWISE&rdquo;</strong> triggers an active voice session.
-            </p>
+            <div className="p-4">
+              <p className="text-[11px] text-[#47534d] leading-relaxed">
+                Wake-word detection runs locally inside your browser. Ambient microphone audio is never transmitted until{' '}
+                <strong className="text-[#111916]">&ldquo;Hey ROOMWISE&rdquo;</strong> triggers an active voice session.
+              </p>
 
-            <div className="mt-3 flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => void enableWakeStandby()}
-                className="flex-1 px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-2xs whitespace-nowrap"
-              >
-                <Mic className="w-3.5 h-3.5 shrink-0" />
-                <span>Enable Voice</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  dismissPermissionCard();
-                  openOverlay();
-                }}
-                className="px-3 py-2 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-700 text-xs font-semibold transition-colors whitespace-nowrap shrink-0"
-              >
-                Type Command
-              </button>
+              <div className="mt-3 flex items-center gap-2">
+                <ActionButton
+                  variant="primary"
+                  size="md"
+                  onClick={() => void enableWakeStandby()}
+                  icon={<Mic className="w-3.5 h-3.5 text-[#34d399]" />}
+                  className="flex-1"
+                >
+                  Enable Voice
+                </ActionButton>
+                <ActionButton
+                  variant="secondary"
+                  size="md"
+                  onClick={() => {
+                    dismissPermissionCard();
+                    openOverlay();
+                  }}
+                >
+                  Type Command
+                </ActionButton>
+              </div>
             </div>
           </motion.div>
         )}
@@ -214,61 +220,74 @@ export const VoiceAssistantOverlay: React.FC = () => {
             exit={{ opacity: 0, y: -8, scale: 0.98 }}
             transition={{ duration: 0.2, ease: ROOMWISE_EASE }}
             aria-label="ROOMWISE Voice Intelligence"
-            className="fixed top-16 sm:top-[4.5rem] right-3 sm:right-6 z-40 w-[calc(100vw-1.5rem)] max-w-[392px] rounded-2xl glass-modal overflow-hidden shadow-xl"
+            className="fixed top-16 sm:top-[4.25rem] right-3 sm:right-6 z-40 w-[calc(100vw-1.5rem)] max-w-[396px] rounded-xl bg-white border border-[#111916]/15 overflow-hidden shadow-xl"
           >
-            {/* Top Emerald Accent Strip */}
-            <div className="h-0.5 w-full gradient-rim-emerald" />
-
-            {/* Header Bar */}
-            <div className="px-4 py-3 border-b border-neutral-200/75 flex items-center justify-between gap-2 bg-white/70">
+            {/* Obsidian-Pine Header Bar */}
+            <div className="px-4 py-3 flex items-center justify-between gap-2 rw-obsidian-panel border-none rounded-none shadow-none text-white">
               <div className="flex items-center gap-2.5 min-w-0">
-                <div
-                  className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border transition-colors ${
-                    phase === 'error'
-                      ? 'bg-rose-50 border-rose-200 text-rose-700'
-                      : isTextOnlyMode || isMuted
-                      ? 'bg-[#f3f5f4] border-neutral-200 text-[#4a5851]'
-                      : phase === 'listening' || phase === 'speaking' || phase === 'executing'
-                      ? 'bg-[#0b2e22] border-emerald-700/40 text-emerald-300'
-                      : 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                  }`}
-                >
-                  {phase === 'connecting' || phase === 'processing' || phase === 'executing' ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : phase === 'speaking' ? (
-                    <Volume2 className="w-4 h-4" />
-                  ) : isMuted || isTextOnlyMode ? (
-                    <MicOff className="w-4 h-4" />
-                  ) : (
-                    <Mic className="w-4 h-4" />
-                  )}
+                <div className="relative shrink-0">
+                  {!isTextOnlyMode &&
+                    !isMuted &&
+                    (phase === 'wake_detected' ||
+                      phase === 'listening' ||
+                      phase === 'speaking' ||
+                      phase === 'executing') && (
+                      <span
+                        aria-hidden="true"
+                        className="rw-voice-aura pointer-events-none absolute -inset-1 rounded-[10px] border border-[#34d399]/50"
+                      />
+                    )}
+                  <div
+                    className={`relative z-10 w-8 h-8 rounded-lg flex items-center justify-center border transition-colors ${
+                      phase === 'error'
+                        ? 'bg-rose-500/20 border-rose-400/30 text-rose-300'
+                        : isTextOnlyMode || isMuted
+                        ? 'bg-white/10 border-white/15 text-white/65'
+                        : phase === 'wake_detected' ||
+                          phase === 'listening' ||
+                          phase === 'speaking' ||
+                          phase === 'executing'
+                        ? 'bg-[#0b6e4f] border-[#34d399]/45 text-white'
+                        : 'bg-white/10 border-white/15 text-[#34d399]'
+                    }`}
+                  >
+                    {phase === 'connecting' || phase === 'processing' || phase === 'executing' ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : phase === 'speaking' ? (
+                      <Volume2 className="w-4 h-4" />
+                    ) : isMuted || isTextOnlyMode ? (
+                      <MicOff className="w-4 h-4" />
+                    ) : (
+                      <Mic className="w-4 h-4" />
+                    )}
+                  </div>
                 </div>
                 <div className="min-w-0">
-                  <div className="text-xs font-bold text-[#111815] flex items-center gap-1.5">
+                  <div className="font-display text-xs font-bold text-white flex items-center gap-1.5">
                     <span>ROOMWISE Voice</span>
                     <span
-                      className={`text-[10px] font-semibold ${
+                      className={`text-[10px] font-mono font-medium ${
                         phase === 'error'
-                          ? 'text-rose-700'
+                          ? 'text-rose-300'
                           : isTextOnlyMode
-                          ? 'text-[#4a5851]'
-                          : 'text-emerald-800'
+                          ? 'text-white/60'
+                          : 'text-[#34d399]'
                       }`}
                     >
                       · {getStatusLabel()}
                     </span>
                   </div>
-                  <div className="text-[10px] text-neutral-500 flex items-center gap-1 truncate mt-0.5">
+                  <div className="text-[10px] text-white/60 flex items-center gap-1 truncate mt-0.5">
                     {isAdminUnlocked && authenticatedAdmin ? (
                       <>
-                        <Shield className="w-3 h-3 text-emerald-700 shrink-0" />
+                        <Shield className="w-3 h-3 text-[#34d399] shrink-0" />
                         <span className="truncate">
                           Admin · {authenticatedAdmin.name}
                         </span>
                       </>
                     ) : (
                       <>
-                        <GraduationCap className="w-3 h-3 text-neutral-500 shrink-0" />
+                        <GraduationCap className="w-3 h-3 text-white/55 shrink-0" />
                         <span>Student Mode · Read-Only Queries & Navigation</span>
                       </>
                     )}
@@ -278,49 +297,52 @@ export const VoiceAssistantOverlay: React.FC = () => {
 
               <div className="flex items-center gap-1 shrink-0">
                 {!isTextOnlyMode && (
-                  <button
-                    type="button"
-                    onClick={toggleMute}
-                    className={`p-1.5 rounded-lg border text-xs transition-colors ${
-                      isMuted
-                        ? 'bg-amber-50 border-amber-200 text-amber-800'
-                        : 'bg-white border-neutral-200 text-neutral-600 hover:bg-neutral-50'
-                    }`}
-                    title={isMuted ? 'Unmute microphone' : 'Mute microphone'}
-                    aria-label={isMuted ? 'Unmute microphone' : 'Mute microphone'}
-                  >
-                    {isMuted ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
-                  </button>
+                  <Tooltip content={isMuted ? 'Unmute microphone' : 'Mute microphone'} side="bottom">
+                    <IconButton
+                      variant="dark-ghost"
+                      size="xs"
+                      label={isMuted ? 'Unmute microphone' : 'Mute microphone'}
+                      onClick={toggleMute}
+                      className={
+                        isMuted
+                          ? '!bg-amber-500/20 !border-amber-400/35 !text-amber-200'
+                          : ''
+                      }
+                    >
+                      {isMuted ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+                    </IconButton>
+                  </Tooltip>
                 )}
-                <button
-                  type="button"
-                  onClick={closeOverlay}
-                  className="p-1.5 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-100 text-neutral-500 hover:text-neutral-900 transition-colors"
-                  title="Close assistant"
-                  aria-label="Close assistant"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
+                <Tooltip content="Close assistant (Esc)" side="bottom">
+                  <IconButton
+                    variant="dark-ghost"
+                    size="xs"
+                    label="Close assistant"
+                    onClick={closeOverlay}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </IconButton>
+                </Tooltip>
               </div>
             </div>
 
             {/* Audio-Reactive Acoustic Waveform OR Calm Text-Only Mode Strip */}
             {isTextOnlyMode ? (
-              <div className="px-4 py-2 bg-neutral-50/75 border-b border-neutral-200/70 flex items-center justify-between gap-2 text-[11px] text-neutral-600">
+              <div className="px-4 py-2 bg-[#f4f5f3] border-b border-[#111916]/10 flex items-center justify-between gap-2 text-[11px] text-[#46544e]">
                 <span className="flex items-center gap-1.5 min-w-0 truncate">
-                  <MicOff className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+                  <MicOff className="w-3.5 h-3.5 text-[#62706a] shrink-0" />
                   <span className="truncate">Microphone unavailable — text commands active</span>
                 </span>
-                <button
-                  type="button"
+                <ActionButton
+                  variant="secondary"
+                  size="xs"
                   onClick={() => void enableWakeStandby()}
-                  className="px-2 py-1 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-100 text-neutral-700 text-[10px] font-semibold shrink-0 transition-colors"
                 >
                   Retry Mic
-                </button>
+                </ActionButton>
               </div>
             ) : (
-              <div className="px-4 py-2.5 bg-neutral-50/75 border-b border-neutral-200/70 flex items-center gap-3">
+              <div className="px-4 py-2.5 bg-[#f4f5f3] border-b border-[#111916]/10 flex items-center gap-3">
                 <div className="flex-1 min-w-0">
                   <VoiceWaveformCanvas
                     amplitudeRef={amplitudeRef}
@@ -329,15 +351,15 @@ export const VoiceAssistantOverlay: React.FC = () => {
                   />
                 </div>
                 {phase === 'speaking' && (
-                  <button
-                    type="button"
+                  <ActionButton
+                    variant="secondary"
+                    size="xs"
                     onClick={interruptSpeaking}
-                    className="px-2.5 py-1.5 rounded-lg border border-neutral-300 bg-white hover:bg-neutral-100 text-neutral-800 text-[11px] font-semibold flex items-center gap-1.5 shrink-0 transition-colors"
+                    icon={<Square className="w-3 h-3 fill-current" />}
                     title="Stop speaking and listen"
                   >
-                    <Square className="w-3 h-3 fill-current" />
                     Stop
-                  </button>
+                  </ActionButton>
                 )}
               </div>
             )}
@@ -348,20 +370,20 @@ export const VoiceAssistantOverlay: React.FC = () => {
                 <div className="font-bold">Confirm Action</div>
                 <div className="text-amber-900">{pendingConfirmation.summary}</div>
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
+                  <ActionButton
+                    variant="forest"
+                    size="xs"
                     onClick={() => confirmPendingAction(true)}
-                    className="px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-[10px] font-bold transition-colors"
                   >
                     Confirm
-                  </button>
-                  <button
-                    type="button"
+                  </ActionButton>
+                  <ActionButton
+                    variant="amber"
+                    size="xs"
                     onClick={() => confirmPendingAction(false)}
-                    className="px-2.5 py-1 rounded-lg border border-amber-300 bg-white hover:bg-amber-100 text-amber-900 text-[10px] font-bold transition-colors"
                   >
                     Cancel
-                  </button>
+                  </ActionButton>
                 </div>
               </div>
             )}
@@ -373,14 +395,14 @@ export const VoiceAssistantOverlay: React.FC = () => {
                 <div className="flex-1 space-y-1.5">
                   <div>{lastError}</div>
                   <div className="flex items-center gap-2">
-                    <button
-                      type="button"
+                    <ActionButton
+                      variant="danger-solid"
+                      size="xs"
                       onClick={() => void retrySession()}
-                      className="px-2.5 py-1 rounded-lg bg-rose-700 hover:bg-rose-800 text-white text-[10px] font-bold flex items-center gap-1 transition-colors"
+                      icon={<RotateCcw className="w-3 h-3" />}
                     >
-                      <RotateCcw className="w-3 h-3" />
                       Retry Live Voice
-                    </button>
+                    </ActionButton>
                   </div>
                 </div>
               </div>
@@ -424,22 +446,23 @@ export const VoiceAssistantOverlay: React.FC = () => {
 
                       <div className="flex items-center gap-1 shrink-0">
                         {notice.kind === 'auth_required' && !isAdminUnlocked && (
-                          <button
-                            type="button"
+                          <ActionButton
+                            variant="amber"
+                            size="xs"
                             onClick={() => openAuthModal()}
-                            className="px-2 py-1 rounded-lg bg-amber-700 hover:bg-amber-800 text-white text-[10px] font-bold shrink-0"
                           >
                             Login
-                          </button>
+                          </ActionButton>
                         )}
-                        <button
-                          type="button"
+                        <IconButton
+                          variant="ghost"
+                          size="xs"
+                          label="Dismiss update notice"
                           onClick={() => dismissNotice(notice.id)}
-                          className="p-0.5 rounded-md opacity-60 hover:opacity-100 hover:bg-black/5 transition-opacity"
-                          aria-label="Dismiss update notice"
+                          className="!w-6 !h-6 opacity-70 hover:opacity-100"
                         >
                           <X className="w-3 h-3" />
-                        </button>
+                        </IconButton>
                       </div>
                     </motion.div>
                   ))}
@@ -499,21 +522,22 @@ export const VoiceAssistantOverlay: React.FC = () => {
                 }
                 className="flex-1 px-2.5 py-1.5 glass-input rounded-lg text-xs"
               />
-              <button
+              <IconButton
                 type="submit"
+                variant="forest"
+                size="xs"
+                label="Send command"
                 disabled={!fallbackInput.trim()}
-                className="p-1.5 rounded-lg rw-btn-forest disabled:opacity-40"
-                aria-label="Send command"
               >
                 <Send className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
+              </IconButton>
+              <ActionButton
+                variant="secondary"
+                size="xs"
                 onClick={isTextOnlyMode ? closeOverlay : endLiveSession}
-                className="px-2.5 py-1.5 rounded-lg border border-neutral-300 bg-white hover:bg-neutral-100 text-neutral-700 text-[11px] font-semibold transition-colors whitespace-nowrap"
               >
                 {isTextOnlyMode ? 'Close' : isWakeWordEnabled ? 'Standby' : 'End'}
-              </button>
+              </ActionButton>
             </form>
           </motion.section>
         )}

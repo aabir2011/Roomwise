@@ -17,6 +17,7 @@ import { RoomInspectorPanel } from './RoomInspectorPanel';
 import { WebGLFallbackView } from './WebGLFallbackView';
 import { CAMPUS_LANDMARK_LABELS } from './campusLayoutSchema';
 import { GlassBackdropProvider, GlassSurface } from '../reactbits';
+import { ActionButton, IconButton } from '../common/DesignSystem';
 import { deriveCampusAtmosphere } from './campusAtmosphere';
 import {
   buildHistoricalVisualStates,
@@ -472,13 +473,14 @@ export const CampusLiveView: React.FC = () => {
   const liveLoadKW = (campusSummary.totalCurrentPowerWatts / 1000).toFixed(2);
   const ratedMaxKW = (TOTAL_CAMPUS_RATED_POWER_WATTS / 1000).toFixed(2);
   const isCampusOverview = !selectedBuilding && selectedFloor === 'All' && !inspectedRoom;
+  const hasInspectorOpen = Boolean(inspectedRoom || selectedBuilding || selectedFloor !== 'All');
 
   return (
     <section
       ref={rootRef}
       aria-label="ROOMWISE Campus Live 3D Architectural Exploration"
       className={`relative w-full overflow-hidden bg-[#cad6dd] select-none ${
-        isFullscreen ? 'h-screen w-screen' : 'h-[calc(100vh-3.5rem)] sm:h-[calc(100vh-3.75rem)]'
+        isFullscreen ? 'h-screen w-screen' : 'h-[calc(100dvh-3rem)] sm:h-[calc(100dvh-3.25rem)]'
       }`}
     >
       {/* 3D WebGL Canvas Mount (Isolated Empty Container) or Honest 2D Fallback */}
@@ -543,23 +545,29 @@ export const CampusLiveView: React.FC = () => {
       )}
 
       <GlassBackdropProvider value={glassBackdropValue}>
-      {/* Top-Left Minimal Architectural Context Header + Interactive Breadcrumb */}
-      <div className="absolute top-3 left-3 sm:top-4 sm:left-4 z-10 pointer-events-none flex flex-col gap-2 max-w-[calc(100vw-1.5rem)] sm:max-w-[calc(100vw-2rem)]">
-        <GlassSurface className="rounded-2xl px-3 sm:px-4 py-2 sm:py-2.5 pointer-events-auto text-[#f8faf9]">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-            <h1 className="text-[11px] font-semibold tracking-wider text-emerald-300 uppercase whitespace-nowrap">
+      {/* Top-Left Minimal Architectural Context Header + Interactive Breadcrumb + Weather/Hover Chips */}
+      <div
+        className={`absolute top-2.5 left-2.5 sm:top-3.5 sm:left-3.5 z-10 pointer-events-none flex flex-col gap-1.5 ${
+          hasInspectorOpen
+            ? 'max-w-[calc(100%-1.25rem)] lg:max-w-[calc(100%-22.5rem)]'
+            : 'max-w-[calc(100%-1.25rem)] sm:max-w-[min(640px,calc(100%-2rem))]'
+        }`}
+      >
+        <GlassSurface borderRadius={12} className="rounded-xl px-3 sm:px-3.5 py-1.5 sm:py-2 pointer-events-auto text-[#f8faf9]">
+          <div className="flex flex-wrap items-center gap-x-2 sm:gap-x-2.5 gap-y-0.5">
+            <h1 className="font-display text-[11px] sm:text-xs font-semibold tracking-wider text-[#34d399] uppercase whitespace-nowrap">
               Campus Live
             </h1>
-            <span className="text-white/40 hidden sm:inline" aria-hidden="true">
-              ·
+            <span className="text-white/30 hidden sm:inline" aria-hidden="true">
+              /
             </span>
             <span className="text-[11px] text-[#d5e2dd] hidden sm:inline whitespace-nowrap">
-              DAV Model School · 1:1 Replica
+              DAV Model School · 1:1 Spatial Model
             </span>
-            <span className="text-white/40" aria-hidden="true">
+            <span className="text-white/30" aria-hidden="true">
               ·
             </span>
-            <span className="text-[11px] font-mono tabular-nums">
+            <span className="text-[10.5px] sm:text-[11px] font-mono tabular-nums">
               {isHistoricalMode && activeHistoricalFrame ? (
                 <span className="text-amber-200 font-semibold">
                   {activeHistoricalFrame.label} · {activeHistoricalFrame.totalActualKWh.toFixed(2)}{' '}
@@ -580,12 +588,12 @@ export const CampusLiveView: React.FC = () => {
           {/* Interactive Exploration Breadcrumb */}
           <nav
             aria-label="Campus exploration path"
-            className="flex flex-wrap items-center gap-1 mt-1.5 text-[11px]"
+            className="flex flex-wrap items-center gap-1 mt-1 sm:mt-1.5 text-[10.5px] sm:text-[11px]"
           >
             <button
               type="button"
               onClick={handleCloseInspector}
-              className={`transition-colors ${
+              className={`rounded px-1 -mx-1 py-0.5 hover:bg-white/10 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-emerald-400 ${
                 isCampusOverview
                   ? 'text-white font-semibold'
                   : 'text-[#d5e2dd] hover:text-white'
@@ -602,9 +610,9 @@ export const CampusLiveView: React.FC = () => {
                   onClick={() => {
                     setInspectedRoomId(null);
                   }}
-                  className={`transition-colors ${
+                  className={`rounded px-1 -mx-1 py-0.5 hover:bg-white/10 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-emerald-400 ${
                     !inspectedRoom && selectedFloor === 'All'
-                      ? 'text-emerald-200 font-semibold'
+                      ? 'text-[#34d399] font-semibold'
                       : 'text-[#d5e2dd] hover:text-white'
                   }`}
                 >
@@ -619,9 +627,9 @@ export const CampusLiveView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setInspectedRoomId(null)}
-                  className={`transition-colors ${
+                  className={`rounded px-1 -mx-1 py-0.5 hover:bg-white/10 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-emerald-400 ${
                     !inspectedRoom
-                      ? 'text-emerald-200 font-semibold'
+                      ? 'text-[#34d399] font-semibold'
                       : 'text-[#d5e2dd] hover:text-white'
                   }`}
                 >
@@ -633,66 +641,104 @@ export const CampusLiveView: React.FC = () => {
             {inspectedRoom && (
               <>
                 <ChevronRight className="w-3 h-3 text-white/45 shrink-0" />
-                <span className="font-mono font-semibold text-emerald-200">
+                <span className="font-mono font-semibold text-[#34d399]">
                   {inspectedRoom.roomCode}
                 </span>
               </>
             )}
 
             {isCampusOverview && (
-              <span className="hidden md:inline text-[10.5px] text-[#c2d2cc] ml-1.5">
+              <span className="hidden md:inline text-[10.5px] text-[#b8cbc3] ml-1.5">
                 — Click any building or room to inspect · Drag to orbit
               </span>
             )}
           </nav>
         </GlassSurface>
 
-        {/* Restrained Campus-Level Environmental Context Indicator (tertiary visual weight) */}
-        {envContext?.current && (
-          <div className="pointer-events-auto self-start">
-            <GlassSurface className="inline-flex rounded-xl" distortionScale={-28}>
-              <button
-                type="button"
-                onClick={() => setEnvDrawerOpen((v) => !v)}
-                className="inline-flex items-center gap-2 px-3 py-1.5 text-[11px] text-[#e8f0ed] hover:bg-white/8 transition-colors cursor-pointer"
-                title="Toggle outdoor campus environmental context (Open-Meteo model)"
-              >
-                <CloudSun className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
-                <span className="font-mono font-semibold text-white tabular-nums">
-                  {envContext.current.temperatureC !== null
-                    ? `${envContext.current.temperatureC.toFixed(1)}°C`
-                    : '—'}
-                </span>
-                <span className="text-white/45">·</span>
-                <span className="truncate max-w-[140px]">
-                  {envContext.current.condition.description || 'External Weather'}
-                </span>
-                {envContext.current.relativeHumidityPercent !== null && (
-                  <>
-                    <span className="text-white/45 hidden sm:inline">·</span>
-                    <span className="hidden sm:inline font-mono text-[#cad8d2] tabular-nums">
-                      {Math.round(envContext.current.relativeHumidityPercent)}% RH
+        {/* Row 2: Outdoor Weather Pill + Live Room Hover Readout (Inline, zero collision with Bottom Dock) */}
+        {(envContext?.current || (hoveredRoomVisual && !isTourActive)) && (
+          <div className="flex flex-wrap items-center gap-1.5 self-start">
+            {envContext?.current && (
+              <div className="pointer-events-auto">
+                <GlassSurface borderRadius={10} className="inline-flex rounded-lg" distortionScale={-28}>
+                  <button
+                    type="button"
+                    onClick={() => setEnvDrawerOpen((v) => !v)}
+                    className="inline-flex items-center gap-2 px-2.5 py-1 rounded-[10px] text-[11px] text-[#e8f0ed] hover:bg-white/10 active:scale-[0.985] transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-emerald-400"
+                    title="Toggle outdoor campus environmental context (Open-Meteo model)"
+                  >
+                    <CloudSun className="w-3.5 h-3.5 text-[#34d399] shrink-0" />
+                    <span className="font-mono font-semibold text-white tabular-nums">
+                      {envContext.current.temperatureC !== null
+                        ? `${envContext.current.temperatureC.toFixed(1)}°C`
+                        : '—'}
                     </span>
-                  </>
-                )}
-              </button>
-            </GlassSurface>
+                    <span className="text-white/40">·</span>
+                    <span className="truncate max-w-[130px]">
+                      {envContext.current.condition.description || 'External Weather'}
+                    </span>
+                    {envContext.current.relativeHumidityPercent !== null && (
+                      <>
+                        <span className="text-white/40 hidden sm:inline">·</span>
+                        <span className="hidden sm:inline font-mono text-[#cad8d2] tabular-nums">
+                          {Math.round(envContext.current.relativeHumidityPercent)}% RH
+                        </span>
+                      </>
+                    )}
+                  </button>
+                </GlassSurface>
+              </div>
+            )}
 
-            {envDrawerOpen && (
-              <GlassSurface className="mt-2 w-72 sm:w-80 rounded-2xl p-3.5 text-[#f8faf9] space-y-2.5 text-xs">
+            {hoveredRoomVisual && !isTourActive && (
+              <GlassSurface
+                borderRadius={10}
+                distortionScale={-28}
+                className="hidden md:inline-flex rounded-lg px-2.5 py-1 items-center gap-2 text-[11px] text-[#f8faf9]"
+              >
+                <span className="font-mono font-semibold text-emerald-300">
+                  {hoveredRoomVisual.roomCode}
+                </span>
+                <span className="text-white font-medium max-w-36 truncate">
+                  {hoveredRoomVisual.name}
+                </span>
+                <span className="text-white/40">·</span>
+                <span className="font-mono text-[#dde8e3] tabular-nums">
+                  {visualMode === 'lighting'
+                    ? hoveredRoomVisual.lightingLevel <= 0
+                      ? 'Lights OFF · 0 W'
+                      : `${hoveredRoomVisual.lightingLevel}% Light · ${hoveredRoomVisual.powerWatts} W`
+                    : visualMode === 'environmental'
+                    ? `${hoveredRoomVisual.temperatureC.toFixed(1)}°C · ${hoveredRoomVisual.powerWatts} W`
+                    : isHistoricalMode && hoveredRoomVisual.historicalIntervalKWh !== undefined
+                    ? `${hoveredRoomVisual.historicalIntervalKWh.toFixed(2)} kWh`
+                    : `${hoveredRoomVisual.powerWatts} W (${hoveredRoomVisual.ratedUtilizationPercent}%)`}
+                </span>
+              </GlassSurface>
+            )}
+          </div>
+        )}
+
+        {/* Expandable Outdoor Weather Drawer (capped height so it never reaches bottom dock) */}
+        {envContext?.current && envDrawerOpen && (
+          <div className="pointer-events-auto self-start">
+            <GlassSurface
+              borderRadius={12}
+              className="w-72 sm:w-80 max-h-[min(320px,calc(100dvh-16rem))] overflow-y-auto rw-dark-scrollbar rounded-xl p-3.5 text-[#f8faf9] space-y-2.5 text-xs"
+            >
                 <div className="flex items-center justify-between gap-2 border-b border-white/14 pb-2">
-                  <div className="flex items-center gap-1.5 font-semibold text-[11px] text-emerald-300 uppercase tracking-wider">
+                  <div className="flex items-center gap-1.5 font-semibold text-[10.5px] text-[#34d399] uppercase tracking-[0.08em]">
                     <CloudSun className="w-3.5 h-3.5" />
                     <span>Outdoor Campus Context</span>
                   </div>
-                  <button
-                    type="button"
+                  <IconButton
+                    variant="dark-ghost"
+                    size="xs"
+                    label="Close outdoor weather context"
                     onClick={() => setEnvDrawerOpen(false)}
-                    className="p-1 rounded-lg hover:bg-white/12 text-[#cad8d2] hover:text-white cursor-pointer"
-                    aria-label="Close outdoor weather context"
                   >
                     <X className="w-3.5 h-3.5" />
-                  </button>
+                  </IconButton>
                 </div>
 
                 <div className="grid grid-cols-3 gap-2 text-[11px] font-mono tabular-nums">
@@ -731,19 +777,15 @@ export const CampusLiveView: React.FC = () => {
                         : 'Studio Daylight (fixed)'}
                     </div>
                   </div>
-                  <button
-                    type="button"
+                  <ActionButton
+                    variant={weatherAtmosphereEnabled ? 'forest' : 'dark-ghost'}
+                    size="xs"
                     role="switch"
                     aria-checked={weatherAtmosphereEnabled}
                     onClick={handleToggleWeatherAtmosphere}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer shrink-0 whitespace-nowrap ${
-                      weatherAtmosphereEnabled
-                        ? 'bg-emerald-600 text-white hover:bg-emerald-500'
-                        : 'bg-white/15 text-[#edf4f1] hover:bg-white/22'
-                    }`}
                   >
                     {weatherAtmosphereEnabled ? 'On' : 'Off'}
-                  </button>
+                  </ActionButton>
                 </div>
 
                 <p className="text-[11px] text-[#cad8d2] leading-relaxed">
@@ -751,25 +793,26 @@ export const CampusLiveView: React.FC = () => {
                 </p>
 
                 <div className="flex items-center gap-2 pt-1">
-                  <button
-                    type="button"
+                  <ActionButton
+                    variant="dark-ghost"
+                    size="xs"
                     onClick={() => setActiveTab('environmental')}
-                    className="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/12 hover:bg-white/20 text-[11px] font-medium text-white transition-colors cursor-pointer whitespace-nowrap"
+                    trailingIcon={<ArrowUpRight className="w-3 h-3" />}
+                    className="flex-1"
                   >
-                    <span>Environmental</span>
-                    <ArrowUpRight className="w-3 h-3" />
-                  </button>
-                  <button
-                    type="button"
+                    Environmental
+                  </ActionButton>
+                  <ActionButton
+                    variant="forest"
+                    size="xs"
                     onClick={() => setActiveTab('solar')}
-                    className="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-500/22 hover:bg-emerald-500/32 border border-emerald-400/35 text-[11px] font-medium text-emerald-100 transition-colors cursor-pointer whitespace-nowrap"
+                    icon={<Sun className="w-3 h-3" />}
+                    className="flex-1"
                   >
-                    <Sun className="w-3 h-3" />
-                    <span>Solar Potential</span>
-                  </button>
+                    Solar Potential
+                  </ActionButton>
                 </div>
               </GlassSurface>
-            )}
           </div>
         )}
 
@@ -850,32 +893,8 @@ export const CampusLiveView: React.FC = () => {
         )}
       </div>
 
-      {/* Subtle Hover Readout (Bottom-Left, non-blocking) */}
-      {hoveredRoomVisual && !isTourActive && (
-        <GlassSurface className="hidden md:flex absolute bottom-20 left-4 z-10 pointer-events-none rounded-xl px-3 py-2 items-center gap-2.5 text-xs text-[#f8faf9]">
-          <span className="font-mono font-semibold text-emerald-300">
-            {hoveredRoomVisual.roomCode}
-          </span>
-          <span className="text-white font-medium max-w-44 truncate">
-            {hoveredRoomVisual.name}
-          </span>
-          <span className="text-white/40">·</span>
-          <span className="font-mono text-[#dde8e3] tabular-nums">
-            {visualMode === 'lighting'
-              ? hoveredRoomVisual.lightingLevel <= 0
-                ? 'Lights OFF · 0 W'
-                : `${hoveredRoomVisual.lightingLevel}% Light · ${hoveredRoomVisual.powerWatts} W`
-              : visualMode === 'environmental'
-              ? `${hoveredRoomVisual.temperatureC.toFixed(1)}°C · ${hoveredRoomVisual.powerWatts} W`
-              : isHistoricalMode && hoveredRoomVisual.historicalIntervalKWh !== undefined
-              ? `${hoveredRoomVisual.historicalIntervalKWh.toFixed(2)} kWh`
-              : `${hoveredRoomVisual.powerWatts} W (${hoveredRoomVisual.ratedUtilizationPercent}%)`}
-          </span>
-        </GlassSurface>
-      )}
-
       {/* Contextual Right-Side Inspector (Only visible when a classroom, floor, or block is selected) */}
-      <div className="absolute top-4 right-4 z-20 pointer-events-none flex flex-col items-end">
+      <div className="absolute top-2.5 right-2.5 sm:top-3.5 sm:right-3.5 bottom-[4.75rem] lg:bottom-3.5 z-20 pointer-events-none flex flex-col items-end">
         <RoomInspectorPanel
           selectedRoom={inspectedRoom}
           selectedBuilding={selectedBuilding}
@@ -911,6 +930,7 @@ export const CampusLiveView: React.FC = () => {
         isFullscreen={isFullscreen}
         controlsCollapsed={controlsCollapsed}
         toolsOpen={toolsOpen}
+        hasInspectorOpen={hasInspectorOpen}
         isTimelineOpen={isTimelineOpen}
         isHistoricalMode={isHistoricalMode}
         historicalPreset={historicalPreset}

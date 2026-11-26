@@ -4,17 +4,17 @@
  */
 
 import React, { useEffect, useState } from 'react';
+import { motion } from 'motion/react';
 import {
   ChevronDown,
   ChevronUp,
   ExternalLink,
-  Loader2,
   Lock,
   RotateCcw,
   Save,
   Sliders,
 } from 'lucide-react';
-import { SectionHeading } from '../common/DesignSystem';
+import { ActionButton, SectionHeading } from '../common/DesignSystem';
 import { MathText } from '../common/MathText';
 import {
   DEFAULT_SOLAR_ASSUMPTIONS,
@@ -91,37 +91,34 @@ export const SolarAssumptionsPanel: React.FC<SolarAssumptionsPanelProps> = ({
           action={
             isAdminUnlocked ? (
               <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
+                <ActionButton
+                  variant="secondary"
+                  size="sm"
                   disabled={isBusy}
                   onClick={handleReset}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-neutral-300 bg-white text-neutral-800 hover:bg-neutral-50 disabled:opacity-50 cursor-pointer whitespace-nowrap"
+                  icon={<RotateCcw className="w-3.5 h-3.5" />}
                 >
-                  <RotateCcw className="w-3.5 h-3.5" />
                   Restore Defaults
-                </button>
-                <button
+                </ActionButton>
+                <ActionButton
                   type="submit"
-                  disabled={isBusy}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-[#0b2e22] text-white hover:bg-emerald-950 disabled:opacity-50 cursor-pointer whitespace-nowrap"
+                  variant="primary"
+                  size="sm"
+                  loading={isBusy}
+                  icon={<Save className="w-3.5 h-3.5 text-emerald-300" />}
                 >
-                  {isBusy ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Save className="w-3.5 h-3.5" />
-                  )}
                   Save Assumptions
-                </button>
+                </ActionButton>
               </div>
             ) : (
-              <button
-                type="button"
+              <ActionButton
+                variant="secondary"
+                size="sm"
                 onClick={onRequestAdminUnlock}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-neutral-300 bg-white text-neutral-800 hover:bg-neutral-50 cursor-pointer whitespace-nowrap"
+                icon={<Lock className="w-3.5 h-3.5 text-[#5c6a64]" />}
               >
-                <Lock className="w-3.5 h-3.5 text-neutral-500" />
                 Unlock Admin
-              </button>
+              </ActionButton>
             )
           }
         />
@@ -142,10 +139,12 @@ export const SolarAssumptionsPanel: React.FC<SolarAssumptionsPanelProps> = ({
                 form.usableRoofFractionPercent === preset.usableRoofFractionPercent &&
                 form.packingFactorPercent === preset.packingFactorPercent;
               return (
-                <button
+                <motion.button
                   key={preset.id}
                   type="button"
+                  aria-pressed={active}
                   disabled={!isAdminUnlocked}
+                  whileTap={isAdminUnlocked ? { scale: 0.99 } : undefined}
                   onClick={() =>
                     setForm((f) => ({
                       ...f,
@@ -154,22 +153,22 @@ export const SolarAssumptionsPanel: React.FC<SolarAssumptionsPanelProps> = ({
                       packingFactorPercent: preset.packingFactorPercent,
                     }))
                   }
-                  className={`text-left px-3 py-2 rounded-lg border text-xs transition-colors cursor-pointer disabled:opacity-65 ${
+                  className={`text-left px-3 py-2.5 rounded-xl border text-xs transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0b6e4f] disabled:opacity-65 disabled:cursor-not-allowed ${
                     active
-                      ? 'bg-[#0b2e22] text-white border-[#0b2e22]'
-                      : 'bg-white text-neutral-800 border-neutral-200 hover:border-emerald-400'
+                      ? 'bg-[#0b1713] border-[#0b1713] text-white'
+                      : 'bg-white border-[#111916]/12 text-[#111916] hover:border-[#0b6e4f]/40 hover:bg-[#f7fbf9]'
                   }`}
                 >
                   <div className="font-semibold">{preset.shortLabel}</div>
                   <div
                     className={`text-[10px] font-mono mt-0.5 ${
-                      active ? 'text-emerald-200' : 'text-neutral-500'
+                      active ? 'text-emerald-200' : 'text-[#5c6a64]'
                     }`}
                   >
                     {preset.usableRoofFractionPercent}% usable × {preset.packingFactorPercent}% pack
                     ({preset.netRoofCoveragePercent}% net)
                   </div>
-                </button>
+                </motion.button>
               );
             })}
           </div>
@@ -459,13 +458,16 @@ export const SolarAssumptionsPanel: React.FC<SolarAssumptionsPanelProps> = ({
         <button
           type="button"
           onClick={() => setShowMethodology((v) => !v)}
-          className="w-full flex items-center justify-between text-xs font-bold text-neutral-900 cursor-pointer"
+          aria-expanded={showMethodology}
+          className="group w-full flex items-center justify-between text-xs font-bold text-neutral-900 cursor-pointer rounded-xl px-2 py-1.5 -mx-2 -my-1.5 hover:bg-[#f6f8f7] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0b6e4f]"
         >
           <span className="inline-flex items-center gap-2">
             <Sliders className="w-3.5 h-3.5 text-emerald-700" />
             Calculation Methodology, Provenance Definitions & Engineering Limitations
           </span>
-          {showMethodology ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          <span className="w-7 h-7 rounded-lg bg-white border border-[#111916]/12 group-hover:border-[#0b6e4f]/35 group-hover:bg-[#f7fbf9] transition-colors inline-flex items-center justify-center shrink-0 text-[#46544e]">
+            {showMethodology ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </span>
         </button>
 
         {showMethodology && (

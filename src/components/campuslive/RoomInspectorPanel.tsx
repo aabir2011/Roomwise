@@ -34,6 +34,7 @@ import type {
   TimelinePresetId,
 } from './types';
 import { GlassSurface } from '../reactbits';
+import { ActionButton, IconButton } from '../common/DesignSystem';
 
 interface RoomInspectorPanelProps {
   selectedRoom: Classroom | null;
@@ -163,31 +164,33 @@ export const RoomInspectorPanel: React.FC<RoomInspectorPanelProps> = ({
       <GlassSurface
         as="aside"
         aria-label={`${scopeTitle} summary`}
+        borderRadius={12}
         distortionScale={-32}
-        className="w-80 max-w-[calc(100vw-1.5rem)] max-h-[calc(100vh-11rem)] sm:max-h-[calc(100vh-12rem)] rounded-2xl flex flex-col overflow-hidden pointer-events-auto text-[#f8faf9]"
+        className="w-80 max-w-[calc(100vw-1.25rem)] max-h-full rounded-xl flex flex-col overflow-hidden pointer-events-auto text-[#f8faf9]"
       >
         <div className="px-4 py-3 border-b border-white/14 space-y-2">
           <div className="flex items-center justify-between gap-2">
-            <button
-              type="button"
+            <ActionButton
+              variant="dark-ghost"
+              size="xs"
               onClick={onBackOneLevel}
-              className="inline-flex items-center gap-1 text-[11px] font-medium text-[#d5e2dd] hover:text-white transition-colors"
+              icon={<ArrowLeft className="w-3.5 h-3.5" />}
+              className="!bg-transparent !border-transparent hover:!bg-white/10 !px-1.5"
             >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Campus Overview</span>
-            </button>
-            <button
-              type="button"
+              Campus Overview
+            </ActionButton>
+            <IconButton
+              variant="dark-ghost"
+              size="xs"
+              label="Close overview panel"
               onClick={onClose}
-              className="p-1 rounded-lg text-[#cad8d2] hover:text-white hover:bg-white/14 transition-colors"
-              aria-label="Close overview panel"
             >
               <X className="w-4 h-4" />
-            </button>
+            </IconButton>
           </div>
 
           <div className="min-w-0">
-            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-300">
+            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#34d399]">
               {selectedBuilding ? (
                 <Building2 className="w-3 h-3 shrink-0" />
               ) : (
@@ -195,7 +198,7 @@ export const RoomInspectorPanel: React.FC<RoomInspectorPanelProps> = ({
               )}
               <span>{scopeTag}</span>
             </div>
-            <h2 className="text-sm font-semibold text-white mt-0.5 truncate">{scopeTitle}</h2>
+            <h2 className="font-display text-base font-semibold text-white mt-0.5 truncate">{scopeTitle}</h2>
             <p className="text-[11px] text-[#cad8d2]">
               {scopedRooms.length} {scopedRooms.length === 1 ? 'classroom' : 'classrooms'} · Select
               a room to inspect details
@@ -203,7 +206,7 @@ export const RoomInspectorPanel: React.FC<RoomInspectorPanelProps> = ({
           </div>
         </div>
 
-        <div className="p-4 overflow-y-auto space-y-3.5 text-xs">
+        <div className="p-3.5 sm:p-4 overflow-y-auto rw-dark-scrollbar space-y-3 text-xs">
           <div className="grid grid-cols-2 gap-2">
             <div className="p-2.5 rounded-xl bg-[#06130f]/75 border border-white/14">
               <div className="text-[10px] font-medium text-[#cad8d2]">
@@ -306,7 +309,7 @@ export const RoomInspectorPanel: React.FC<RoomInspectorPanelProps> = ({
                         key={rm.id}
                         type="button"
                         onClick={() => onSelectRoom(rm.id)}
-                        className="w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-xl bg-[#091a15]/78 hover:bg-[#112c23]/90 border border-white/14 hover:border-emerald-400/50 transition-colors text-left"
+                        className="w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-xl bg-[#091a15]/78 hover:bg-[#112c23]/90 border border-white/14 hover:border-emerald-400/50 transition-all active:scale-[0.99] text-left cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-emerald-400"
                       >
                         <div className="min-w-0 flex items-center gap-2">
                           <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColor}`} />
@@ -387,38 +390,40 @@ export const RoomInspectorPanel: React.FC<RoomInspectorPanelProps> = ({
     <GlassSurface
       as="aside"
       aria-label={`${selectedRoom.roomCode} classroom details`}
+      borderRadius={12}
       distortionScale={-32}
-      className="w-84 max-w-[calc(100vw-1.5rem)] max-h-[calc(100vh-11rem)] sm:max-h-[calc(100vh-12rem)] rounded-2xl flex flex-col overflow-hidden pointer-events-auto text-[#f8faf9]"
+      className="w-80 lg:w-[20.5rem] max-w-[calc(100vw-1.25rem)] max-h-full rounded-xl flex flex-col overflow-hidden pointer-events-auto text-[#f8faf9]"
     >
       {/* Header with Clear Step-Back Navigation */}
       <div className="px-4 py-3 border-b border-white/14 space-y-2">
         <div className="flex items-center justify-between gap-2">
-          <button
-            type="button"
+          <ActionButton
+            variant="dark-ghost"
+            size="xs"
             onClick={onBackOneLevel}
-            className="inline-flex items-center gap-1 text-[11px] font-medium text-[#d5e2dd] hover:text-white transition-colors truncate"
+            icon={<ArrowLeft className="w-3.5 h-3.5" />}
+            className="!bg-transparent !border-transparent hover:!bg-white/10 !px-1.5 min-w-0 max-w-[82%]"
           >
-            <ArrowLeft className="w-3.5 h-3.5 shrink-0" />
             <span className="truncate">Back to {backLabel}</span>
-          </button>
-          <button
-            type="button"
+          </ActionButton>
+          <IconButton
+            variant="dark-ghost"
+            size="xs"
+            label="Close classroom inspector"
             onClick={onClose}
-            className="p-1 rounded-lg text-[#cad8d2] hover:text-white hover:bg-white/14 transition-colors shrink-0"
-            aria-label="Close classroom inspector"
           >
             <X className="w-4 h-4" />
-          </button>
+          </IconButton>
         </div>
 
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-300">
+            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#34d399]">
               <span className="font-mono">{selectedRoom.roomCode}</span>
               <span className="text-white/40">·</span>
               <span className="truncate text-[#d5e2dd]">{selectedRoom.building}</span>
             </div>
-            <h2 className="text-sm font-semibold text-white mt-0.5 leading-snug">
+            <h2 className="font-display text-base font-semibold text-white mt-0.5 leading-snug">
               {selectedRoom.name}
             </h2>
             <p className="text-[11px] text-[#cad8d2] mt-0.5">
@@ -427,7 +432,7 @@ export const RoomInspectorPanel: React.FC<RoomInspectorPanelProps> = ({
           </div>
 
           <span
-            className={`text-[10px] font-semibold px-2 py-0.5 rounded-md border shrink-0 mt-0.5 whitespace-nowrap ${statusClass}`}
+            className={`text-[10px] font-mono font-semibold px-2 py-0.5 rounded border shrink-0 mt-0.5 whitespace-nowrap ${statusClass}`}
           >
             {statusLabel}
           </span>
@@ -458,7 +463,7 @@ export const RoomInspectorPanel: React.FC<RoomInspectorPanelProps> = ({
       </div>
 
       {/* Body */}
-      <div className="p-4 overflow-y-auto space-y-3.5 text-xs">
+      <div className="p-3.5 sm:p-4 overflow-y-auto rw-dark-scrollbar space-y-3 text-xs">
         {/* Primary Metrics Strip */}
         <div className="grid grid-cols-3 gap-2">
           <div className="p-2.5 rounded-xl bg-[#06130f]/75 border border-white/14">
@@ -623,14 +628,14 @@ export const RoomInspectorPanel: React.FC<RoomInspectorPanelProps> = ({
             {/* Read-only notice + optional jump to existing ROOMWISE control modal */}
             <div className="pt-2.5 border-t border-white/14 flex items-center justify-between gap-2">
               <span className="text-[10px] text-[#cad8d2] whitespace-nowrap">Read-only 3D view</span>
-              <button
-                type="button"
+              <ActionButton
+                variant="forest"
+                size="sm"
                 onClick={() => onOpenControlModal(selectedRoom.id)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-semibold transition-colors whitespace-nowrap"
+                icon={<SlidersHorizontal className="w-3 h-3" />}
               >
-                <SlidersHorizontal className="w-3 h-3" />
-                <span>Appliance Controls</span>
-              </button>
+                Appliance Controls
+              </ActionButton>
             </div>
           </>
         ) : (

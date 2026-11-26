@@ -141,8 +141,8 @@ export const MagicBento: React.FC<MagicBentoProps> = ({
         }
       }
 
-      const stiffness = 210;
-      const damping = 22;
+      const stiffness = 240;
+      const damping = 21;
 
       cardsRef.current.forEach((card, id) => {
         const r = card.rect;
@@ -161,26 +161,23 @@ export const MagicBento: React.FC<MagicBentoProps> = ({
         const distToCard = ptr.inside ? Math.hypot(ptr.x - cx, ptr.y - cy) : 9999;
 
         const targetHot = insideCard ? 1 : 0;
-        const proxReach = spotlightRadius * 0.72;
+        const proxReach = spotlightRadius * 0.85;
         const targetNear = ptr.inside ? Math.max(0, 1 - distToCard / proxReach) : 0;
 
-        card.hot += (targetHot - card.hot) * Math.min(1, 14 * dt);
-        card.near += (targetNear - card.near) * Math.min(1, 14 * dt);
+        card.hot += (targetHot - card.hot) * Math.min(1, 16 * dt);
+        card.near += (targetNear - card.near) * Math.min(1, 16 * dt);
 
-        if (insideCard) {
-          card.px = ptr.x - r.left;
-          card.py = ptr.y - r.top;
-        } else if (targetNear > 0.01) {
+        if (insideCard || targetNear > 0.01) {
           card.px = ptr.x - r.left;
           card.py = ptr.y - r.top;
         }
 
-        // Restrained micro-tilt (<= 1.35 deg)
+        // Tactile architectural 3D tilt (±2.2 deg)
         const nx = insideCard ? ((ptr.x - r.left) / r.width - 0.5) * 2 : 0;
         const ny = insideCard ? ((ptr.y - r.top) / r.height - 0.5) * 2 : 0;
-        const targetRx = enableTilt && insideCard ? -ny * 1.35 : 0;
-        const targetRy = enableTilt && insideCard ? nx * 1.35 : 0;
-        const targetPress = ptr.downId === id ? 0.992 : 1;
+        const targetRx = enableTilt && insideCard ? -ny * 2.2 : 0;
+        const targetRy = enableTilt && insideCard ? nx * 2.2 : 0;
+        const targetPress = ptr.downId === id ? 0.99 : 1;
 
         const arx = (targetRx - card.rx) * stiffness - card.vrx * damping;
         const ary = (targetRy - card.ry) * stiffness - card.vry * damping;
@@ -333,9 +330,9 @@ export const MagicBento: React.FC<MagicBentoProps> = ({
           {
             ['--mb-glow-rgb' as string]: glowRgb,
             ['--mb-spot-size' as string]: `${spotlightRadius}px`,
-            ['--mb-border-size' as string]: `${Math.round(spotlightRadius * 0.78)}px`,
-            ['--mb-spot-alpha' as string]: '0.055',
-            ['--mb-glow-alpha' as string]: '0.38',
+            ['--mb-border-size' as string]: `${Math.round(spotlightRadius * 0.85)}px`,
+            ['--mb-spot-alpha' as string]: '0.165',
+            ['--mb-glow-alpha' as string]: '0.62',
           } as CSSProperties
         }
       >
@@ -348,6 +345,7 @@ export const MagicBento: React.FC<MagicBentoProps> = ({
 export interface MagicBentoCardProps extends React.HTMLAttributes<HTMLElement> {
   cardId: string;
   as?: 'div' | 'button';
+  tone?: 'light' | 'obsidian';
   children: React.ReactNode;
   className?: string;
   accentRimClassName?: string;
@@ -355,15 +353,21 @@ export interface MagicBentoCardProps extends React.HTMLAttributes<HTMLElement> {
 }
 
 const CARD_SPOTLIGHT_STYLE: CSSProperties = {
-  background: `radial-gradient(var(--mb-spot-size, 260px) circle at var(--mb-x, -999px) var(--mb-y, -999px), ${buildRadialStops(
-    'var(--mb-spot-alpha, 0.055) * var(--mb-hot, 0)'
+  background: `radial-gradient(var(--mb-spot-size, 280px) circle at var(--mb-x, -999px) var(--mb-y, -999px), ${buildRadialStops(
+    'calc(var(--mb-spot-alpha, 0.165) * max(var(--mb-hot, 0), calc(var(--mb-near, 0) * 0.35)))'
+  )})`,
+};
+
+const CARD_SPOTLIGHT_DARK_STYLE: CSSProperties = {
+  background: `radial-gradient(var(--mb-spot-size, 280px) circle at var(--mb-x, -999px) var(--mb-y, -999px), ${buildRadialStops(
+    'calc(0.18 * max(var(--mb-hot, 0), calc(var(--mb-near, 0) * 0.25)))'
   )})`,
 };
 
 const CARD_BORDER_STYLE: CSSProperties = {
-  background: `radial-gradient(var(--mb-border-size, 200px) circle at var(--mb-x, -999px) var(--mb-y, -999px), ${buildRadialStops(
-    'var(--mb-glow-alpha, 0.38) * var(--mb-near, 0)'
-  )}), radial-gradient(circle at var(--mb-wx, -999px) var(--mb-wy, -999px), rgba(var(--mb-glow-rgb), 0) calc(var(--mb-wr, 0px) - 84px), rgba(var(--mb-glow-rgb), calc(var(--mb-glow-alpha, 0.38) * var(--mb-wa, 0))) calc(var(--mb-wr, 0px) - 22px), rgba(var(--mb-glow-rgb), 0) var(--mb-wr, 0px))`,
+  background: `radial-gradient(var(--mb-border-size, 230px) circle at var(--mb-x, -999px) var(--mb-y, -999px), ${buildRadialStops(
+    'var(--mb-glow-alpha, 0.62) * var(--mb-near, 0)'
+  )}), radial-gradient(circle at var(--mb-wx, -999px) var(--mb-wy, -999px), rgba(var(--mb-glow-rgb), 0) calc(var(--mb-wr, 0px) - 84px), rgba(var(--mb-glow-rgb), calc(var(--mb-glow-alpha, 0.62) * var(--mb-wa, 0))) calc(var(--mb-wr, 0px) - 22px), rgba(var(--mb-glow-rgb), 0) var(--mb-wr, 0px))`,
   WebkitMask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
   WebkitMaskComposite: 'xor',
   mask: 'linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0)',
@@ -372,6 +376,7 @@ const CARD_BORDER_STYLE: CSSProperties = {
 export const MagicBentoCard: React.FC<MagicBentoCardProps> = ({
   cardId,
   as = 'div',
+  tone = 'light',
   children,
   className = '',
   accentRimClassName,
@@ -397,41 +402,45 @@ export const MagicBentoCard: React.FC<MagicBentoCardProps> = ({
     elRef.current = node;
   };
 
+  const surfaceClasses =
+    tone === 'obsidian'
+      ? 'rw-obsidian-panel text-white rounded-xl transition-[border-color] duration-200 hover:border-emerald-400/30'
+      : 'rounded-xl bg-gradient-to-b from-white to-[#fbfcfa] border border-[#111916]/10 shadow-[0_1px_2px_rgba(11,23,19,0.03)] transition-[box-shadow,border-color] duration-200 hover:border-[#0b6e4f]/32 hover:shadow-[0_8px_20px_-14px_rgba(11,23,19,0.16)]';
+
   return (
     <Component
       ref={setRef as React.Ref<never>}
       type={as === 'button' ? 'button' : undefined}
       onClick={handleClick}
-      className={`relative isolate overflow-hidden rounded-2xl bg-white/95 border border-neutral-200/90 shadow-[0_1px_2px_rgba(17,24,21,0.025),0_10px_24px_-14px_rgba(11,46,34,0.08)] transition-[box-shadow,border-color] duration-200 hover:border-emerald-500/30 hover:shadow-[0_14px_30px_-14px_rgba(6,78,59,0.14),0_2px_6px_-1px_rgba(17,24,21,0.04)] ${
+      className={`relative isolate overflow-hidden ${surfaceClasses} ${
         onClick ? 'cursor-pointer text-left' : ''
       } ${className}`.trim()}
       style={{
         transform:
-          'perspective(950px) rotateX(var(--mb-rx, 0deg)) rotateY(var(--mb-ry, 0deg)) scale(var(--mb-press, 1))',
+          'perspective(900px) rotateX(var(--mb-rx, 0deg)) rotateY(var(--mb-ry, 0deg)) scale(var(--mb-press, 1))',
         ...style,
       }}
       {...rest}
     >
-      {/* Static editorial accent rim (no moving sheen per design constraints) */}
       {accentRimClassName && (
-        <div className={`absolute top-0 left-0 right-0 h-1 ${accentRimClassName}`} />
+        <div className={`absolute top-0 left-0 right-0 h-[2px] z-20 ${accentRimClassName}`} />
       )}
 
-      {/* Subtle inner porcelain spotlight illumination */}
+      <div className="relative z-10 h-full w-full flex flex-col">{children}</div>
+
+      {/* Cursor-following radial illumination above translucent/tinted card rows so white cards illuminate clearly */}
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 z-0 rounded-[inherit]"
-        style={CARD_SPOTLIGHT_STYLE}
+        className="pointer-events-none absolute inset-0 z-[15] rounded-[inherit]"
+        style={tone === 'obsidian' ? CARD_SPOTLIGHT_DARK_STYLE : CARD_SPOTLIGHT_STYLE}
       />
 
-      {/* Crisp pointer-proximity border glow & click ripple wave */}
+      {/* Crisp pointer-proximity border highlight & click ripple */}
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 z-20 rounded-[inherit] p-[1.25px]"
+        className="pointer-events-none absolute inset-0 z-20 rounded-[inherit] p-[1.5px]"
         style={CARD_BORDER_STYLE}
       />
-
-      <div className="relative z-10 h-full w-full flex flex-col">{children}</div>
     </Component>
   );
 };

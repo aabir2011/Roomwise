@@ -65,43 +65,45 @@ export const ROOMWISE_MATHEMATICAL_MODELS: Record<
     id: 'rcem',
     name: 'ROOMWISE Counterfactual Energy Model (RCEM)',
     section: 'Energy History -> RCEM Mathematical Model',
-    status: 'Mathematical specification formulated for ROOMWISE; empirical meter-measured inputs are currently pending.',
+    status: 'Model formulated for ROOMWISE; empirical meter-measured inputs are currently pending.',
     summary:
-      'RCEM quantifies the counterfactual electrical energy difference (in kWh) between a defined reference baseline condition and ROOMWISE adaptive operation across corresponding non-overlapping time intervals.',
+      'RCEM quantifies the counterfactual electrical energy difference (in kWh) between a Reference Operating Scenario (ROS) and ROOMWISE Adaptive Operation across matching non-overlapping time intervals.',
     conceptualExplanation:
-      'RCEM (the ROOMWISE Counterfactual Energy Model) is the accounting framework ROOMWISE uses to estimate how much electrical energy is avoided compared with a normal baseline without adaptive control. It compares what a classroom or campus would have consumed under baseline operation against what it consumes with ROOMWISE across the same matching time intervals. A positive result means energy was avoided, zero means no difference, and a negative result means ROOMWISE used more energy than baseline—negative values are kept honestly and never forced to zero. Right now, RCEM is defined as a mathematical framework, and real physical meter readings to empirically evaluate it are still pending. Ask if you would like to see its exact mathematical equations.',
+      'RCEM (the ROOMWISE Counterfactual Energy Model) is the accounting framework ROOMWISE uses to evaluate how much electrical energy is avoided compared with a Reference Operating Scenario (ROS) without adaptive control. It compares what a classroom or campus would have consumed under conventional ROS operation against what it consumes with ROOMWISE Adaptive Operation across matching time intervals. A positive result means energy was avoided, zero means no difference, and a negative result means ROOMWISE used more energy than ROS—negative values are kept honestly and never forced to zero. Right now, RCEM is formulated mathematically, and physical meter readings for empirical validation are still pending. Ask if you would like to see its exact mathematical equations.',
     mechanismExplanation:
-      'In practice, RCEM pairs each non-overlapping operating interval under ROOMWISE with its corresponding reference baseline power draw, takes the difference in watts, multiplies by the interval duration in hours, and converts watt-hours into kilowatt-hours (kWh). It can be evaluated either over discrete meter intervals or as a continuous integral over time-varying power traces, while keeping simulated telemetry and the separate 70-classroom scenario completely distinct from empirical meter validation.',
+      'In practice, RCEM pairs each non-overlapping operating interval under ROOMWISE Adaptive Operation with its corresponding Reference Operating Scenario power draw P_ROS, takes the difference in watts, multiplies by the interval duration in hours, and converts watt-hours into kilowatt-hours (kWh). It can be evaluated either over discrete meter intervals or as a continuous integral over time-varying power traces, while keeping simulated ROS estimates and the separate 70-classroom survey-based potential savings estimate completely distinct from empirical meter validation.',
     validationSummary:
-      'No—RCEM has not yet empirically proven ROOMWISE’s real-world savings. RCEM is currently a formulated mathematical model in ROOMWISE; interval-level physical meter readings for baseline and ROOMWISE operation have not yet been collected, so numerical empirical RCEM savings are not yet available. All current campus energy figures in Energy History are simulated operational outputs, kept strictly separate from empirical meter verification.',
+      'No—RCEM has not yet empirically proven ROOMWISE’s real-world savings. RCEM is currently a formulated mathematical model for ROOMWISE with empirical inputs pending; interval-level physical meter readings for Reference Operating Scenario (ROS) and ROOMWISE Adaptive Operation have not yet been collected, so empirical RCEM savings are not yet available. Overview’s Modelled Energy Avoided figures are simulation-based ROS estimates kept strictly separate from empirical meter verification.',
     equations: [
       {
         label: 'Discrete-Time Formulation (interval records)',
-        formula: 'E_RCEM = (1 / 1000) × Σ_{i=1..N} (P_{B,i} − P_{RW,i}) × Δt_i',
+        formula: 'E_RCEM = (1 / 1000) × Σ_{i=1..N} (P_{ROS,i} − P_{RW,i}) × Δt_i',
         units: 'Power in W, Δt_i in h, E_RCEM in kWh (use 1 / 3,600,000 if Δt_i is in seconds)',
       },
       {
         label: 'Continuous-Time Formulation (time-varying traces)',
-        formula: 'E_RCEM = (1 / 1000) × ∫_{t_0}^{t_1} [P_B(t) − P_RW(t)] dt',
+        formula: 'E_RCEM = (1 / 1000) × ∫_{t_0}^{t_1} [P_ROS(t) − P_RW(t)] dt',
         units: 'Power in W, time in h, E_RCEM in kWh',
       },
     ],
     variables: {
       E_RCEM: 'Counterfactual energy difference calculated by RCEM (kWh)',
-      'P_{B,i} / P_B(t)': 'Aggregate room power under the defined reference baseline condition (W)',
-      'P_{RW,i} / P_RW(t)': 'Aggregate room power under ROOMWISE operation during the matching interval (W)',
+      'P_{ROS,i} / P_ROS(t)':
+        'Aggregate room power under the Reference Operating Scenario (ROS) during the matching interval (W)',
+      'P_{RW,i} / P_RW(t)':
+        'Aggregate room power under ROOMWISE Adaptive Operation during the matching interval (W)',
       'Δt_i': 'Duration of non-overlapping discrete comparison interval i (h)',
       N: 'Total number of non-overlapping discrete comparison intervals',
       't_0, t_1': 'Start and end of the continuous comparison period (h)',
       '1 / 1000': 'Exact conversion factor from watt-hours (Wh) to kilowatt-hours (kWh)',
     },
     keyFacts: [
-      'Sign convention is intentionally unclamped: E_RCEM > 0 indicates energy avoided relative to baseline; E_RCEM = 0 indicates no difference; E_RCEM < 0 indicates ROOMWISE consumed more energy than baseline and is NEVER clamped to zero.',
+      'Sign convention is intentionally unclamped: E_RCEM > 0 indicates energy avoided relative to ROS; E_RCEM = 0 indicates no difference; E_RCEM < 0 indicates ROOMWISE Adaptive Operation consumed more energy than ROS and is NEVER clamped to zero.',
       'Both discrete and continuous formulations express the exact same physical energy-difference integral, selected based on whether meter data is sampled over intervals or continuous traces.',
-      'Existing simulated operational telemetry in Energy History and the separate 70-classroom school-wide scenario are explicitly kept separate from empirical RCEM validation.',
+      'Overview simulation-modelled ROS estimates and the separate 70-classroom survey-based potential savings estimate are explicitly kept separate from empirical RCEM validation.',
     ],
     limitations: [
-      'Interval-level physical meter readings for baseline and ROOMWISE operation have not yet been collected, so numerical empirical RCEM results are currently unavailable.',
+      'Interval-level physical meter readings for Reference Operating Scenario (ROS) and ROOMWISE Adaptive Operation have not yet been collected, so empirical RCEM results are currently pending.',
     ],
   },
   bayesian_calibration: {

@@ -33,38 +33,38 @@ export const CampusEnergyComparisonPanel: React.FC<CampusEnergyComparisonPanelPr
   return (
     <div className="space-y-5">
       {/* Power vs Energy Canonical Distinction Strip */}
-      <div className="rw-surface rounded-2xl p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="rw-surface rounded-xl p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1.5">
-          <div className="text-xs font-bold text-neutral-900 flex items-center gap-2">
-            <Zap className="w-3.5 h-3.5 text-emerald-700" />
+          <div className="font-display text-sm font-semibold text-[#111916] flex items-center gap-2">
+            <Zap className="w-4 h-4 text-[#0b6e4f]" />
             Monitored 25-Node Load &amp; Energy Scope
           </div>
-          <p className="text-[11px] text-neutral-700 leading-relaxed max-w-2xl">
+          <p className="text-xs text-[#4a5851] leading-relaxed max-w-2xl">
             {demandComparison.demandScopeNote}
           </p>
-          <p className="text-[11px] text-neutral-500 leading-relaxed max-w-2xl">
+          <p className="text-[11px] text-[#5c6a64] leading-relaxed max-w-2xl">
             {roomwiseDemand.annualizedEstimateDisclosure}
           </p>
         </div>
 
-        <div className="grid grid-cols-3 gap-2 sm:gap-3 text-xs shrink-0">
-          <div className="px-2.5 sm:px-3 py-2 rounded-xl bg-[#f6f8f7] border border-neutral-200/80 min-w-0">
-            <div className="text-[10px] text-neutral-500 whitespace-nowrap truncate">Rated Max</div>
-            <div className="font-mono font-bold text-neutral-900 whitespace-nowrap">
+        <div className="grid grid-cols-3 divide-x divide-[rgba(17,25,22,0.09)] rounded-lg border border-[rgba(17,25,22,0.1)] bg-[#fafbf9] text-xs shrink-0 overflow-hidden">
+          <div className="px-3 py-2.5 min-w-0">
+            <div className="text-[10px] uppercase tracking-[0.06em] text-[#5c6a64] whitespace-nowrap truncate">Rated Max</div>
+            <div className="font-mono font-semibold text-[#111916] whitespace-nowrap mt-0.5 tabular-nums">
               {roomwiseDemand.installedRatedMaxKw.toFixed(2)} kW
             </div>
           </div>
-          <div className="px-2.5 sm:px-3 py-2 rounded-xl bg-[#f6f8f7] border border-neutral-200/80 min-w-0">
-            <div className="text-[10px] text-neutral-600 whitespace-nowrap truncate">Avg Daily</div>
-            <div className="font-mono font-bold text-neutral-800 whitespace-nowrap">
+          <div className="px-3 py-2.5 min-w-0">
+            <div className="text-[10px] uppercase tracking-[0.06em] text-[#5c6a64] whitespace-nowrap truncate">Avg Daily</div>
+            <div className="font-mono font-semibold text-[#111916] whitespace-nowrap mt-0.5 tabular-nums">
               {roomwiseDemand.observedAvgDailyKwh.toFixed(1)} kWh/d
             </div>
           </div>
-          <div className="px-2.5 sm:px-3 py-2 rounded-xl bg-emerald-50/60 border border-emerald-200/80 min-w-0">
-            <div className="text-[10px] text-emerald-900 whitespace-nowrap truncate">
+          <div className="px-3 py-2.5 bg-[#f2f7f4] min-w-0">
+            <div className="text-[10px] uppercase tracking-[0.06em] text-[#0b6e4f] whitespace-nowrap truncate">
               {roomwiseDemand.observedWindowDays}d Energy
             </div>
-            <div className="font-mono font-bold text-emerald-950 whitespace-nowrap">
+            <div className="font-mono font-semibold text-[#0b1713] whitespace-nowrap mt-0.5 tabular-nums">
               {Math.round(roomwiseDemand.observedWindowKwh).toLocaleString()} kWh
             </div>
           </div>
@@ -140,25 +140,28 @@ export const CampusEnergyComparisonPanel: React.FC<CampusEnergyComparisonPanelPr
               />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: '#ffffff',
-                  borderColor: '#d4dcd8',
-                  borderRadius: '12px',
-                  fontSize: '12px',
+                  backgroundColor: '#0b1713',
+                  borderColor: 'rgba(255,255,255,0.14)',
+                  borderRadius: '10px',
+                  fontSize: '11px',
+                  color: '#f4f6f4',
                 }}
+                itemStyle={{ color: '#e4ece8' }}
+                labelStyle={{ color: '#34d399', fontFamily: 'IBM Plex Mono, monospace', marginBottom: 4 }}
               />
               <Legend wrapperStyle={{ fontSize: '11px' }} />
               <Bar
                 dataKey="solarGenerationKwh"
                 name="PVGIS Solar Generation (kWh)"
-                fill="#0b5d42"
-                radius={[5, 5, 0, 0]}
+                fill="#0b6e4f"
+                radius={[4, 4, 0, 0]}
                 maxBarSize={28}
               />
               <Line
                 type="monotone"
                 dataKey="estimatedMonthlyDemandKwh"
                 name="Estimated Monthly Demand (kWh)"
-                stroke="#334155"
+                stroke="#111916"
                 strokeWidth={2}
                 strokeDasharray="4 4"
                 dot={false}
@@ -167,9 +170,9 @@ export const CampusEnergyComparisonPanel: React.FC<CampusEnergyComparisonPanelPr
                 type="monotone"
                 dataKey="observedDemandKwh"
                 name="Observed SQLite Demand (kWh)"
-                stroke="#d97706"
+                stroke="#b45309"
                 strokeWidth={2.5}
-                dot={{ r: 3.5, fill: '#d97706' }}
+                dot={{ r: 3.5, fill: '#b45309' }}
                 connectNulls={false}
               />
             </ComposedChart>
@@ -183,17 +186,19 @@ export const CampusEnergyComparisonPanel: React.FC<CampusEnergyComparisonPanelPr
           type="button"
           onClick={() => setShowDisclosures((v) => !v)}
           aria-expanded={showDisclosures}
-          className="w-full flex items-center justify-between gap-2 text-xs font-bold text-neutral-900 cursor-pointer"
+          className="group w-full flex items-center justify-between gap-2 text-xs font-bold text-neutral-900 cursor-pointer rounded-xl px-2 py-1.5 -mx-2 -my-1.5 hover:bg-white/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0b6e4f]"
         >
-          <span className="inline-flex items-center gap-2">
+          <span className="inline-flex items-center gap-2 text-left">
             <AlertCircle className="w-4 h-4 text-emerald-800 shrink-0" />
             Methodological Scope &amp; Non-Fabrication Disclosure ({demandComparison.disclaimers.length})
           </span>
-          {showDisclosures ? (
-            <ChevronUp className="w-4 h-4 text-neutral-500 shrink-0" />
-          ) : (
-            <ChevronDown className="w-4 h-4 text-neutral-500 shrink-0" />
-          )}
+          <span className="w-7 h-7 rounded-lg bg-white border border-[#111916]/12 group-hover:border-[#0b6e4f]/35 group-hover:bg-[#f7fbf9] transition-colors inline-flex items-center justify-center shrink-0 text-[#46544e]">
+            {showDisclosures ? (
+              <ChevronUp className="w-4 h-4" />
+            ) : (
+              <ChevronDown className="w-4 h-4" />
+            )}
+          </span>
         </button>
         {showDisclosures && (
           <ul className="mt-3 pt-3 border-t border-neutral-200/70 space-y-1.5 text-xs text-neutral-600 leading-relaxed">

@@ -6,22 +6,17 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  ShieldCheck,
-  ShieldAlert,
   AlertTriangle,
-  IndianRupee,
   CheckCircle2,
   Sparkles,
   Check,
   Lock,
-  Loader2,
-  Activity,
 } from 'lucide-react';
 import { useEnergy } from '../../context/EnergyContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { AnimatedNumber } from '../common/MotionPrimitives';
-import { EmptyState, PageHeader, SegmentedControl } from '../common/DesignSystem';
+import { ActionButton, EmptyState, InlineActionLink, LedgerStrip, PageHeader, SegmentedControl } from '../common/DesignSystem';
 import { AcronymHint } from '../common/AcronymHint';
 import { computeEcbcCompliancePercent } from '../../utils/auditEngine';
 import { AnimatedList, FadeContent } from '../reactbits';
@@ -61,7 +56,6 @@ export const EnergyAuditView: React.FC = () => {
     .filter((f) => !f.isResolved)
     .reduce((acc, f) => acc + f.monthlyCostWasteINR, 0);
 
-  // Staged IoT automation routine across 25 nodes backed by /api/campus/optimize
   const executeRealisticOptimization = async () => {
     setIsOptimizing(true);
     setOptimizationSummary(null);
@@ -69,10 +63,8 @@ export const EnergyAuditView: React.FC = () => {
     const snapshotWasteWatts = totalWasteWatts;
 
     setOptimizingStageText('Scanning 25 classroom nodes across 5 blocks...');
-
     await new Promise((r) => setTimeout(r, 320));
     setOptimizingStageText('Shedding phantom loads & cutting vacant standbys...');
-
     await new Promise((r) => setTimeout(r, 320));
     setOptimizingStageText('Modulating perimeter luminaires & BLDC fans...');
 
@@ -86,7 +78,7 @@ export const EnergyAuditView: React.FC = () => {
       return;
     }
 
-    setOptimizingStageText('Verifying ECBC & BEE compliance...');
+    setOptimizingStageText('Verifying ECBC & BEE alignment...');
     await new Promise((r) => setTimeout(r, 240));
 
     const finalCount = result.count > 0 ? result.count : snapshotCount;
@@ -161,167 +153,135 @@ export const EnergyAuditView: React.FC = () => {
   };
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 space-y-5 sm:space-y-6 max-w-7xl mx-auto select-none">
+    <div className="px-4 pt-5 pb-7 sm:px-6 sm:pt-6 sm:pb-8 lg:px-8 lg:pt-7 lg:pb-10 space-y-5 sm:space-y-6 max-w-[1440px] mx-auto select-none">
       {/* Header */}
       <PageHeader
         kicker={
           <>
-            <span>Continuous Autonomous Surveillance</span>
-            <span aria-hidden="true">·</span>
-            <span>DAV Model School, IIT Kharagpur</span>
+            <span>Autonomous Heuristic Surveillance</span>
+            <span aria-hidden="true" className="text-[#b8c2bc]">·</span>
+            <span className="font-mono text-[#62706a]">25 Monitored Classrooms</span>
           </>
         }
-        title="Campus Energy Audit & Inefficiency Detection"
-        subtitle="Real-time heuristic inspection detecting phantom loads, solar thermal mismatches, and unoccupied runtime anomalies."
+        title="Energy Audit & Inefficiency Detection"
+        subtitle="Continuous inspection identifying phantom loads, daylighting mismatches, and unoccupied runtime anomalies."
         action={
-          <motion.button
-            type="button"
-            whileTap={unresolvedCount === 0 || isOptimizing ? undefined : { scale: 0.985 }}
+          <ActionButton
+            variant={
+              isOptimizing
+                ? 'primary'
+                : !isAdminUnlocked && unresolvedCount > 0
+                ? 'amber'
+                : 'forest'
+            }
+            size="md"
             onClick={handleRemediateAll}
             disabled={unresolvedCount === 0 || isOptimizing}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-colors shadow-xs whitespace-nowrap shrink-0 ${
-              unresolvedCount === 0 && !isOptimizing
-                ? 'bg-[#f3f5f4] text-neutral-400 cursor-not-allowed border border-neutral-200'
-                : isOptimizing
-                ? 'bg-[#0b2e22] text-white shadow-sm'
-                : !isAdminUnlocked
-                ? 'bg-amber-600 hover:bg-amber-700 text-white cursor-pointer'
-                : 'rw-btn-forest'
-            }`}
+            loading={isOptimizing}
+            className="w-full sm:w-auto"
+            icon={
+              justRemediatedAll ? (
+                <Check className="w-3.5 h-3.5 text-emerald-200" />
+              ) : !isAdminUnlocked ? (
+                <Lock className="w-3.5 h-3.5 text-amber-800" />
+              ) : (
+                <Sparkles className="w-3.5 h-3.5 text-emerald-200" />
+              )
+            }
             title={!isAdminUnlocked ? 'Admin authorization required to apply campus-wide rules' : 'Apply rules to all 25 classrooms'}
           >
             {isOptimizing ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin text-emerald-300" />
-                <span className="font-mono text-[11px]">{optimizingStageText}</span>
-              </>
+              <span className="font-mono text-[11px]">{optimizingStageText}</span>
             ) : justRemediatedAll ? (
-              <>
-                <Check className="w-4 h-4 text-emerald-300" />
-                <span>All 25 Nodes Optimized</span>
-              </>
-            ) : !isAdminUnlocked ? (
-              <>
-                <Lock className="w-4 h-4 text-amber-200" />
-                <span>One-Click Campus Optimization</span>
-              </>
+              'All 25 Nodes Optimized'
             ) : (
-              <>
-                <Sparkles className="w-4 h-4 text-emerald-300" />
-                <span>One-Click Campus Optimization</span>
-              </>
+              'One-Click Campus Optimization'
             )}
-          </motion.button>
+          </ActionButton>
         }
       />
 
-      {/* Post-Optimization Status Banner */}
+      {/* Post-Optimization Confirmation Strip */}
       <AnimatePresence>
         {optimizationSummary && (
           <motion.div
-            initial={{ opacity: 0, y: -6 }}
+            initial={{ opacity: 0, y: -5 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.2, ease: ROOMWISE_EASE }}
-            className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-950 flex items-center justify-between gap-3"
+            exit={{ opacity: 0, y: -5 }}
+            transition={{ duration: 0.18, ease: ROOMWISE_EASE }}
+            className="px-4 py-3.5 rounded-xl bg-[#eef6f2] border border-[#0b6e4f]/30 text-[#08543c] flex items-center justify-between gap-3"
           >
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
-                <CheckCircle2 className="w-4 h-4" />
-              </div>
-              <div>
-                <div className="text-xs font-bold text-emerald-950">
+              <CheckCircle2 className="w-4 h-4 text-[#0b6e4f] shrink-0" />
+              <div className="text-xs">
+                <strong className="font-semibold text-[#0b1713]">
                   Campus Optimization Enforced ({optimizationSummary.count} Findings Remediated)
-                </div>
-                <div className="text-[11px] text-emerald-800 mt-0.5 tabular-nums">
-                  Vacant loads shed and daylight harvesting rules applied across all 5 campus blocks. Curtailed load:{' '}
-                  <strong>-{optimizationSummary.watts}W</strong>.
-                </div>
+                </strong>
+                <span className="text-[#46544e] ml-2 tabular-nums">
+                  Vacant loads shed and daylight harvesting restored · Curtailed:{' '}
+                  <strong className="font-mono text-[#0b6e4f]">-{optimizationSummary.watts}W</strong>
+                </span>
               </div>
             </div>
-            <button
-              type="button"
+            <InlineActionLink
               onClick={() => setOptimizationSummary(null)}
-              className="text-xs font-semibold text-emerald-800 hover:text-emerald-950 px-2.5 py-1 rounded-lg hover:bg-emerald-100/70 transition-colors cursor-pointer shrink-0"
+              tone="emerald"
+              className="shrink-0"
             >
               Dismiss
-            </button>
+            </InlineActionLink>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Audit KPI Cards */}
-      <FadeContent duration={0.2}>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <div className="p-3.5 sm:p-5 rounded-2xl glass-card">
-          <div className="flex items-center justify-between gap-1.5 text-xs text-neutral-500">
-            <span className="font-semibold text-neutral-700 leading-snug">Audit Surveillance</span>
-            <span className="p-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200/60 shrink-0">
-              <Activity className="w-3.5 h-3.5" />
-            </span>
-          </div>
-          <div className="text-lg sm:text-xl font-bold text-neutral-900 mt-2">
-            Active Scan
-          </div>
-          <div className="text-xs text-neutral-500 mt-1">
-            25 Classrooms & Laboratories
-          </div>
-        </div>
-
-        <div className="p-3.5 sm:p-5 rounded-2xl glass-card">
-          <div className="flex items-center justify-between gap-1.5 text-xs text-neutral-500">
-            <span className="font-semibold text-neutral-700 leading-snug">Active Inefficiencies</span>
-            <span className="p-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-200/60 shrink-0">
-              <ShieldAlert className="w-3.5 h-3.5" />
-            </span>
-          </div>
-          <div className="text-xl sm:text-2xl font-bold font-mono text-neutral-900 mt-2 tabular-nums">
-            <AnimatedNumber value={unresolvedCount} decimals={0} />{' '}
-            <span className="text-xs font-normal text-neutral-500">Issues</span>
-          </div>
-          <div className="text-xs text-amber-800 font-semibold mt-1 tabular-nums">
-            {unresolvedCount > 0 ? `${totalWasteWatts}W active waste detected` : 'All issues remediated'}
-          </div>
-        </div>
-
-        <div className="p-3.5 sm:p-5 rounded-2xl glass-card">
-          <div className="flex items-center justify-between gap-1.5 text-xs text-neutral-500">
-            <span className="font-semibold text-neutral-700 leading-snug">Monthly Avoidable Cost</span>
-            <span className="p-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200/60 shrink-0">
-              <IndianRupee className="w-3.5 h-3.5" />
-            </span>
-          </div>
-          <div className="text-xl sm:text-2xl font-bold font-mono text-neutral-900 mt-2 tabular-nums">
-            <AnimatedNumber value={totalMonthlyWasteINR} decimals={2} prefix="₹" />
-          </div>
-          <div className="text-xs text-emerald-800 font-semibold mt-1 tabular-nums">
-            At ₹{settings.tariffPerKWhINR.toFixed(2)}/kWh <AcronymHint term="WBSEDCL" /> <AcronymHint term="HT-2" /> Rate
-          </div>
-        </div>
-
-        <div className="p-3.5 sm:p-5 rounded-2xl glass-card">
-          <div className="flex items-center justify-between gap-1.5 text-xs text-neutral-500">
-            <span className="font-semibold text-neutral-700 leading-snug">Operational Efficiency Score</span>
-            <span className="p-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200/60 shrink-0">
-              <ShieldCheck className="w-3.5 h-3.5" />
-            </span>
-          </div>
-          <div className="text-xl sm:text-2xl font-bold font-mono text-neutral-900 mt-2 tabular-nums">
-            <AnimatedNumber
-              value={computeEcbcCompliancePercent(auditFindings, classrooms.length)}
-              decimals={1}
-              suffix="%"
-            />
-          </div>
-          <div className="text-xs text-neutral-500 mt-1">
-            <AcronymHint term="ECBC" /> alignment heuristic · Indicative
-          </div>
-        </div>
-      </div>
+      {/* Unified Audit Telemetry Ledger */}
+      <FadeContent duration={0.18}>
+        <LedgerStrip
+          columns={4}
+          items={[
+            {
+              label: 'Surveillance Engine',
+              value: 'Active',
+              detail: '25 Classrooms & Laboratories',
+            },
+            {
+              label: 'Active Inefficiencies',
+              value: <AnimatedNumber value={unresolvedCount} decimals={0} />,
+              unit: 'issues',
+              detail:
+                unresolvedCount > 0 ? `${totalWasteWatts} W active waste detected` : 'All issues remediated',
+            },
+            {
+              label: 'Monthly Avoidable Cost',
+              value: <AnimatedNumber value={totalMonthlyWasteINR} decimals={2} prefix="₹" />,
+              detail: (
+                <>
+                  At ₹{settings.tariffPerKWhINR.toFixed(2)}/kWh <AcronymHint term="WBSEDCL" /> <AcronymHint term="HT-2" />
+                </>
+              ),
+              highlight: unresolvedCount === 0,
+            },
+            {
+              label: 'Operational Efficiency Heuristic',
+              value: (
+                <AnimatedNumber
+                  value={computeEcbcCompliancePercent(auditFindings, classrooms.length)}
+                  decimals={1}
+                  suffix="%"
+                />
+              ),
+              detail: (
+                <>
+                  <AcronymHint term="ECBC" /> alignment heuristic · Indicative
+                </>
+              ),
+            },
+          ]}
+        />
       </FadeContent>
 
-      {/* Filter Tabs */}
-      <div className="flex items-center justify-between">
+      {/* Filter Bar */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <SegmentedControl<'all' | 'unresolved' | 'resolved'>
           layoutId="audit-filter-pill"
           ariaLabel="Filter audit findings"
@@ -335,7 +295,7 @@ export const EnergyAuditView: React.FC = () => {
         />
       </div>
 
-      {/* Findings List or Empty State */}
+      {/* Findings Ledger */}
       {filteredFindings.length === 0 ? (
         <EmptyState
           icon={CheckCircle2}
@@ -354,176 +314,181 @@ export const EnergyAuditView: React.FC = () => {
           onAction={filterSeverity !== 'all' ? () => setFilterSeverity('all') : undefined}
         />
       ) : (
-        <AnimatedList
-          items={filteredFindings}
-          getKey={(finding) => finding.id}
-          className="space-y-3"
-          renderItem={(finding) => {
-            const isResolving = resolvingFindingId === finding.id;
-            return (
-              <div
-                className={`p-4 sm:p-5 rounded-2xl border transition-all ${
-                  finding.isResolved
-                    ? 'bg-white/60 border-neutral-200/70 opacity-80'
-                    : 'glass-card-interactive border-neutral-200/90 hover:border-amber-300/90'
-                }`}
-              >
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="flex items-start gap-3.5">
-                    <div
-                      className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
-                        finding.isResolved
-                          ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
-                          : finding.severity === 'warning'
-                          ? 'bg-amber-50 border border-amber-200 text-amber-700'
-                          : 'bg-blue-50 border border-blue-200 text-blue-700'
-                      }`}
-                    >
-                      {finding.isResolved ? (
-                        <CheckCircle2 className="w-5 h-5" />
+        <div className="rw-surface rounded-xl overflow-hidden">
+          <AnimatedList
+            items={filteredFindings}
+            getKey={(finding) => finding.id}
+            className="divide-y divide-[#111916]/10"
+            renderItem={(finding) => {
+              const isResolving = resolvingFindingId === finding.id;
+              return (
+                <div
+                  className={`p-3.5 sm:p-5 transition-colors ${
+                    finding.isResolved ? 'bg-[#f8f9f7] opacity-80' : 'bg-white hover:bg-[#fafbf9]'
+                  }`}
+                >
+                  <div className="flex flex-col md:flex-row md:items-start justify-between gap-3 sm:gap-4">
+                    <div className="flex items-start gap-3 min-w-0 flex-1">
+                      <div
+                        className={`mt-0.5 shrink-0 ${
+                          finding.isResolved
+                            ? 'text-[#0b6e4f]'
+                            : finding.severity === 'warning'
+                            ? 'text-amber-700'
+                            : 'text-[#0e6ba8]'
+                        }`}
+                      >
+                        {finding.isResolved ? (
+                          <CheckCircle2 className="w-4 h-4" />
+                        ) : (
+                          <AlertTriangle className="w-4 h-4" />
+                        )}
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+                          <span className="font-mono font-bold text-[#111916]">
+                            {finding.roomCode}
+                          </span>
+                          <span className="text-[#c8d0cb]" aria-hidden="true">·</span>
+                          <span className="text-[#62706a]">{finding.building}</span>
+                          <span className="text-[#c8d0cb]" aria-hidden="true">·</span>
+                          <InlineActionLink
+                            onClick={() => setSelectedRoomId(finding.classroomId)}
+                            tone="neutral"
+                            className="font-semibold text-[#111916]"
+                          >
+                            {finding.classroomName}
+                          </InlineActionLink>
+                          <span className="text-[#c8d0cb]" aria-hidden="true">·</span>
+                          <span
+                            className={`text-[11px] font-semibold capitalize ${
+                              finding.isResolved
+                                ? 'text-[#0b6e4f]'
+                                : finding.severity === 'warning'
+                                ? 'text-amber-700'
+                                : 'text-[#0e6ba8]'
+                            }`}
+                          >
+                            {finding.isResolved ? 'Remediated' : finding.type.replace('_', ' ')}
+                          </span>
+                        </div>
+
+                        <h3 className="font-display text-sm font-bold text-[#111916] mt-1">
+                          {finding.title}
+                        </h3>
+                        <p className="text-xs text-[#46544e] mt-0.5 leading-relaxed">
+                          {finding.description}
+                        </p>
+
+                        <div className="mt-2.5 text-xs text-[#46544e] bg-[#f4f6f3] px-3 py-2 rounded-md border border-[#111916]/8">
+                          <strong className="text-[#111916]">Remediation Protocol:</strong>{' '}
+                          {finding.remediationAction}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Impact Readout & Action */}
+                    <div className="flex md:flex-col items-center md:items-end justify-between md:justify-start gap-3 shrink-0 pt-3 md:pt-0 border-t md:border-t-0 border-[#111916]/8">
+                      <div className="text-left md:text-right font-mono tabular-nums">
+                        <div className="text-sm font-bold text-[#111916]">
+                          {finding.estimatedWasteWatts} W{' '}
+                          <span className="text-[11px] font-normal text-[#62706a]">waste</span>
+                        </div>
+                        <div className="text-[11px] text-[#62706a]">
+                          ₹{finding.monthlyCostWasteINR.toFixed(2)}/mo
+                        </div>
+                      </div>
+
+                      {!finding.isResolved ? (
+                        <ActionButton
+                          variant="primary"
+                          size="sm"
+                          loading={isResolving}
+                          disabled={Boolean(resolvingFindingId)}
+                          onClick={() => handleResolveIndividual(finding.id, finding.roomCode)}
+                          icon={!isAdminUnlocked ? <Lock className="w-3 h-3 text-amber-300" /> : undefined}
+                        >
+                          {isResolving ? 'Applying...' : 'Resolve & Apply Rule'}
+                        </ActionButton>
                       ) : (
-                        <AlertTriangle className="w-5 h-5" />
+                        <span className="text-xs text-[#0b6e4f] font-semibold flex items-center gap-1 whitespace-nowrap">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Rule Enforced</span>
+                        </span>
                       )}
                     </div>
-
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2 text-xs">
-                        <span className="font-mono font-bold text-neutral-900">
-                          {finding.roomCode}
-                        </span>
-                        <span className="text-neutral-300" aria-hidden="true">·</span>
-                        <span className="text-neutral-500 font-medium">{finding.building}</span>
-                        <span className="text-neutral-300" aria-hidden="true">·</span>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedRoomId(finding.classroomId)}
-                          className="font-bold text-neutral-900 hover:text-emerald-800 hover:underline cursor-pointer"
-                        >
-                          {finding.classroomName}
-                        </button>
-                        <span className="text-neutral-300" aria-hidden="true">·</span>
-                        <span
-                          className={`text-[11px] font-semibold capitalize ${
-                            finding.isResolved
-                              ? 'text-emerald-700'
-                              : finding.severity === 'warning'
-                              ? 'text-amber-700'
-                              : 'text-blue-700'
-                          }`}
-                        >
-                          {finding.isResolved ? 'Remediated' : finding.type.replace('_', ' ')}
-                        </span>
-                      </div>
-
-                      <h3 className="text-sm font-bold text-neutral-900 mt-1">
-                        {finding.title}
-                      </h3>
-                      <p className="text-xs text-neutral-600 mt-0.5">
-                        {finding.description}
-                      </p>
-
-                      <div className="mt-2.5 text-xs text-neutral-600 bg-neutral-50/90 p-2.5 rounded-xl border border-neutral-200/70">
-                        <strong className="text-neutral-900">Remediation Action:</strong> {finding.remediationAction}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Impact Figures & Action */}
-                  <div className="flex md:flex-col items-center md:items-end justify-between md:justify-center gap-3 shrink-0 pt-3 md:pt-0 border-t md:border-t-0 border-neutral-100">
-                    <div className="text-left md:text-right">
-                      <div className="font-mono text-sm font-bold text-neutral-900 tabular-nums">
-                        {finding.estimatedWasteWatts}W <span className="text-xs font-normal text-neutral-500">Waste</span>
-                      </div>
-                      <div className="text-[11px] text-neutral-500 tabular-nums">
-                        ₹{finding.monthlyCostWasteINR.toFixed(2)}/mo
-                      </div>
-                    </div>
-
-                    {!finding.isResolved ? (
-                      <motion.button
-                        type="button"
-                        whileTap={isResolving ? undefined : { scale: 0.985 }}
-                        disabled={Boolean(resolvingFindingId)}
-                        onClick={() => handleResolveIndividual(finding.id, finding.roomCode)}
-                        className="px-3.5 py-1.5 rounded-xl bg-neutral-900 text-white text-xs font-semibold hover:bg-neutral-800 transition-colors shadow-xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap disabled:opacity-60"
-                      >
-                        {isResolving ? (
-                          <>
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            <span>Applying...</span>
-                          </>
-                        ) : (
-                          <>
-                            {!isAdminUnlocked && <Lock className="w-3 h-3 text-amber-300" />}
-                            <span>Resolve & Apply Rule</span>
-                          </>
-                        )}
-                      </motion.button>
-                    ) : (
-                      <span className="text-xs text-emerald-700 font-semibold flex items-center gap-1 whitespace-nowrap">
-                        <CheckCircle2 className="w-4 h-4" />
-                        <span>Rule Enforced</span>
-                      </span>
-                    )}
                   </div>
                 </div>
-              </div>
-            );
-          }}
-        />
+              );
+            }}
+          />
+        </div>
       )}
 
-      {/* ECBC & BEE Reference Alignment Card */}
-      <div className="p-5 rounded-2xl rw-surface space-y-3">
-        <h3 className="text-sm font-bold text-neutral-900">
-          <AcronymHint term="BEE" /> &amp; <AcronymHint term="ECBC" /> Design-Alignment Reference
-        </h3>
-        <p className="text-xs text-neutral-500">
-          Control logic alignment targets for DAV Model School, IIT Kharagpur (25 monitored nodes). Formal BEE/ECBC certification requires on-site meter auditing.
-        </p>
+      {/* ECBC & BEE Design-Alignment Reference Grid */}
+      <section className="rw-surface rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-[#111916]/10">
+          <h2 className="font-display text-sm font-bold text-[#111916]">
+            <AcronymHint term="BEE" /> &amp; <AcronymHint term="ECBC" /> Design-Alignment Reference
+          </h2>
+          <p className="text-xs text-[#46544e] mt-0.5">
+            Control logic alignment targets for DAV Model School, IIT Kharagpur (25 monitored nodes). Formal certification requires on-site meter auditing.
+          </p>
+        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs pt-1">
-          <div className="flex items-start gap-2.5 p-3 rounded-xl bg-neutral-50 border border-neutral-200/80">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-            <div>
-              <div className="font-semibold text-neutral-900">ECBC Clause 4.3.7: Daylighting Controls</div>
-              <div className="text-neutral-500 text-[11px] mt-0.5">
-                Perimeter light banks automatically dimmed or shed when natural desk illumination exceeds 300 lux.
+        <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[#111916]/10">
+          <div className="divide-y divide-[#111916]/10">
+            <div className="p-4 flex items-start gap-2.5">
+              <CheckCircle2 className="w-4 h-4 text-[#0b6e4f] shrink-0 mt-0.5" />
+              <div>
+                <div className="text-xs font-semibold text-[#111916]">
+                  ECBC Clause 4.3.7 · Daylighting Controls
+                </div>
+                <p className="text-[11px] text-[#46544e] mt-0.5 leading-relaxed">
+                  Perimeter light banks automatically dimmed or shed when natural desk illumination exceeds 300 lux.
+                </p>
+              </div>
+            </div>
+            <div className="p-4 flex items-start gap-2.5">
+              <CheckCircle2 className="w-4 h-4 text-[#0b6e4f] shrink-0 mt-0.5" />
+              <div>
+                <div className="text-xs font-semibold text-[#111916]">
+                  <AcronymHint term="ASHRAE-55" /> · Adaptive Thermal Comfort
+                </div>
+                <p className="text-[11px] text-[#46544e] mt-0.5 leading-relaxed">
+                  Ceiling fan speeds dynamically regulated according to indoor heat index to maintain air velocities &ge; 1.2 m/s.
+                </p>
               </div>
             </div>
           </div>
 
-          <div className="flex items-start gap-2.5 p-3 rounded-xl bg-neutral-50 border border-neutral-200/80">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-            <div>
-              <div className="font-semibold text-neutral-900">BEE Star Rating: <AcronymHint term="BLDC" /> Fan Inverters</div>
-              <div className="text-neutral-500 text-[11px] mt-0.5">
-                All 25 classrooms retrofitted with 28W-35W BLDC motors replacing conventional 75W induction units.
+          <div className="divide-y divide-[#111916]/10">
+            <div className="p-4 flex items-start gap-2.5">
+              <CheckCircle2 className="w-4 h-4 text-[#0b6e4f] shrink-0 mt-0.5" />
+              <div>
+                <div className="text-xs font-semibold text-[#111916]">
+                  BEE Star Rating · <AcronymHint term="BLDC" /> Fan Inverters
+                </div>
+                <p className="text-[11px] text-[#46544e] mt-0.5 leading-relaxed">
+                  All 25 classrooms retrofitted with 28W–35W BLDC motors replacing conventional 75W induction units.
+                </p>
               </div>
             </div>
-          </div>
-
-          <div className="flex items-start gap-2.5 p-3 rounded-xl bg-neutral-50 border border-neutral-200/80">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-            <div>
-              <div className="font-semibold text-neutral-900"><AcronymHint term="ASHRAE-55" />: Adaptive Thermal Comfort</div>
-              <div className="text-neutral-500 text-[11px] mt-0.5">
-                Ceiling fan speeds dynamically regulated according to indoor heat index to maintain air velocities &ge; 1.2 m/s.
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-start gap-2.5 p-3 rounded-xl bg-neutral-50 border border-neutral-200/80">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-            <div>
-              <div className="font-semibold text-neutral-900"><AcronymHint term="PIR" /> Inactivity Verification Protocol</div>
-              <div className="text-neutral-500 text-[11px] mt-0.5">
-                Avoids naive instant shutoff; applies calibrated 8-minute grace periods tailored to examination stillness.
+            <div className="p-4 flex items-start gap-2.5">
+              <CheckCircle2 className="w-4 h-4 text-[#0b6e4f] shrink-0 mt-0.5" />
+              <div>
+                <div className="text-xs font-semibold text-[#111916]">
+                  <AcronymHint term="PIR" /> Inactivity Verification Protocol
+                </div>
+                <p className="text-[11px] text-[#46544e] mt-0.5 leading-relaxed">
+                  Avoids naive instant shutoff; applies calibrated 8-minute grace periods tailored to examination stillness.
+                </p>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      </section>
     </div>
   );
 };

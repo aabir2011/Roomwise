@@ -14,7 +14,7 @@ import {
   Sliders,
   Sun,
 } from 'lucide-react';
-import { PageHeader, SegmentedControl } from '../common/DesignSystem';
+import { ActionButton, PageHeader, SegmentedControl } from '../common/DesignSystem';
 import { FadeContent } from '../reactbits';
 import { EnvironmentalIntelligenceView } from './EnvironmentalIntelligenceView';
 import { BuildingRoofMappingPanel } from '../solar/BuildingRoofMappingPanel';
@@ -351,7 +351,7 @@ export const EnvironmentalSolarView: React.FC<EnvironmentalSolarViewProps> = ({
   };
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 space-y-4 sm:space-y-6 max-w-7xl mx-auto">
+    <div className="px-4 pt-5 pb-7 sm:px-6 sm:pt-6 sm:pb-8 lg:px-8 lg:pt-7 lg:pb-10 space-y-5 sm:space-y-6 max-w-[1440px] mx-auto">
       <PageHeader
         kicker="Open-Meteo · OpenStreetMap · PVGIS 5.3"
         title="Environmental & Solar Intelligence"
@@ -359,7 +359,7 @@ export const EnvironmentalSolarView: React.FC<EnvironmentalSolarViewProps> = ({
       />
 
       {/* Compact 5-Tab Internal Navigation inside the single Environmental & Solar destination */}
-      <div className="overflow-x-auto -mx-1 px-1 pb-1">
+      <div className="overflow-x-auto no-scrollbar -mx-1 px-1 pb-0.5">
         <SegmentedControl<EnvironmentalSolarTab>
           layoutId="env-solar-subtabs"
           size="sm"
@@ -387,25 +387,25 @@ export const EnvironmentalSolarView: React.FC<EnvironmentalSolarViewProps> = ({
           onNavigateSolar={() => setActiveTab('solar-potential')}
         />
       ) : loadingWorkspace && !workspace ? (
-        <div className="rw-surface rounded-2xl py-20 flex flex-col items-center justify-center gap-2.5 text-xs text-neutral-600">
-          <Loader2 className="w-5 h-5 animate-spin text-emerald-700" />
+        <div className="rw-surface rounded-xl py-20 flex flex-col items-center justify-center gap-2.5 text-xs text-[#5c6a64]">
+          <Loader2 className="w-5 h-5 animate-spin text-[#0b6e4f]" />
           <span>Loading OpenStreetMap footprints and PVGIS solar assessment workspace...</span>
         </div>
       ) : workspaceError && !workspace ? (
-        <div className="rw-surface rounded-2xl p-6 flex flex-col items-center justify-center gap-3 text-center">
-          <AlertTriangle className="w-6 h-6 text-amber-600" />
-          <div className="text-sm font-semibold text-neutral-900">
+        <div className="rw-surface rounded-xl p-6 flex flex-col items-center justify-center gap-3 text-center">
+          <AlertTriangle className="w-6 h-6 text-[#b45309]" />
+          <div className="font-display text-sm font-semibold text-[#111916]">
             Unable to load rooftop solar workspace
           </div>
-          <p className="text-xs text-neutral-600 max-w-md">{workspaceError}</p>
-          <button
-            type="button"
+          <p className="text-xs text-[#5c6a64] max-w-md">{workspaceError}</p>
+          <ActionButton
+            variant="forest"
+            size="sm"
             onClick={() => void loadWorkspace()}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-[#0b2e22] text-white hover:bg-emerald-950 cursor-pointer"
+            icon={<RefreshCw className="w-3.5 h-3.5" />}
           >
-            <RefreshCw className="w-3.5 h-3.5" />
             Retry
-          </button>
+          </ActionButton>
         </div>
       ) : workspace ? (
         <>
